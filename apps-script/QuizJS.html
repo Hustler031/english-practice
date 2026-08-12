@@ -1,10 +1,15 @@
 <script>
 const EPQuiz = (() => {
-  const state={questions:[],index:0,answers:{},marked:{},startedAt:0,meta:{}};
+  const state={questions:[],index:0,answers:{},marked:{},startedAt:0,meta:{},returnTab:'home'};
   const $=id=>document.getElementById(id);
   const displayLetters=['A','B','C','D'];
 
-  function start(questions,meta){ state.questions=questions;state.index=0;state.answers={};state.marked={};state.meta=meta||{};$('homeView').classList.add('hidden');$('quizView').classList.remove('hidden');render();window.scrollTo({top:0}); }
+  function start(questions,meta){
+    state.questions=questions;state.index=0;state.answers={};state.marked={};state.meta=meta||{};
+    state.returnTab=state.meta.returnTab||inferReturnTab_(state.meta.mode);
+    document.querySelectorAll('.app-page').forEach(v=>v.classList.add('hidden'));
+    $('quizView').classList.remove('hidden');render();window.scrollTo({top:0});
+  }
   function current(){return state.questions[state.index]}
 
   function render(){
@@ -30,26 +35,17 @@ const EPQuiz = (() => {
     const secs=(Date.now()-state.startedAt)/1000;
     const correctKey=String(q.correctKey||'').toUpperCase();
     const correct=key===correctKey;
-
-    // Show the result immediately. Spreadsheet saving happens in the background.
     state.answers[q.id]={selectedKey:key,correctKey,correct,saving:true};
     render();
-
     EPApp.call('submitAnswer',{questionId:q.id,selectedKey:key,timeSeconds:secs,marked:!!state.marked[q.id]})
       .then(res=>{
-        const a=state.answers[q.id]; if(!a)return;
-        a.saving=false;
-        // Reconcile only if the server ever disagrees with the local answer key.
+        const a=state.answers[q.id]; if(!a)return; a.saving=false;
         if(res && res.correctKey && String(res.correctKey).toUpperCase()!==a.correctKey){
-          a.correctKey=String(res.correctKey).toUpperCase();
-          a.correct=key===a.correctKey;
+          a.correctKey=String(res.correctKey).toUpperCase();a.correct=key===a.correctKey;
           if(current() && current().id===q.id)render();
         }
       })
-      .catch(e=>{
-        const a=state.answers[q.id]; if(a)a.saving=false;
-        EPApp.toast('Answer shown, but save failed: '+e.message);
-      });
+      .catch(e=>{const a=state.answers[q.id];if(a)a.saving=false;EPApp.toast('Answer shown, but save failed: '+e.message);});
   }
 
   function renderExplanation(q,a){
@@ -66,12 +62,19 @@ const EPQuiz = (() => {
   }
 
   function previous(){if(state.index>0){state.index--;render();window.scrollTo({top:0,behavior:'smooth'})}}
-  function next(){if(state.index<state.questions.length-1){state.index++;render();window.scrollTo({top:0,behavior:'smooth'})}else{EPApp.toast('Practice set completed.');EPApp.goHome()}}
-  function pause(){EPApp.toast('Paused — your current set stays open.');EPApp.goHome()}
+  function next(){if(state.index<state.questions.length-1){state.index++;render();window.scrollTo({top:0,behavior:'smooth'})}else{EPApp.toast('Practice set completed.');exitToPrevious(false)}}
+  function back(){
+    const answered=Object.keys(state.answers).length;
+    if(answered && !confirm('Leave this practice set? Your submitted answers are already saved.'))return;
+    exitToPrevious(false);
+  }
+  function pause(){EPApp.toast('Practice paused. Submitted answers are saved.');exitToPrevious(false)}
+  function exitToPrevious(){EPApp.showTab(state.returnTab||'home')}
   async function toggleMark(){const q=current();state.marked[q.id]=!state.marked[q.id];$('markBtn').textContent=state.marked[q.id]?'★ Marked':'☆ Mark';EPApp.call('setMarked',q.id,state.marked[q.id]).catch(()=>EPApp.toast('Could not update mark'))}
   function mastered(){const q=current(); if(!confirm('Mark this as Mastered / Don’t Repeat? You can restore it later.'))return; EPApp.call('markMastered',q.id).then(()=>{EPApp.toast('Moved to Mastered');next()}).catch(e=>EPApp.toast('Could not mark mastered: '+e.message))}
+  function inferReturnTab_(mode){if(mode==='category')return'practice';if(['due','weak','recall'].includes(mode))return'revision';return'home'}
   function labelMode(meta,q){if(meta.mode==='daily')return'Daily 120';if(meta.mode==='category')return q.topic||'Topic Practice';if(meta.mode==='new')return'New Practice';if(meta.mode==='random')return'Random Practice';if(meta.mode==='recall')return'Recall Check';if(meta.mode==='weak')return'Weak / Wrong';if(meta.mode==='due')return'Due Revision';return'Practice'}
   function escape_(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
-  return {start,previous,next,pause,toggleMark,mastered};
+  return {start,previous,next,back,pause,toggleMark,mastered};
 })();
 </script>
