@@ -10,6 +10,7 @@ const EP = Object.freeze({
 function doGet() {
   return HtmlService.createTemplateFromFile('Index').evaluate()
     .setTitle('English Mastery')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
