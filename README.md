@@ -1,38 +1,21 @@
 # English Practice / Revision System
 
-Frontend source for the English Practice / Revision System.
+The live application is now designed to run inside **Google Apps Script** for speed and reliability. GitHub remains the source backup/version history.
 
-## Architecture
+## Live architecture
 
-- **Google Sheets** — source of truth for questions, attempts, revision state, source/PDF registry and configuration.
-- **Google Apps Script** — lightweight JSON API between the spreadsheet and the frontend.
-- **GitHub** — modular frontend source code.
+- **Google Sheets** — source of truth for questions, sources, learning status, attempts, revision state, The Hindu words, recall checks and mastered items.
+- **Google Apps Script** — live hosting + backend using `google.script.run`.
+- **GitHub** — modular code backup.
 
-## Initial database
+## Modular Apps Script files
 
-The current primary spreadsheet is **English 30-Day Mastery**. Existing core tabs are preserved:
+See [`apps-script/`](apps-script/):
 
-- `Questions`
-- `Performance`
-- `Question_Status`
-- `Daily_Quiz`
-- `Import_50`
+- `Code.gs`
+- `Index.html`
+- `Styles.html`
+- `AppJS.html`
+- `QuizJS.html`
 
-Architecture-support tabs added without modifying existing data:
-
-- `Sources`
-- `System_Config`
-
-## Frontend modules
-
-- `index.html` — application shell
-- `css/app.css` — global UI styles
-- `js/config.js` — non-secret frontend configuration
-- `js/api.js` — all Apps Script API calls
-- `js/app.js` — application bootstrapping/navigation
-- `js/quiz.js` — quiz session behavior
-- `js/progress.js` — progress state/UI
-- `js/revision.js` — revision flows
-- `js/sources.js` — source/PDF/category handling
-
-No Google credentials, spreadsheet credentials, API keys, or other secrets should be committed to this repository.
+This removes the GitHub Pages → Apps Script CORS/JSONP bridge from the live app.
