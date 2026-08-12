@@ -41,6 +41,10 @@ function getBootstrap() {
   };
 }
 
+function warmPracticeCache() {
+  return {count: allQuestions_().length};
+}
+
 function getPracticeBatch(mode, options) {
   options = options || {};
   const count = Math.max(1, Math.min(120, Number(options.count||20)));
@@ -93,6 +97,7 @@ function submitAnswer(payload) {
   const status = upsertStatus_(q,isCorrect,secs,marked,now);
   markDaily_(id);
   setQuestionLearningStatus_(id, status.status === 'Strong' ? 'Active' : 'Learning');
+  CacheService.getScriptCache().remove('EP_STATUS_V1');
 
   return { correct:isCorrect, correctKey, status:status.status, nextReview:status.nextReview };
 }
@@ -100,6 +105,7 @@ function submitAnswer(payload) {
 function setMarked(questionId, marked) {
   const s = sheet_(EP.sheets.status), row = findRow_(s, 1, questionId);
   if (row > 1) s.getRange(row, 11).setValue(!!marked);
+  CacheService.getScriptCache().remove('EP_STATUS_V1');
   return {ok:true};
 }
 
@@ -115,6 +121,7 @@ function markMastered(questionId) {
   }
   sheet_(EP.sheets.mastered).appendRow([questionId,new Date(),'User marked as easy/mastered','',q.sourceFile||'',canonicalCategory_(q.topic),'',true]);
   setQuestionLearningStatus_(questionId,'Mastered');
+  CacheService.getScriptCache().remove('EP_STATUS_V1');
   return {ok:true};
 }
 
@@ -139,19 +146,40 @@ function nextReview_(ok,streak,marked,now){ let days=marked||!ok?1:streak<=1?2:s
 function markDaily_(id){ const s=sheet_(EP.sheets.daily), row=findRow_(s,1,id); if(row>1)s.getRange(row,5).setValue('Completed'); }
 function setQuestionLearningStatus_(id,status){ const s=sheet_(EP.sheets.questions), row=findRow_(s,1,id); if(row>1)s.getRange(row,18).setValue(status); }
 function findRow_(s,col,id){ const cell=s.getRange(1,col,s.getLastRow(),1).createTextFinder(String(id)).matchEntireCell(true).findNext(); return cell?cell.getRow():-1; }
-function findQuestion_(id){ const s=sheet_(EP.sheets.questions), row=findRow_(s,1,id); if(row<2)return null; return questionFromRow_(s.getRange(row,1,1,32).getValues()[0]); }
+function findQuestion_(id){ return allQuestions_().find(q=>q.id===String(id)) || null; }
 
-function allQuestions_(){ const s=sheet_(EP.sheets.questions), last=s.getLastRow(); if(last<2)return[]; return s.getRange(2,1,last-1,32).getValues().filter(r=>String(r[0]||'').trim()).map(questionFromRow_); }
+function allQuestions_(){
+  const cache=CacheService.getScriptCache();
+  const meta=cache.get('EP_Q_META_V1');
+  if(meta){
+    const n=Number(meta), parts=[]; let ok=true;
+    for(let i=0;i<n;i++){const p=cache.get('EP_Q_'+i); if(p==null){ok=false;break;} parts.push(p);}
+    if(ok){ try{return JSON.parse(parts.join(''));}catch(e){} }
+  }
+  const rows=allQuestionsRaw_();
+  const txt=JSON.stringify(rows), chunkSize=50000, chunks=[];
+  for(let i=0;i<txt.length;i+=chunkSize) chunks.push(txt.slice(i,i+chunkSize));
+  chunks.forEach((c,i)=>cache.put('EP_Q_'+i,c,600));
+  cache.put('EP_Q_META_V1',String(chunks.length),600);
+  return rows;
+}
+function allQuestionsRaw_(){ const s=sheet_(EP.sheets.questions), last=s.getLastRow(); if(last<2)return[]; return s.getRange(2,1,last-1,32).getValues().filter(r=>String(r[0]||'').trim()).map(questionFromRow_); }
 function questionFromRow_(r){ return {id:String(r[0]),topic:r[1],word:r[2],question:r[3],options:{A:r[4],B:r[5],C:r[6],D:r[7]},correct:r[8],explanation:r[9],subtopic:r[10],questionType:r[11],sourceFile:r[12],sourcePage:r[13],conceptId:r[14],difficulty:r[15],sourceId:r[16],learningStatus:r[17],contentStatus:r[18],tip:r[24],usageNote:r[25],example:r[26],memoryAid:r[27],related:r[28],sourceUrl:r[29],active:r[31]}; }
 function serveQuestion_(q){
   const entries=['A','B','C','D'].map(k=>({key:k,text:String(q.options[k]||'')}));
   if (shuffleSafe_(q, entries)) shuffle_(entries);
-  return {id:q.id,category:canonicalCategory_(q.topic),topic:q.topic,word:q.word,question:q.question,options:entries,explanation:q.explanation,tip:q.tip,usageNote:q.usageNote,example:q.example,memoryAid:q.memoryAid,related:q.related,source:q.sourceFile,sourcePage:q.sourcePage};
+  return {id:q.id,category:canonicalCategory_(q.topic),topic:q.topic,word:q.word,question:q.question,options:entries,correctKey:String(q.correct||'').toUpperCase(),explanation:q.explanation,tip:q.tip,usageNote:q.usageNote,example:q.example,memoryAid:q.memoryAid,related:q.related,source:q.sourceFile,sourcePage:q.sourcePage};
 }
 function shuffleSafe_(q,entries){ const type=String(q.questionType||'').toLowerCase(); if(/order|sequence|match|arrange|para/.test(type))return false; return !entries.some(o=>/all of the above|none of the above|both [a-d]|either [a-d]/i.test(o.text)); }
 function shuffle_(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
 function canonicalCategory_(topic){ const t=String(topic||'').toLowerCase(); if(t.includes('spelling'))return'SPELLING'; if(t.includes('idiom'))return'IDIOM'; if(t.includes('phrasal'))return'PHRASAL'; if(t.includes('one word'))return'OWS'; if(t.includes('synonym')||t.includes('antonym'))return'SYN_ANT'; if(t.includes('confus'))return'CONFUSED'; if(t.includes('error'))return'ERROR'; if(t.includes('grammar'))return'GRAMMAR'; if(t.includes('vocab'))return'VOC'; return 'MISC'; }
-function statusMap_(){ const out={}; table_(EP.sheets.status).forEach(r=>out[String(r.Question_ID||'').trim()]={status:r.Status,wrong:r.Wrong,nextReview:r.Next_Review,mastered:truthy_(r.Mastered)}); return out; }
+function statusMap_(){
+  const cache=CacheService.getScriptCache();
+  const hit=cache.get('EP_STATUS_V1'); if(hit){try{return JSON.parse(hit)}catch(e){}}
+  const out={}; table_(EP.sheets.status).forEach(r=>out[String(r.Question_ID||'').trim()]={status:r.Status,wrong:r.Wrong,nextReview:r.Next_Review,mastered:truthy_(r.Mastered)});
+  try{cache.put('EP_STATUS_V1',JSON.stringify(out),30)}catch(e){}
+  return out;
+}
 function table_(name){ const s=sheet_(name), lr=s.getLastRow(), lc=s.getLastColumn(); if(lr<2)return[]; const v=s.getRange(1,1,lr,lc).getValues(), h=v.shift().map(String); return v.map(r=>{const o={};h.forEach((k,i)=>{if(k)o[k]=r[i]});return o;}); }
 function truthy_(v){ return v===true || String(v||'').toLowerCase()==='true'; }
 function dateKey_(v){ if(!v)return''; const d=v instanceof Date?v:new Date(v); return isNaN(d)?'':Utilities.formatDate(d,Session.getScriptTimeZone(),'yyyy-MM-dd'); }
