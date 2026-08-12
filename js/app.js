@@ -13,7 +13,6 @@
   async function boot() {
     el("connectionStatus").textContent = "Connecting…";
     try {
-      // Apps Script is intentionally called sequentially here. Daily Quiz is the heavier read.
       const configResponse = await window.EnglishAPI.getConfig();
       const config = configResponse.data || configResponse;
       dailyTarget = Number(config.dailyTarget || 120);
@@ -21,15 +20,16 @@
       const dailyResponse = await window.EnglishAPI.getDailyQuiz();
       dailyQuestions = dailyResponse.data || dailyResponse || [];
       refreshCounters();
-      el("connectionStatus").textContent = "Connected";
+      el("connectionStatus").textContent = `Connected · API v${config.schemaVersion || window.EnglishPracticeConfig.apiVersion}`;
       el("dailyMessage").textContent = dailyQuestions.length
         ? `${dailyQuestions.length} questions are ready for your fresh Daily 120.`
         : "No Daily Quiz questions are currently available.";
       el("startDailyButton").disabled = dailyQuestions.length === 0;
     } catch (error) {
       console.error("English Practice boot failed:", error);
-      el("connectionStatus").textContent = "Connection error";
-      el("dailyMessage").textContent = "Could not load today's quiz from the database API. Refresh once to retry.";
+      const code = error && error.message ? error.message : String(error || "UNKNOWN_ERROR");
+      el("connectionStatus").textContent = `Connection error · ${code}`;
+      el("dailyMessage").textContent = `API diagnostic: ${code}.`;
     }
   }
 
