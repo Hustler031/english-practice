@@ -40,7 +40,15 @@ const EPQuiz=(()=>{
   function back(){if(Object.keys(state.answers).length&&!confirm('Leave this practice set? You can resume it later.'))return;persist();EPApp.showTab(state.returnTab||'home')}
   function pause(){persist();EPApp.toast(state.meta.mode==='daily'?'Daily 120 paused safely.':'Practice paused safely.');EPApp.showTab('home')}
   function toggleMark(){if(state.meta.mode==='hindu')return;const q=current();state.marked[q.id]=!state.marked[q.id];$('markBtn').textContent=state.marked[q.id]?'★ Marked':'☆ Mark';persist();EPApp.call('setMarked',q.id,state.marked[q.id]).catch(()=>EPApp.toast('Could not update mark'))}
-  function mastered(){const q=current();if(!confirm('Mark this as Mastered / Don’t Repeat? You can restore it later.'))return;EPApp.call('markMastered',q.id).then(()=>{EPApp.toast('Moved to Mastered');next()}).catch(e=>EPApp.toast('Could not mark mastered: '+e.message))}
+  function mastered(){
+    const q=current();if(!q)return;
+    if(!confirm('Mark this as Mastered / Don’t Repeat? You can restore it later.'))return;
+    const id=q.id;
+    EPApp.toast('Moved to Mastered');
+    if(state.index<state.questions.length-1){state.index++;render();window.scrollTo({top:0,behavior:'smooth'})}
+    else{clearCurrentSaved();EPApp.showTab(state.returnTab||'home')}
+    EPApp.call('markMastered',id).catch(e=>EPApp.toast('Mastered save failed: '+e.message));
+  }
 
   function snapshot(){return{questions:state.questions,index:state.index,answers:state.answers,marked:state.marked,meta:state.meta,returnTab:state.returnTab,savedAt:Date.now()}}
   function persist(){if(!state.questions.length)return;try{localStorage.setItem(keyForMode(state.meta.mode),JSON.stringify(snapshot()))}catch(e){}if(EPApp.refreshResumeCard)EPApp.refreshResumeCard()}
