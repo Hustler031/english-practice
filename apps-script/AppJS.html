@@ -29,7 +29,6 @@ const EPApp = (() => {
       $('recallCount').textContent=s.recall?`${s.recall} items waiting`:'Seen-before content';
       $('masteredCount').textContent=s.mastered?`${s.mastered} excluded items`:'Don’t repeat';
       renderTopics();
-      // Warm the question bank after the dashboard is already usable.
       gas('warmPracticeCache').catch(()=>{});
     }catch(e){ toast('Could not load dashboard: '+e.message); }
   }
@@ -38,9 +37,18 @@ const EPApp = (() => {
     const grid=$('topicGrid'); grid.innerHTML='';
     const icons={VOC:'Aa',HINDU_VOCAB:'📰',IDIOM:'💬',PHRASAL:'↗',OWS:'1W',SYN_ANT:'⇄',CONFUSED:'≠',SPELLING:'✓',GRAMMAR:'G',ERROR:'!',SENT_IMP:'✎',FILL:'…',CLOZE:'▤',PARA:'↕',RC:'📖',MISC:'+'};
     (boot?.categories||[]).filter(c=>c.id!=='HINDU_VOCAB').forEach(c=>{
-      const b=document.createElement('button'); b.className='feature-card';
-      b.innerHTML=`<span>${icons[c.id]||'•'}</span><b>${c.name}</b><small>Choose 10 / 20 / 30 / 50</small>`;
-      b.onclick=()=>pickCount('category',c.id); grid.appendChild(b);
+      const b=document.createElement('button');
+      const count=Number(c.count||0);
+      b.className='feature-card';
+      if(count<=0){
+        b.disabled=true;
+        b.innerHTML=`<span>${icons[c.id]||'•'}</span><b>${c.name}</b><small>No questions added yet</small>`;
+      }else{
+        const defaultCount=Math.min(20,count);
+        b.innerHTML=`<span>${icons[c.id]||'•'}</span><b>${c.name}</b><small>${count} available · tap to start</small>`;
+        b.onclick=()=>start('category',{count:defaultCount,category:c.id});
+      }
+      grid.appendChild(b);
     });
   }
 
@@ -49,7 +57,7 @@ const EPApp = (() => {
   async function startDirect(mode){ return start(mode,{}); }
 
   async function start(mode,opts){
-    closePicker(); toast('Loading practice…');
+    closePicker();
     try{
       const qs=await gas('getPracticeBatch',mode,opts||{});
       if(!qs.length){toast('No eligible questions in this section yet.');return;}
