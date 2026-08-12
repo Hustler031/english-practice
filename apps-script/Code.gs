@@ -20,10 +20,16 @@ function sheet_(name) { const s = ss_().getSheetByName(name); if (!s) throw new 
 
 function getBootstrap() {
   const cfg = table_(EP.sheets.config).reduce((a,r) => (a[String(r.Key||'').trim()] = r.Value, a), {});
+  const all = allQuestions_();
+  const counts = {};
+  all.forEach(q => {
+    const id = canonicalCategory_(q.topic);
+    counts[id] = (counts[id] || 0) + 1;
+  });
   const categories = table_(EP.sheets.categories)
     .filter(r => truthy_(r.Active))
     .sort((a,b) => Number(a.Display_Order||99)-Number(b.Display_Order||99))
-    .map(r => ({ id:r.Category_ID, name:r.Category_Name, parent:r.Parent_Category, home:truthy_(r.Home_Visible) }));
+    .map(r => ({ id:r.Category_ID, name:r.Category_Name, parent:r.Parent_Category, home:truthy_(r.Home_Visible), count:Number(counts[r.Category_ID]||0) }));
   const dailyRows = table_(EP.sheets.daily).filter(r => String(r.Question_ID||'').trim());
   const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
   const hinduToday = table_(EP.sheets.hindu).filter(r => truthy_(r.Active) && dateKey_(r.Date) === today).length;
@@ -144,10 +150,16 @@ function upsertStatus_(q, ok, secs, marked, now) {
 
 function nextReview_(ok,streak,marked,now){ let days=marked||!ok?1:streak<=1?2:streak===2?4:streak===3?7:streak===4?14:30; const d=new Date(now); d.setDate(d.getDate()+days); return d; }
 function markDaily_(id){ const s=sheet_(EP.sheets.daily), row=findRow_(s,1,id); if(row>1)s.getRange(row,5).setValue('Completed'); }
-function setQuestionLearningStatus_(id,status){ const s=sheet_(EP.sheets.questions), row=findRow_(s,1,id); if(row>1)s.getRange(row,18).setValue(status); }
+function setQuestionLearningStatus_(id,status){ const s=sheet_(EP.sheets.questions), row=findRow_(s,1,id); if(row>1){s.getRange(row,18).setValue(status); clearQuestionCache_();} }
 function findRow_(s,col,id){ const cell=s.getRange(1,col,s.getLastRow(),1).createTextFinder(String(id)).matchEntireCell(true).findNext(); return cell?cell.getRow():-1; }
 function findQuestion_(id){ return allQuestions_().find(q=>q.id===String(id)) || null; }
 
+function clearQuestionCache_(){
+  const cache=CacheService.getScriptCache();
+  const meta=Number(cache.get('EP_Q_META_V1')||0);
+  for(let i=0;i<meta;i++) cache.remove('EP_Q_'+i);
+  cache.remove('EP_Q_META_V1');
+}
 function allQuestions_(){
   const cache=CacheService.getScriptCache();
   const meta=cache.get('EP_Q_META_V1');
@@ -172,7 +184,24 @@ function serveQuestion_(q){
 }
 function shuffleSafe_(q,entries){ const type=String(q.questionType||'').toLowerCase(); if(/order|sequence|match|arrange|para/.test(type))return false; return !entries.some(o=>/all of the above|none of the above|both [a-d]|either [a-d]/i.test(o.text)); }
 function shuffle_(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
-function canonicalCategory_(topic){ const t=String(topic||'').toLowerCase(); if(t.includes('spelling'))return'SPELLING'; if(t.includes('idiom'))return'IDIOM'; if(t.includes('phrasal'))return'PHRASAL'; if(t.includes('one word'))return'OWS'; if(t.includes('synonym')||t.includes('antonym'))return'SYN_ANT'; if(t.includes('confus'))return'CONFUSED'; if(t.includes('error'))return'ERROR'; if(t.includes('grammar'))return'GRAMMAR'; if(t.includes('vocab'))return'VOC'; return 'MISC'; }
+function canonicalCategory_(topic){
+  const t=String(topic||'').toLowerCase();
+  if(t.includes('spelling'))return'SPELLING';
+  if(t.includes('idiom'))return'IDIOM';
+  if(t.includes('phrasal'))return'PHRASAL';
+  if(t.includes('one word') || t.includes('field of study') || t.includes('fields of study'))return'OWS';
+  if(t.includes('synonym')||t.includes('antonym'))return'SYN_ANT';
+  if(t.includes('confus'))return'CONFUSED';
+  if(t.includes('sentence improvement'))return'SENT_IMP';
+  if(t.includes('fill in'))return'FILL';
+  if(t.includes('cloze'))return'CLOZE';
+  if(t.includes('para'))return'PARA';
+  if(t.includes('reading comprehension'))return'RC';
+  if(t.includes('error'))return'ERROR';
+  if(t.includes('grammar'))return'GRAMMAR';
+  if(t.includes('vocab'))return'VOC';
+  return 'MISC';
+}
 function statusMap_(){
   const cache=CacheService.getScriptCache();
   const hit=cache.get('EP_STATUS_V1'); if(hit){try{return JSON.parse(hit)}catch(e){}}
