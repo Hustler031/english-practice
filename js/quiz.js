@@ -3,14 +3,18 @@
 
   const el = id => document.getElementById(id);
   const letters = ["A", "B", "C", "D"];
+  const sessionKey = "englishDailySession_2026-08-12_v2";
+
+  // Old prototype progress is intentionally ignored from this fresh-start version.
+  localStorage.removeItem("englishDailySession");
 
   function loadSaved() {
-    try { return JSON.parse(localStorage.getItem("englishDailySession") || "null"); }
+    try { return JSON.parse(localStorage.getItem(sessionKey) || "null"); }
     catch { return null; }
   }
 
   function saveLocal() {
-    localStorage.setItem("englishDailySession", JSON.stringify({ index: state.index, answers: state.answers }));
+    localStorage.setItem(sessionKey, JSON.stringify({ index: state.index, answers: state.answers }));
   }
 
   function start(questions) {
