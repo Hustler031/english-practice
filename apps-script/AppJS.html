@@ -29,6 +29,8 @@ const EPApp = (() => {
       $('recallCount').textContent=s.recall?`${s.recall} items waiting`:'Seen-before content';
       $('masteredCount').textContent=s.mastered?`${s.mastered} excluded items`:'Don’t repeat';
       renderTopics();
+      // Warm the question bank after the dashboard is already usable.
+      gas('warmPracticeCache').catch(()=>{});
     }catch(e){ toast('Could not load dashboard: '+e.message); }
   }
 
