@@ -1,7 +1,7 @@
 const EP = Object.freeze({
   spreadsheetId: '1IgUGQZu6sp1STBCX6gyI5pHayLGVpmYYrkKGYdwkjak',
   sheets: Object.freeze({ questions:'Questions', performance:'Performance', status:'Question_Status', dailyQuiz:'Daily_Quiz', sources:'Sources', config:'System_Config' }),
-  schemaVersion: 3,
+  schemaVersion: 4,
   maxQuestionBatch: 100
 });
 
@@ -45,32 +45,82 @@ function output_(payload,callback){
   return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
 }
 
+function findExactCell_(sheet,column,startRow,value){
+  const last=sheet.getLastRow();
+  if(last<startRow)return null;
+  return sheet.getRange(startRow,column,last-startRow+1,1)
+    .createTextFinder(String(value))
+    .matchEntireCell(true)
+    .findNext();
+}
+
 function saveAnswer_(p){
   const questionId=String(p.questionId||'').trim(), selected=String(p.selectedAnswer||'').trim().toUpperCase(), attemptId=String(p.clientAttemptId||'').trim();
   const marked=normalizeBoolean_(p.markedRevision), timeSeconds=Math.max(0,Number(p.timeSeconds||0));
-  if(!questionId) throw new Error('MISSING_QUESTION_ID'); if(!['A','B','C','D'].includes(selected)) throw new Error('INVALID_ANSWER'); if(!attemptId) throw new Error('MISSING_ATTEMPT_ID');
+  if(!questionId) throw new Error('MISSING_QUESTION_ID');
+  if(!['A','B','C','D'].includes(selected)) throw new Error('INVALID_ANSWER');
+  if(!attemptId) throw new Error('MISSING_ATTEMPT_ID');
+
   const perf=getSheet_(EP.sheets.performance);
-  const existing=perf.getLastRow()>=2?perf.getRange(2,7,perf.getLastRow()-1,1).getDisplayValues().flat():[];
-  if(existing.includes(attemptId)) return {duplicate:true,attemptId:attemptId};
-  const q=findQuestion_(questionId); if(!q) throw new Error('QUESTION_NOT_FOUND');
+  if(findExactCell_(perf,7,2,attemptId)) return {duplicate:true,attemptId:attemptId};
+
+  const q=findQuestion_(questionId);
+  if(!q) throw new Error('QUESTION_NOT_FOUND');
+
   const correct=selected===String(q.correct||'').toUpperCase(), now=new Date();
   perf.appendRow([now,questionId,selected,correct,timeSeconds,marked,attemptId,q.topic||'',q.conceptId||'']);
-  const status=upsertQuestionStatus_(q,correct,timeSeconds,marked,now); markDailyCompleted_(questionId);
+  const status=upsertQuestionStatus_(q,correct,timeSeconds,marked,now);
+  markDailyCompleted_(questionId);
+  SpreadsheetApp.flush();
   return {duplicate:false,attemptId:attemptId,questionId:questionId,correct:correct,correctAnswer:q.correct,status:status};
 }
 
 function upsertQuestionStatus_(q,isCorrect,timeSeconds,marked,now){
-  const s=getSheet_(EP.sheets.status), last=s.getLastRow(); let rowIndex=-1,prev=null;
-  if(last>=2){const rows=s.getRange(2,1,last-1,16).getValues();for(let i=0;i<rows.length;i++)if(String(rows[i][0]||'').trim()===String(q.id)){rowIndex=i+2;prev=rows[i];break;}}
-  const attempts=Number(prev&&prev[1]||0)+1, correct=Number(prev&&prev[2]||0)+(isCorrect?1:0), wrong=Number(prev&&prev[3]||0)+(isCorrect?0:1), accuracy=attempts?correct/attempts:0;
-  const markedCount=Number(prev&&prev[5]||0)+(marked?1:0), oldAvg=Number(prev&&prev[6]||0), avg=((oldAvg*(attempts-1))+timeSeconds)/attempts, oldStreak=Number(prev&&prev[11]||0), streak=isCorrect?oldStreak+1:0;
-  let status='Learning'; if(marked)status='Marked'; else if(!isCorrect||accuracy<.7)status='Weak'; else if(attempts>=3&&accuracy>=.85&&streak>=2)status='Strong';
-  const next=nextReviewDate_(isCorrect,streak,marked,now), values=[[q.id,attempts,correct,wrong,accuracy,markedCount,avg,now,isCorrect,timeSeconds,marked,streak,status,next,q.topic||'',q.conceptId||'']];
-  if(rowIndex>0)s.getRange(rowIndex,1,1,16).setValues(values);else s.appendRow(values[0]);
+  const s=getSheet_(EP.sheets.status);
+  const found=findExactCell_(s,1,2,q.id);
+  const rowIndex=found?found.getRow():-1;
+  const prev=rowIndex>0?s.getRange(rowIndex,1,1,16).getValues()[0]:null;
+
+  const attempts=Number(prev&&prev[1]||0)+1;
+  const correct=Number(prev&&prev[2]||0)+(isCorrect?1:0);
+  const wrong=Number(prev&&prev[3]||0)+(isCorrect?0:1);
+  const accuracy=attempts?correct/attempts:0;
+  const markedCount=Number(prev&&prev[5]||0)+(marked?1:0);
+  const oldAvg=Number(prev&&prev[6]||0);
+  const avg=((oldAvg*(attempts-1))+timeSeconds)/attempts;
+  const oldStreak=Number(prev&&prev[11]||0);
+  const streak=isCorrect?oldStreak+1:0;
+
+  let status='Learning';
+  if(marked)status='Marked';
+  else if(!isCorrect||accuracy<.7)status='Weak';
+  else if(attempts>=3&&accuracy>=.85&&streak>=2)status='Strong';
+
+  const next=nextReviewDate_(isCorrect,streak,marked,now);
+  const values=[q.id,attempts,correct,wrong,accuracy,markedCount,avg,now,isCorrect,timeSeconds,marked,streak,status,next,q.topic||'',q.conceptId||''];
+  if(rowIndex>0)s.getRange(rowIndex,1,1,16).setValues([values]);
+  else s.appendRow(values);
+
   return {attempts:attempts,correct:correct,wrong:wrong,accuracy:accuracy,streak:streak,status:status,nextReview:next.toISOString()};
 }
-function nextReviewDate_(ok,streak,marked,now){let d=1;if(marked||!ok)d=1;else if(streak<=1)d=2;else if(streak===2)d=4;else if(streak===3)d=7;else if(streak===4)d=14;else d=30;const x=new Date(now);x.setDate(x.getDate()+d);return x;}
-function markDailyCompleted_(id){const s=getSheet_(EP.sheets.dailyQuiz),last=s.getLastRow();if(last<2)return;const ids=s.getRange(2,1,last-1,1).getDisplayValues();for(let i=0;i<ids.length;i++)if(String(ids[i][0]||'').trim()===id){s.getRange(i+2,5).setValue('Completed');return;}}
+
+function nextReviewDate_(ok,streak,marked,now){
+  let d=1;
+  if(marked||!ok)d=1;
+  else if(streak<=1)d=2;
+  else if(streak===2)d=4;
+  else if(streak===3)d=7;
+  else if(streak===4)d=14;
+  else d=30;
+  const x=new Date(now);x.setDate(x.getDate()+d);return x;
+}
+
+function markDailyCompleted_(id){
+  const s=getSheet_(EP.sheets.dailyQuiz);
+  const found=findExactCell_(s,1,2,id);
+  if(found)s.getRange(found.getRow(),5).setValue('Completed');
+}
+
 function getConfig_(){const rows=readTable_(EP.sheets.config),v={};rows.forEach(r=>{const k=String(r.Key||'').trim();if(k)v[k]=r.Value;});return{schemaVersion:EP.schemaVersion,dailyTarget:Number(v.DAILY_TARGET||120),extraCounts:String(v.EXTRA_COUNTS||'10,20,30,50').split(',').map(x=>Number(x.trim())).filter(Number.isFinite),databaseRole:String(v.DATABASE_ROLE||'PRIMARY')};}
 function getCategories_(){const counts={};allQuestions_().forEach(q=>{const t=String(q.topic||'').trim();if(t)counts[t]=(counts[t]||0)+1;});return Object.keys(counts).sort().map(name=>({name:name,count:counts[name]}));}
 function getSources_(){return readTable_(EP.sheets.sources).filter(r=>String(r.Source_ID||'').trim()).map(r=>({sourceId:r.Source_ID,sourceType:r.Source_Type,sourceName:r.Source_Name,sourceFile:r.Source_File,sourceDate:normalizeValue_(r.Source_Date),active:normalizeBoolean_(r.Active),importedOn:normalizeValue_(r.Imported_On),questionCount:Number(r.Question_Count||0),sourceRef:r.Source_Ref,notes:r.Notes}));}
@@ -81,7 +131,12 @@ function getWrongQuestions_(p){const ids=readTable_(EP.sheets.status).filter(r=>
 function getRevisionQuestions_(p){const now=new Date(),ids=readTable_(EP.sheets.status).filter(r=>{if(!r.Next_Review)return false;const d=r.Next_Review instanceof Date?r.Next_Review:new Date(r.Next_Review);return !isNaN(d.getTime())&&d<=now;}).map(r=>String(r.Question_ID||'').trim());return questionsByIds_(ids).slice(0,clamp_(Number(p.count||20),1,EP.maxQuestionBatch));}
 function questionsByIds_(ids){const set=new Set(ids.filter(Boolean));return allQuestions_().filter(q=>set.has(String(q.id)));}
 function allQuestions_(){const s=getSheet_(EP.sheets.questions),last=s.getLastRow();if(last<2)return[];return s.getRange(2,1,last-1,16).getValues().filter(r=>String(r[0]||'').trim()).map(questionFromRow_);}
-function findQuestion_(id){return allQuestions_().find(q=>String(q.id)===String(id))||null;}
+function findQuestion_(id){
+  const s=getSheet_(EP.sheets.questions);
+  const found=findExactCell_(s,1,2,id);
+  if(!found)return null;
+  return questionFromRow_(s.getRange(found.getRow(),1,1,16).getValues()[0]);
+}
 function questionFromRow_(r){return{id:r[0],topic:r[1],word:r[2],question:r[3],options:[r[4],r[5],r[6],r[7]],correct:r[8],explanation:r[9],subtopic:r[10],questionType:r[11],sourceFile:r[12],sourcePage:r[13],conceptId:r[14],difficulty:r[15]};}
 function readTable_(name){const s=getSheet_(name),last=s.getLastRow(),cols=s.getLastColumn();if(last<2||cols<1)return[];const v=s.getRange(1,1,last,cols).getValues(),h=v.shift().map(x=>String(x||'').trim());return v.map(r=>{const o={};h.forEach((x,i)=>{if(x)o[x]=r[i];});return o;});}
 function getSheet_(name){const s=SpreadsheetApp.openById(EP.spreadsheetId).getSheetByName(name);if(!s)throw new Error('MISSING_SHEET_'+name);return s;}
