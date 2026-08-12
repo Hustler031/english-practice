@@ -10,34 +10,48 @@
 <body>
   <header class="topbar">
     <button id="homeButton" class="brand" type="button">English Practice</button>
-    <span id="connectionStatus" class="status">API not connected</span>
+    <span id="connectionStatus" class="status">Connecting…</span>
   </header>
 
   <main id="app" class="app-shell" aria-live="polite">
-    <section class="hero">
-      <p class="eyebrow">SSC English Revision</p>
-      <h1>English Practice</h1>
-      <p>Google Sheets database + lightweight Apps Script API + modular GitHub frontend.</p>
+    <section id="homeView">
+      <section class="hero">
+        <p class="eyebrow">SSC English Revision</p>
+        <h1>Daily 120</h1>
+        <p>Continue your existing daily English revision from the Google Sheets question bank.</p>
+      </section>
+
+      <section class="card-grid">
+        <article class="card"><span class="label">Daily target</span><strong id="dailyTarget">120</strong></article>
+        <article class="card"><span class="label">Completed</span><strong id="dailyCompleted">—</strong></article>
+        <article class="card"><span class="label">Remaining</span><strong id="dailyRemaining">—</strong></article>
+      </section>
+
+      <section class="panel">
+        <h2>Today's Practice</h2>
+        <p id="dailyMessage">Loading today's questions…</p>
+        <button id="startDailyButton" class="primary-button" type="button" disabled>Start / Resume Daily 120</button>
+      </section>
     </section>
 
-    <section id="systemSummary" class="card-grid">
-      <article class="card">
-        <span class="label">Daily target</span>
-        <strong id="dailyTarget">120</strong>
-      </article>
-      <article class="card">
-        <span class="label">Database</span>
-        <strong>Google Sheets</strong>
-      </article>
-      <article class="card">
-        <span class="label">Frontend</span>
-        <strong>GitHub</strong>
-      </article>
-    </section>
+    <section id="quizView" class="hidden">
+      <div class="quiz-toolbar">
+        <div><span class="label">Daily 120</span><strong id="quizCounter">1 / 120</strong></div>
+        <button id="pauseButton" class="secondary-button" type="button">Pause</button>
+      </div>
+      <div class="progress-track"><div id="quizProgressBar" class="progress-bar"></div></div>
 
-    <section class="panel">
-      <h2>Connection setup</h2>
-      <p id="setupMessage">Frontend structure is ready. The Apps Script API endpoint will be connected next.</p>
+      <article class="question-card">
+        <div class="question-meta"><span id="questionTopic"></span><span id="questionId"></span></div>
+        <h2 id="questionText"></h2>
+        <div id="optionsList" class="options-list"></div>
+        <section id="explanationBox" class="explanation hidden"></section>
+      </article>
+
+      <nav class="quiz-nav" aria-label="Quiz navigation">
+        <button id="previousButton" class="secondary-button" type="button">← Previous</button>
+        <button id="nextButton" class="primary-button" type="button">Next →</button>
+      </nav>
     </section>
   </main>
 
