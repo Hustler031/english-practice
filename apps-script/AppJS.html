@@ -1,21 +1,32 @@
 <script>
 const EPApp = (() => {
-  let boot = null, pendingMode = null, pendingCategory = null, expanded = false;
+  let boot = null, pendingMode = null, pendingCategory = null;
   const $ = id => document.getElementById(id);
   const gas = (fn,...args) => new Promise((resolve,reject)=>google.script.run.withSuccessHandler(resolve).withFailureHandler(err=>reject(new Error(err.message||err)))[fn](...args));
 
   function initTheme(){ const saved=localStorage.getItem('ep-theme')||'light'; document.documentElement.dataset.theme=saved; $('themeBtn').textContent=saved==='dark'?'☀':'☾'; }
   function toggleTheme(){ const next=document.documentElement.dataset.theme==='dark'?'light':'dark'; document.documentElement.dataset.theme=next; localStorage.setItem('ep-theme',next); $('themeBtn').textContent=next==='dark'?'☀':'☾'; }
 
+  function showTab(name){
+    ['home','practice','revision','library'].forEach(tab=>{
+      const view=$(tab+'View'); if(view) view.classList.toggle('hidden',tab!==name);
+      const btn=document.querySelector(`.bottom-tab[data-tab="${tab}"]`); if(btn) btn.classList.toggle('active',tab===name);
+    });
+    $('quizView').classList.add('hidden');
+    document.body.classList.remove('quiz-active');
+    $('bottomNav').classList.remove('hidden');
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+
   async function load(){
-    initTheme();
+    initTheme(); showTab('home');
     try{
       boot=await gas('getBootstrap');
       const s=boot.stats, target=boot.dailyTarget||120, done=s.dailyCompleted||0;
       $('dailyProgress').textContent=`${done} / ${target}`;
       $('dailyBar').style.width=`${Math.min(100,(done/Math.max(1,target))*100)}%`;
       $('hinduCount').textContent=s.hinduToday?`${s.hinduToday} words today`:'Today’s batch not added yet';
-      $('recallCount').textContent=s.recall?`${s.recall} items waiting`:'Repeated content from new sources';
+      $('recallCount').textContent=s.recall?`${s.recall} items waiting`:'Seen-before content';
       $('masteredCount').textContent=s.mastered?`${s.mastered} excluded items`:'Don’t repeat';
       renderTopics();
     }catch(e){ toast('Could not load dashboard: '+e.message); }
@@ -24,25 +35,28 @@ const EPApp = (() => {
   function renderTopics(){
     const grid=$('topicGrid'); grid.innerHTML='';
     const icons={VOC:'Aa',HINDU_VOCAB:'📰',IDIOM:'💬',PHRASAL:'↗',OWS:'1W',SYN_ANT:'⇄',CONFUSED:'≠',SPELLING:'✓',GRAMMAR:'G',ERROR:'!',SENT_IMP:'✎',FILL:'…',CLOZE:'▤',PARA:'↕',RC:'📖',MISC:'+'};
-    (boot?.categories||[]).filter(c=>c.id!=='HINDU_VOCAB').forEach((c,i)=>{
-      const b=document.createElement('button'); b.className='feature-card '+(i>=8?'more-topic':'');
+    (boot?.categories||[]).filter(c=>c.id!=='HINDU_VOCAB').forEach(c=>{
+      const b=document.createElement('button'); b.className='feature-card';
       b.innerHTML=`<span>${icons[c.id]||'•'}</span><b>${c.name}</b><small>Choose 10 / 20 / 30 / 50</small>`;
       b.onclick=()=>pickCount('category',c.id); grid.appendChild(b);
     });
   }
 
-  function toggleAllTopics(){ expanded=!expanded; document.body.classList.toggle('topics-expanded',expanded); }
   function pickCount(mode,category){ pendingMode=mode; pendingCategory=category||null; const wrap=$('countButtons'); wrap.innerHTML=''; (boot?.extraCounts||[10,20,30,50]).forEach(n=>{const b=document.createElement('button');b.textContent=n;b.onclick=()=>start(mode,{count:n,category:pendingCategory});wrap.appendChild(b)}); $('countSheet').classList.remove('hidden'); }
   function closePicker(e){ if(e && e.target!==$('countSheet'))return; $('countSheet').classList.add('hidden'); }
   async function startDirect(mode){ return start(mode,{}); }
 
   async function start(mode,opts){
     closePicker(); toast('Loading practice…');
-    try{ const qs=await gas('getPracticeBatch',mode,opts||{}); if(!qs.length){toast('No eligible questions in this section yet.');return;} EPQuiz.start(qs,{mode,category:opts?.category||''}); }
-    catch(e){toast('Could not load practice: '+e.message)}
+    try{
+      const qs=await gas('getPracticeBatch',mode,opts||{});
+      if(!qs.length){toast('No eligible questions in this section yet.');return;}
+      document.body.classList.add('quiz-active'); $('bottomNav').classList.add('hidden');
+      EPQuiz.start(qs,{mode,category:opts?.category||''});
+    }catch(e){toast('Could not load practice: '+e.message)}
   }
 
-  function goHome(){ $('quizView').classList.add('hidden'); $('homeView').classList.remove('hidden'); window.scrollTo({top:0,behavior:'smooth'}); }
+  function goHome(){ showTab('home'); }
   function openHindu(){ toast('The Hindu word-learning screen is the next module.'); }
   function openSources(){ toast('Source/PDF selector is the next module.'); }
   function openMastered(){ toast('Mastered restore screen is the next module.'); }
@@ -50,6 +64,6 @@ const EPApp = (() => {
   function call(fn,...args){return gas(fn,...args)}
 
   document.addEventListener('DOMContentLoaded',load);
-  return {toggleTheme,toggleAllTopics,pickCount,closePicker,startDirect,start,goHome,openHindu,openSources,openMastered,toast,call};
+  return {toggleTheme,showTab,pickCount,closePicker,startDirect,start,goHome,openHindu,openSources,openMastered,toast,call};
 })();
 </script>
