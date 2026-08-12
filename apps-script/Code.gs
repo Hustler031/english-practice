@@ -69,7 +69,7 @@ function getPracticeBatch(mode, options) {
   } else if (mode === 'new') {
     pool = all.filter(q => active(q) && ['','new'].includes(String(q.learningStatus||'').toLowerCase()));
   } else if (mode === 'random') {
-    pool = all.filter(q => active(q) && !['','new'].includes(String(q.learningStatus||'').toLowerCase()));
+    pool = all.filter(q => active(q));
   } else if (mode === 'recall') {
     const ids = new Set(table_(EP.sheets.recall).filter(r => truthy_(r.Active)).map(r => String(r.Existing_Question_ID||'').trim()));
     pool = all.filter(q => active(q) && ids.has(q.id));
