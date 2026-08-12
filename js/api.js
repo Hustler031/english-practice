@@ -1,53 +1,46 @@
 (() => {
   const config = window.EnglishPracticeConfig;
+  let sequence = 0;
 
-  function ensureConfigured() {
-    if (!config?.apiBaseUrl) throw new Error("API_NOT_CONFIGURED");
-  }
+  function ensureConfigured() { if (!config?.apiBaseUrl) throw new Error("API_NOT_CONFIGURED"); }
 
-  async function getRequest(action, params = {}) {
+  function request(action, params = {}) {
     ensureConfigured();
-    const url = new URL(config.apiBaseUrl);
-    url.searchParams.set("action", action);
-    url.searchParams.set("v", String(config.apiVersion));
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== "") url.searchParams.set(key, String(value));
-    });
-    return fetchJson(url, { method: "GET" });
-  }
+    return new Promise((resolve, reject) => {
+      const callback = `__epJsonp_${Date.now()}_${++sequence}`;
+      const url = new URL(config.apiBaseUrl);
+      url.searchParams.set("action", action);
+      url.searchParams.set("v", String(config.apiVersion));
+      url.searchParams.set("callback", callback);
+      url.searchParams.set("_", String(Date.now()));
+      Object.entries(params).forEach(([key,value]) => {
+        if (value !== undefined && value !== null && value !== "") url.searchParams.set(key, String(value));
+      });
 
-  async function postRequest(action, params = {}) {
-    ensureConfigured();
-    const body = new URLSearchParams({ action, v: String(config.apiVersion) });
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== "") body.set(key, String(value));
-    });
-    return fetchJson(config.apiBaseUrl, { method: "POST", body });
-  }
+      const script = document.createElement("script");
+      const cleanup = () => { delete window[callback]; script.remove(); clearTimeout(timer); };
+      const timer = setTimeout(() => { cleanup(); reject(new Error("API_TIMEOUT")); }, config.requestTimeoutMs);
 
-  async function fetchJson(url, options) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), config.requestTimeoutMs);
-    try {
-      const response = await fetch(url, { ...options, signal: controller.signal });
-      if (!response.ok) throw new Error(`HTTP_${response.status}`);
-      const payload = await response.json();
-      if (payload?.ok === false) throw new Error(payload.error || "API_ERROR");
-      return payload;
-    } finally {
-      clearTimeout(timeout);
-    }
+      window[callback] = payload => {
+        cleanup();
+        if (payload?.ok === false) reject(new Error(payload.error || "API_ERROR"));
+        else resolve(payload);
+      };
+      script.onerror = () => { cleanup(); reject(new Error("API_NETWORK_ERROR")); };
+      script.src = url.toString();
+      document.head.appendChild(script);
+    });
   }
 
   window.EnglishAPI = Object.freeze({
-    getConfig: () => getRequest("config"),
-    getCategories: () => getRequest("categories"),
-    getSources: () => getRequest("sources"),
-    getDailyQuiz: () => getRequest("dailyQuiz"),
-    getQuestions: params => getRequest("questions", params),
-    getRevision: params => getRequest("revision", params),
-    getWeakQuestions: params => getRequest("weakQuestions", params),
-    getWrongQuestions: params => getRequest("wrongQuestions", params),
-    saveAnswer: data => postRequest("saveAnswer", data)
+    getConfig: () => request("config"),
+    getCategories: () => request("categories"),
+    getSources: () => request("sources"),
+    getDailyQuiz: () => request("dailyQuiz"),
+    getQuestions: params => request("questions", params),
+    getRevision: params => request("revision", params),
+    getWeakQuestions: params => request("weakQuestions", params),
+    getWrongQuestions: params => request("wrongQuestions", params),
+    saveAnswer: data => request("saveAnswer", data)
   });
 })();
