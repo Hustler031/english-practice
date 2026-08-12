@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <title>English Practice</title>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <button id="homeButton" class="brand" type="button">English Practice</button>
+    <span id="connectionStatus" class="status">API not connected</span>
+  </header>
+
+  <main id="app" class="app-shell" aria-live="polite">
+    <section class="hero">
+      <p class="eyebrow">SSC English Revision</p>
+      <h1>English Practice</h1>
+      <p>Google Sheets database + lightweight Apps Script API + modular GitHub frontend.</p>
+    </section>
+
+    <section id="systemSummary" class="card-grid">
+      <article class="card">
+        <span class="label">Daily target</span>
+        <strong id="dailyTarget">120</strong>
+      </article>
+      <article class="card">
+        <span class="label">Database</span>
+        <strong>Google Sheets</strong>
+      </article>
+      <article class="card">
+        <span class="label">Frontend</span>
+        <strong>GitHub</strong>
+      </article>
+    </section>
+
+    <section class="panel">
+      <h2>Connection setup</h2>
+      <p id="setupMessage">Frontend structure is ready. The Apps Script API endpoint will be connected next.</p>
+    </section>
+  </main>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/progress.js"></script>
+  <script src="js/sources.js"></script>
+  <script src="js/revision.js"></script>
+  <script src="js/quiz.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
