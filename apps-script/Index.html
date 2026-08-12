@@ -69,7 +69,10 @@
 
     <section id="quizView" class="hidden quiz-wrap">
       <div class="quiz-head">
-        <button class="btn ghost" onclick="EPQuiz.pause()">← Pause</button>
+        <div class="row">
+          <button class="btn ghost" onclick="EPQuiz.back()">← Back</button>
+          <button class="btn ghost" onclick="EPQuiz.pause()">Ⅱ Pause</button>
+        </div>
         <div class="quiz-title"><b id="quizMode">Practice</b><div id="quizCounter" class="muted">1 / 20</div></div>
       </div>
       <div class="progressbar"><div id="quizBar"></div></div>
