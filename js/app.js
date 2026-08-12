@@ -13,13 +13,13 @@
   async function boot() {
     el("connectionStatus").textContent = "Connecting…";
     try {
-      const [configResponse, dailyResponse] = await Promise.all([
-        window.EnglishAPI.getConfig(),
-        window.EnglishAPI.getDailyQuiz()
-      ]);
+      // Apps Script is intentionally called sequentially here. Daily Quiz is the heavier read.
+      const configResponse = await window.EnglishAPI.getConfig();
       const config = configResponse.data || configResponse;
-      dailyQuestions = dailyResponse.data || dailyResponse || [];
       dailyTarget = Number(config.dailyTarget || 120);
+
+      const dailyResponse = await window.EnglishAPI.getDailyQuiz();
+      dailyQuestions = dailyResponse.data || dailyResponse || [];
       refreshCounters();
       el("connectionStatus").textContent = "Connected";
       el("dailyMessage").textContent = dailyQuestions.length
@@ -27,9 +27,9 @@
         : "No Daily Quiz questions are currently available.";
       el("startDailyButton").disabled = dailyQuestions.length === 0;
     } catch (error) {
-      console.error(error);
+      console.error("English Practice boot failed:", error);
       el("connectionStatus").textContent = "Connection error";
-      el("dailyMessage").textContent = "Could not load today's quiz from the database API.";
+      el("dailyMessage").textContent = "Could not load today's quiz from the database API. Refresh once to retry.";
     }
   }
 
