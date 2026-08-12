@@ -1,0 +1,60 @@
+<script>
+const EPQuiz = (() => {
+  const state={questions:[],index:0,answers:{},marked:{},startedAt:0,meta:{}};
+  const $=id=>document.getElementById(id);
+  const displayLetters=['A','B','C','D'];
+
+  function start(questions,meta){ state.questions=questions;state.index=0;state.answers={};state.marked={};state.meta=meta||{};$('homeView').classList.add('hidden');$('quizView').classList.remove('hidden');render();window.scrollTo({top:0}); }
+  function current(){return state.questions[state.index]}
+
+  function render(){
+    const q=current(); if(!q)return; state.startedAt=Date.now();
+    $('quizMode').textContent=labelMode(state.meta,q); $('quizCounter').textContent=`${state.index+1} / ${state.questions.length}`; $('quizBar').style.width=`${((state.index+1)/state.questions.length)*100}%`;
+    $('qCategory').textContent=q.topic||q.category||'English'; $('qId').textContent=q.id; $('qText').textContent=q.question||'';
+    if(q.word){$('qWord').textContent=q.word;$('qWord').classList.remove('hidden')}else $('qWord').classList.add('hidden');
+    $('prevBtn').disabled=state.index===0; $('nextBtn').textContent=state.index===state.questions.length-1?'Finish':'Next →';
+    $('markBtn').textContent=state.marked[q.id]?'★ Marked':'☆ Mark';
+    const list=$('optionList'); list.innerHTML='';
+    const answer=state.answers[q.id];
+    q.options.forEach((opt,i)=>{
+      const b=document.createElement('button');b.className='option';b.disabled=!!answer;b.dataset.key=opt.key;
+      b.innerHTML=`<span class="letter">${displayLetters[i]}</span><span class="option-text"></span>`;b.querySelector('.option-text').textContent=opt.text;
+      if(answer){ if(opt.key===answer.correctKey)b.classList.add('correct'); if(opt.key===answer.selectedKey && !answer.correct)b.classList.add('wrong'); if(opt.key===answer.selectedKey)b.classList.add('selected'); }
+      b.onclick=()=>choose(opt.key);list.appendChild(b);
+    });
+    renderExplanation(q,answer);
+  }
+
+  async function choose(key){
+    const q=current(); if(state.answers[q.id])return;
+    [...$('optionList').children].forEach(b=>b.disabled=true);
+    const secs=(Date.now()-state.startedAt)/1000;
+    try{
+      const res=await EPApp.call('submitAnswer',{questionId:q.id,selectedKey:key,timeSeconds:secs,marked:!!state.marked[q.id]});
+      state.answers[q.id]={selectedKey:key,correctKey:res.correctKey,correct:res.correct}; render();
+    }catch(e){ [...$('optionList').children].forEach(b=>b.disabled=false); EPApp.toast('Save failed: '+e.message); }
+  }
+
+  function renderExplanation(q,a){
+    const fb=$('feedback'), ex=$('explanation'); if(!a){fb.classList.add('hidden');ex.classList.add('hidden');return;}
+    fb.textContent=a.correct?'✓ Correct':'✕ Incorrect';fb.className='feedback '+(a.correct?'good':'bad');
+    const parts=[];
+    if(q.explanation)parts.push(`<h3>Explanation</h3><p>${escape_(q.explanation)}</p>`);
+    if(q.example)parts.push(`<h3>Example</h3><p>${escape_(q.example)}</p>`);
+    if(q.usageNote)parts.push(`<h3>Usage</h3><p>${escape_(q.usageNote)}</p>`);
+    if(q.tip)parts.push(`<div class="tip"><h3>Tip</h3><p>${escape_(q.tip)}</p></div>`);
+    if(q.memoryAid)parts.push(`<h3>Remember</h3><p>${escape_(q.memoryAid)}</p>`);
+    if(q.related)parts.push(`<h3>Related</h3><p>${escape_(q.related)}</p>`);
+    ex.innerHTML=parts.join('')||'<p>Detailed explanation will be enhanced during content review.</p>';ex.classList.remove('hidden');
+  }
+
+  function previous(){if(state.index>0){state.index--;render();window.scrollTo({top:0,behavior:'smooth'})}}
+  function next(){if(state.index<state.questions.length-1){state.index++;render();window.scrollTo({top:0,behavior:'smooth'})}else{EPApp.toast('Practice set completed.');EPApp.goHome()}}
+  function pause(){EPApp.toast('Paused — your current set stays open.');EPApp.goHome()}
+  async function toggleMark(){const q=current();state.marked[q.id]=!state.marked[q.id];$('markBtn').textContent=state.marked[q.id]?'★ Marked':'☆ Mark';try{await EPApp.call('setMarked',q.id,state.marked[q.id])}catch(e){EPApp.toast('Could not update mark')}}
+  async function mastered(){const q=current(); if(!confirm('Mark this as Mastered / Don’t Repeat? You can restore it later.'))return; try{await EPApp.call('markMastered',q.id);EPApp.toast('Moved to Mastered');next()}catch(e){EPApp.toast('Could not mark mastered: '+e.message)}}
+  function labelMode(meta,q){if(meta.mode==='daily')return'Daily 120';if(meta.mode==='category')return q.topic||'Topic Practice';if(meta.mode==='new')return'New Practice';if(meta.mode==='random')return'Random Practice';if(meta.mode==='recall')return'Recall Check';if(meta.mode==='weak')return'Weak / Wrong';if(meta.mode==='due')return'Due Revision';return'Practice'}
+  function escape_(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+  return {start,previous,next,pause,toggleMark,mastered};
+})();
+</script>

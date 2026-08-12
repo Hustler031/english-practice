@@ -1,0 +1,100 @@
+<!doctype html>
+<html>
+<head>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <?!= include('Styles'); ?>
+</head>
+<body>
+  <header class="topbar">
+    <button class="brand" onclick="EPApp.goHome()">English Mastery</button>
+    <div class="top-actions">
+      <button id="themeBtn" class="icon-btn" onclick="EPApp.toggleTheme()" aria-label="Toggle dark mode">☾</button>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section id="homeView">
+      <section class="hero">
+        <p class="eyebrow">SSC English Practice</p>
+        <h1>English Mastery</h1>
+        <p>Learn new material, practice by topic, revise weak areas and keep your Daily 120 moving.</p>
+      </section>
+
+      <section class="progress-card">
+        <div><span class="muted">Today's Goal</span><strong id="dailyProgress">— / 120</strong></div>
+        <div class="progress-track"><div id="dailyBar" class="progress-bar"></div></div>
+        <button class="btn primary full" onclick="EPApp.startDirect('daily')">Continue Daily 120</button>
+      </section>
+
+      <section class="section-block">
+        <h2>New Learning</h2>
+        <div class="grid two">
+          <button class="feature-card accent" onclick="EPApp.openHindu()"><span>📰</span><b>The Hindu – Today's Words</b><small id="hinduCount">Loading…</small></button>
+          <button class="feature-card" onclick="EPApp.pickCount('new')"><span>✨</span><b>New Practice</b><small>Newly added questions & PDFs</small></button>
+          <button class="feature-card" onclick="EPApp.pickCount('recall')"><span>↻</span><b>Seen Before / Recall Check</b><small id="recallCount">Repeated content from new sources</small></button>
+          <button class="feature-card" onclick="EPApp.openSources()"><span>📚</span><b>Source Practice</b><small>Practice a particular PDF/source</small></button>
+        </div>
+      </section>
+
+      <section class="section-block">
+        <div class="section-head"><h2>Topic Practice</h2><button class="link-btn" onclick="EPApp.toggleAllTopics()">View all</button></div>
+        <div id="topicGrid" class="grid two"></div>
+      </section>
+
+      <section class="section-block">
+        <h2>Revision</h2>
+        <div class="grid three compact-grid">
+          <button class="mini-card" onclick="EPApp.pickCount('due')"><b>Due Today</b><span>Spaced revision</span></button>
+          <button class="mini-card" onclick="EPApp.pickCount('weak')"><b>Weak / Wrong</b><span>Fix mistakes</span></button>
+          <button class="mini-card" onclick="EPApp.openMastered()"><b>Mastered</b><span id="masteredCount">Don't repeat</span></button>
+        </div>
+      </section>
+
+      <section class="section-block">
+        <button class="random-card" onclick="EPApp.pickCount('random')"><span>🎲</span><div><b>Random Practice</b><small>Mix learned English from all eligible topics</small></div><span>›</span></button>
+      </section>
+    </section>
+
+    <section id="quizView" class="hidden">
+      <div class="quiz-top">
+        <button class="btn ghost" onclick="EPQuiz.pause()">Pause</button>
+        <div class="quiz-count"><span id="quizMode">Practice</span><b id="quizCounter">1 / 20</b></div>
+        <button class="btn ghost" onclick="EPApp.goHome()">Home</button>
+      </div>
+      <div class="progress-track slim"><div id="quizBar" class="progress-bar"></div></div>
+
+      <article class="question-card">
+        <div class="meta"><span id="qCategory"></span><span id="qId"></span></div>
+        <div id="qWord" class="word hidden"></div>
+        <h2 id="qText"></h2>
+        <div id="optionList" class="options"></div>
+        <div id="feedback" class="feedback hidden"></div>
+        <div id="explanation" class="explanation hidden"></div>
+      </article>
+
+      <div class="action-row">
+        <button id="markBtn" class="btn soft" onclick="EPQuiz.toggleMark()">☆ Mark</button>
+        <button class="btn soft" onclick="EPQuiz.mastered()">✓ Mastered</button>
+      </div>
+
+      <nav class="sticky-nav">
+        <button id="prevBtn" class="btn secondary" onclick="EPQuiz.previous()">← Previous</button>
+        <button id="nextBtn" class="btn primary" onclick="EPQuiz.next()">Next →</button>
+      </nav>
+    </section>
+  </main>
+
+  <div id="countSheet" class="sheet-backdrop hidden" onclick="EPApp.closePicker(event)">
+    <div class="bottom-sheet">
+      <h3>How many questions?</h3>
+      <div id="countButtons" class="count-buttons"></div>
+      <button class="btn ghost full" onclick="EPApp.closePicker()">Cancel</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <?!= include('QuizJS'); ?>
+  <?!= include('AppJS'); ?>
+</body>
+</html>
