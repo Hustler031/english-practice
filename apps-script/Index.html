@@ -9,7 +9,7 @@
 <body>
 <div class="app">
   <div class="topbar">
-    <div class="brand-row">
+    <div class="brand">
       <div>
         <h1>English Mastery</h1>
         <small>SSC English practice + revision</small>
@@ -29,11 +29,11 @@
       </div>
 
       <h3 class="section-title">Quick Start</h3>
-      <div class="grid quick-grid">
-        <button class="list-card accent-card" onclick="EPApp.openHindu()"><b>📰 The Hindu – Today</b><div id="hinduCount" class="muted">Loading…</div></button>
-        <button class="list-card" onclick="EPApp.pickCount('new')"><b>✨ New Practice</b><div class="muted">Freshly added content</div></button>
-        <button class="list-card" onclick="EPApp.pickCount('random')"><b>🎲 Random Practice</b><div class="muted">Mixed learned English</div></button>
-        <button class="list-card" onclick="EPApp.pickCount('recall')"><b>↻ Recall Check</b><div id="recallCount" class="muted">Seen-before content</div></button>
+      <div class="grid">
+        <button class="btn ghost quick-btn accent-card" onclick="EPApp.openHindu()"><span>📰</span><span><b>The Hindu – Today</b><small id="hinduCount">Loading…</small></span></button>
+        <button class="btn ghost quick-btn" onclick="EPApp.pickCount('new')"><span>✨</span><span><b>New Practice</b><small>Freshly added content</small></span></button>
+        <button class="btn ghost quick-btn" onclick="EPApp.pickCount('random')"><span>🎲</span><span><b>Random Practice</b><small>Mixed learned English</small></span></button>
+        <button class="btn ghost quick-btn" onclick="EPApp.pickCount('recall')"><span>↻</span><span><b>Recall Check</b><small id="recallCount">Seen-before content</small></span></button>
       </div>
     </section>
 
