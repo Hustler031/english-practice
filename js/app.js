@@ -1,6 +1,14 @@
 (() => {
   const el = id => document.getElementById(id);
   let dailyQuestions = [];
+  let dailyTarget = 120;
+
+  function refreshCounters() {
+    const completed = dailyQuestions.filter(q => String(q.daily?.status || "").toLowerCase() === "completed").length;
+    el("dailyTarget").textContent = dailyTarget;
+    el("dailyCompleted").textContent = completed;
+    el("dailyRemaining").textContent = Math.max(0, dailyTarget - completed);
+  }
 
   async function boot() {
     el("connectionStatus").textContent = "Connecting…";
@@ -11,16 +19,11 @@
       ]);
       const config = configResponse.data || configResponse;
       dailyQuestions = dailyResponse.data || dailyResponse || [];
-      const target = Number(config.dailyTarget || 120);
-      const completed = dailyQuestions.filter(q => String(q.daily?.status || "").toLowerCase() === "completed").length;
-      const remaining = Math.max(0, target - completed);
-
-      el("dailyTarget").textContent = target;
-      el("dailyCompleted").textContent = completed;
-      el("dailyRemaining").textContent = remaining;
+      dailyTarget = Number(config.dailyTarget || 120);
+      refreshCounters();
       el("connectionStatus").textContent = "Connected";
       el("dailyMessage").textContent = dailyQuestions.length
-        ? `${dailyQuestions.length} questions are available in today's Daily Quiz. Your existing spreadsheet progress is preserved.`
+        ? `${dailyQuestions.length} questions are ready for your fresh Daily 120.`
         : "No Daily Quiz questions are currently available.";
       el("startDailyButton").disabled = dailyQuestions.length === 0;
     } catch (error) {
@@ -34,6 +37,16 @@
     if (!el("quizView").classList.contains("hidden")) window.EnglishQuiz.pause();
     else window.scrollTo({ top: 0, behavior: "smooth" });
   }
+
+  document.addEventListener("english:answerSaved", event => {
+    const id = event.detail?.questionId;
+    const q = dailyQuestions.find(item => item.id === id);
+    if (q) {
+      q.daily = q.daily || {};
+      q.daily.status = "Completed";
+      refreshCounters();
+    }
+  });
 
   document.addEventListener("DOMContentLoaded", () => {
     el("homeButton").addEventListener("click", goHome);
