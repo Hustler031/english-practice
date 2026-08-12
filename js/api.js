@@ -56,6 +56,7 @@
       });
 
       let settled = false;
+      let submitted = false;
       const cleanup = () => { iframe.remove(); form.remove(); clearTimeout(timer); };
       const timer = setTimeout(() => {
         if (settled) return;
@@ -65,14 +66,15 @@
       }, 60000);
 
       iframe.addEventListener("load", () => {
-        if (settled) return;
+        if (!submitted || settled) return;
         settled = true;
         cleanup();
         resolve({ ok: true, data: { submitted: true } });
-      }, { once: true });
+      });
 
       document.body.appendChild(iframe);
       document.body.appendChild(form);
+      submitted = true;
       form.submit();
     });
   }
