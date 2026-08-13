@@ -63,3 +63,36 @@ function archiveDemandBatch(batchId){
   vals.forEach((r,i)=>{if(String(r[0]||'').trim()===id)s.getRange(i+2,8).setValue(false)});
   return {ok:true};
 }
+
+// Cross-device sync for The Hindu daily quiz only.
+// Daily 120 already syncs through Daily_Quiz + submitAnswer/markDaily_.
+function getHinduQuizSynced(){
+  const today=todayKey_();
+  const done=new Set(
+    table_(EP.sheets.hindu)
+      .filter(r=>truthy_(r.Active)&&dateKey_(r.Date)===today&&String(r.Learning_Status||'').toLowerCase()==='completed')
+      .map(r=>'HINDU_'+String(r.Hindu_ID||'').trim())
+  );
+  return getHinduQuiz().filter(q=>!done.has(q.id));
+}
+
+function submitHinduAnswer(payload){
+  payload=payload||{};
+  const raw=String(payload.questionId||'').trim();
+  const id=raw.replace(/^HINDU_/,'');
+  if(!id) throw new Error('Hindu word ID required');
+  const s=sheet_(EP.sheets.hindu), row=findRow_(s,1,id);
+  if(row<2) throw new Error('Hindu word not found');
+  const now=new Date();
+  const first=s.getRange(row,18).getValue();
+  s.getRange(row,16).setValue('Completed');
+  if(!first) s.getRange(row,18).setValue(now);
+  s.getRange(row,19).setValue(now);
+  return {ok:true,correct:!!payload.localCorrect,correctKey:String(payload.correctKey||'')};
+}
+
+function getHinduPracticeProgress(){
+  const today=todayKey_();
+  const rows=table_(EP.sheets.hindu).filter(r=>truthy_(r.Active)&&dateKey_(r.Date)===today);
+  return {total:rows.length,completed:rows.filter(r=>String(r.Learning_Status||'').toLowerCase()==='completed').length};
+}
