@@ -15,12 +15,16 @@ const EPApp=(()=>{
   async function startDirect(mode){return start(mode,{returnTab:returnTabForMode(mode)})}
   async function start(mode,opts={}){
     closePicker();
+    if(mode==='daily'){
+      EPQuiz.replaceSavedFor('daily');
+      try{const qs=await gas('getPracticeBatch','daily',opts);if(!qs.length){toast('Today’s Daily 120 is already completed.');await refreshDashboard();return}document.body.classList.add('quiz-active');$('bottomNav').classList.add('hidden');EPQuiz.start(qs,{mode:'daily',returnTab:'home',serverSynced:true});return}catch(e){toast('Could not load Daily 120: '+e.message);return}
+    }
     if(EPQuiz.hasSavedSessionFor(mode)){
-      if(EPQuiz.isSameRequested(mode,opts)){mode==='daily'?EPQuiz.resumeDaily():EPQuiz.resumeOther();return}
-      if(!confirm(mode==='daily'?'A paused Daily 120 exists. Replace it with a new Daily session?':'A paused extra practice set exists. Start a new one and replace that extra session?'))return;
+      if(EPQuiz.isSameRequested(mode,opts)){EPQuiz.resumeOther();return}
+      if(!confirm('A paused extra practice set exists. Start a new one and replace that extra session?'))return;
       EPQuiz.replaceSavedFor(mode);
     }
-    try{const qs=await gas('getPracticeBatch',mode,opts);if(!qs.length){toast(mode==='daily'?'Today’s eligible daily questions are already completed.':'No eligible questions in this section yet.');return}document.body.classList.add('quiz-active');$('bottomNav').classList.add('hidden');EPQuiz.start(qs,{mode,category:opts.category||'',source:opts.source||'',returnTab:opts.returnTab||returnTabForMode(mode)})}catch(e){toast('Could not load practice: '+e.message)}
+    try{const qs=await gas('getPracticeBatch',mode,opts);if(!qs.length){toast('No eligible questions in this section yet.');return}document.body.classList.add('quiz-active');$('bottomNav').classList.add('hidden');EPQuiz.start(qs,{mode,category:opts.category||'',source:opts.source||'',returnTab:opts.returnTab||returnTabForMode(mode)})}catch(e){toast('Could not load practice: '+e.message)}
   }
 
   async function openDemanded(){showTab('demanded');$('demandedList').innerHTML='<div class="empty card">Loading demanded batches…</div>';try{const rows=await gas('getDemandBatches');$('demandedList').innerHTML=rows.length?rows.map(x=>`<div class="list-card" onclick='EPApp.startDemandBatch(${JSON.stringify(x.id)},${JSON.stringify(x.name)})'><div class="row between"><div><b>🎯 ${esc(x.name)}</b><div class="muted">${x.count} questions${x.created?' · '+esc(x.created):''}</div>${x.notes?`<div class="muted">${esc(x.notes)}</div>`:''}</div><span>›</span></div></div>`).join(''):'<div class="empty card">No demanded batch yet. Ask me in ChatGPT for a topic or weakness-based set and it will appear here.</div>'}catch(e){$('demandedList').innerHTML=`<div class="empty card">${esc(e.message)}</div>`}}
@@ -36,21 +40,23 @@ const EPApp=(()=>{
 
   async function openHindu(){showTab('hindu');$('hinduList').innerHTML='<div class="empty card">Loading today’s words…</div>';try{const words=await gas('getHinduToday');renderHindu(words)}catch(e){$('hinduList').innerHTML=`<div class="empty card">${esc(e.message)}</div>`}}
   function renderHindu(words){$('hinduActions').classList.toggle('hidden',!words.length);if(!words.length){$('hinduList').innerHTML='<div class="empty card">Today’s 10-word batch has not been added yet.</div>';return}$('hinduList').innerHTML=words.map((w,i)=>`<article class="word-card"><div class="row between"><div><span class="word-no">${i+1}</span><b class="word-title">${esc(w.word)}</b></div><span class="tag">${esc(w.pos||'')}</span></div><p class="meaning">${esc(w.meaning||'')}</p>${w.synonyms?`<p><b>Synonyms:</b> ${esc(w.synonyms)}</p>`:''}${w.antonyms?`<p><b>Antonyms:</b> ${esc(w.antonyms)}</p>`:''}${w.example?`<p><b>Example:</b> ${esc(w.example)}</p>`:''}${w.usage?`<p><b>Usage:</b> ${esc(w.usage)}</p>`:''}${w.tip?`<p class="tipbox"><b>Tip:</b> ${esc(w.tip)}</p>`:''}${w.memory?`<p><b>Remember:</b> ${esc(w.memory)}</p>`:''}<div class="muted source-line">${esc(w.sourceName||'')} ${w.date?'· '+esc(w.date):''}</div></article>`).join('')}
-  async function startHinduQuiz(){const opts={returnTab:'hindu'};if(EPQuiz.hasSavedSessionFor('hindu')){if(EPQuiz.isSameRequested('hindu',opts)){EPQuiz.resumeOther();return}if(!confirm('A paused extra practice set exists. Replace it with today’s Hindu quiz?'))return;EPQuiz.replaceSavedFor('hindu')}try{const qs=await gas('getHinduQuiz');if(!qs.length){toast('Need at least two words for a quiz.');return}document.body.classList.add('quiz-active');$('bottomNav').classList.add('hidden');EPQuiz.start(qs,{mode:'hindu',returnTab:'hindu'})}catch(e){toast(e.message)}}
+  async function startHinduQuiz(){EPQuiz.replaceSavedFor('hindu');try{const qs=await gas('getHinduQuizSynced');if(!qs.length){toast('Today’s Hindu-word practice is already completed.');return}document.body.classList.add('quiz-active');$('bottomNav').classList.add('hidden');EPQuiz.start(qs,{mode:'hindu',returnTab:'hindu',serverSynced:true})}catch(e){toast(e.message)}}
   async function openSources(){showTab('sources');$('sourceList').innerHTML='<div class="empty card">Loading sources…</div>';try{const rows=await gas('getSources');$('sourceList').innerHTML=rows.length?rows.map(s=>`<div class="list-card source-item" onclick='EPApp.startSource(${JSON.stringify(s.key)})'><div class="row between"><div><b>${esc(s.name)}</b><div class="muted">${s.count} questions${s.categorySummary?' · '+esc(s.categorySummary):''}</div></div><span>›</span></div></div>`).join(''):'<div class="empty card">No PDF/source metadata yet. Future uploads will appear here automatically.</div>'}catch(e){$('sourceList').innerHTML=`<div class="empty card">${esc(e.message)}</div>`}}
   function startSource(key){start('source',{source:key,count:20,returnTab:'sources'})}
   async function openMastered(){showTab('mastered');$('masteredList').innerHTML='<div class="empty card">Loading mastered questions…</div>';try{const rows=await gas('getMasteredItems');$('masteredList').innerHTML=rows.length?rows.map(x=>`<div class="list-card"><div class="row between"><div><b>${esc(x.word||x.id)}</b><div class="muted">${esc(x.topic||'')} ${x.source?'· '+esc(x.source):''}</div></div><button class="btn soft mini" onclick='event.stopPropagation();EPApp.restoreMastered(${JSON.stringify(x.id)})'>Restore</button></div></div>`).join(''):'<div class="empty card">Nothing is marked Mastered.</div>'}catch(e){$('masteredList').innerHTML=`<div class="empty card">${esc(e.message)}</div>`}}
   async function restoreMastered(id){try{await gas('restoreMastered',id);toast('Restored to normal practice');boot=await gas('getBootstrap');renderBootstrap();renderTopics();openMastered()}catch(e){toast('Restore failed: '+e.message)}}
   function refreshResumeCard(){
-    const d=EPQuiz.getDailySummary(),o=EPQuiz.getOtherSummary();
-    $('dailyStartBtn').classList.toggle('hidden',!!d);$('dailyResumeBtn').classList.toggle('hidden',!d);if(d)$('dailyResumeBtn').textContent=`Resume Daily 120 · ${d.index+1}/${d.total}`;
+    const o=EPQuiz.getOtherSummary(),s=boot&&boot.stats?boot.stats:{},done=Number(s.dailyCompleted||0),total=Number(s.dailyTotal||boot?.dailyTarget||120);
+    $('dailyStartBtn').classList.toggle('hidden',done>0&&done<total);$('dailyResumeBtn').classList.toggle('hidden',!(done>0&&done<total));if(done>0&&done<total)$('dailyResumeBtn').textContent=`Resume Daily 120 · ${done}/${total} completed`;
+    if(done>=total&&total>0){$('dailyStartBtn').disabled=true;$('dailyStartBtn').textContent='Daily 120 Completed ✓'}else{$('dailyStartBtn').disabled=false;$('dailyStartBtn').textContent='Start / Continue Daily Practice'}
     const card=$('resumeCard');if(!o){card.classList.add('hidden')}else{card.classList.remove('hidden');$('resumeText').textContent=`${o.title} · ${o.index+1}/${o.total}`}
   }
+  async function refreshDashboard(){try{boot=await gas('getBootstrap');renderBootstrap();refreshResumeCard()}catch(e){}}
   function returnTabForMode(mode){if(mode==='category'||mode==='source')return'practice';if(mode==='demand')return'demanded';if(['due','weak','recall'].includes(mode))return'revision';if(mode==='hindu')return'hindu';return'home'}
   function toast(msg){const t=$('toast');t.textContent=msg;t.classList.remove('hidden');clearTimeout(t._timer);t._timer=setTimeout(()=>t.classList.add('hidden'),2600)}
   function call(fn,...args){return gas(fn,...args)}
   function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
   document.addEventListener('DOMContentLoaded',load);
-  return{toggleTheme,showTab,pickCount,closePicker,startDirect,start,openDemanded,startDemandBatch,openHindu,startHinduQuiz,openSources,startSource,openMastered,restoreMastered,toast,call,refreshResumeCard};
+  return{toggleTheme,showTab,pickCount,closePicker,startDirect,start,openDemanded,startDemandBatch,openHindu,startHinduQuiz,openSources,startSource,openMastered,restoreMastered,toast,call,refreshResumeCard,refreshDashboard};
 })();
 </script>
