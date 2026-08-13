@@ -4,7 +4,13 @@ const MATHS = Object.freeze({
   DEFAULTS: { current_day:1, today_chapter:'Coordinate Geometry', daily_chapter_size:30, daily_reinforcement_size:10, practice_more_size:20, keep_chapter_until_introduced:true }
 });
 
-function doGet(){ensureMathsInfrastructure_();return HtmlService.createHtmlOutputFromFile('Index').setTitle(MATHS.TITLE).setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)}
+function doGet(){
+  ensureMathsInfrastructure_();
+  return HtmlService.createHtmlOutputFromFile('Index')
+    .setTitle(MATHS.TITLE)
+    .addMetaTag('viewport','width=device-width, initial-scale=1, viewport-fit=cover')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
 function setupMathsRevision(){ensureMathsInfrastructure_();return getBootstrap()}
 function getBootstrap(){ensureMathsInfrastructure_();const q=getQuestions_(),s=getStateMap_();return{ok:true,title:MATHS.TITLE,dashboard:buildDashboard_(q,s),chapters:buildChapters_(q,s),library:buildLibrary_(q,s),filters:buildFilters_(q.concat(getGenerated_())),settings:getSettings_()}}
 
@@ -26,7 +32,7 @@ function buildLibrary_(qs,s){const n=getNotesMap_();return{formulas:qs.filter(q=
 function buildFilters_(qs){const u=a=>Array.from(new Set(a.filter(Boolean).map(String))).sort((a,b)=>a.localeCompare(b));return{chapters:u(qs.map(q=>q.chapter)),topics:u(qs.map(q=>q.topic)),subtopics:u(qs.map(q=>q.subtopic)),cardTypes:u(qs.map(q=>q.card_type)),difficulties:u(qs.map(q=>q.difficulty))}}
 function filterLibrary_(qs,s,c){c=String(c||'').toLowerCase();if(c==='formula'||c==='formulas')return qs.filter(q=>String(q.card_type).toLowerCase()==='formula');if(c==='methods')return qs.filter(q=>['method','pattern','trap'].includes(String(q.card_type).toLowerCase()));if(c==='fractions')return qs.filter(q=>/fraction/i.test((q.chapter||'')+' '+(q.topic||'')));if(c==='triplets')return qs.filter(q=>/triplet/i.test((q.chapter||'')+' '+(q.topic||'')));if(c==='marked')return qs.filter(q=>isMarked_(s[q.question_id]));if(c==='notes'){const n=getNotesMap_(),ids=new Set(Object.keys(n).filter(id=>String(n[id]||'').trim()));return qs.filter(q=>ids.has(q.question_id))}if(c==='recent')return qs.slice(-20);return qs}
 function filterOnDemand_(qs,s,r){return qs.filter(q=>active_(q)&&(!r.chapter||q.chapter===r.chapter)&&(!r.topic||q.topic===r.topic)&&(!r.subtopic||q.subtopic===r.subtopic)&&(!r.cardType||q.card_type===r.cardType)&&(!r.difficulty||q.difficulty===r.difficulty)&&(!r.markedOnly||isMarked_(s[q.question_id]))&&(!r.activeOnly||!isMastered_(s[q.question_id]))&&(!r.masteredOnly||isMastered_(s[q.question_id])))}
-function toClientQuestion_(q,s,n){return{id:q.question_id,chapter:q.chapter,topic:q.topic,subtopic:q.subtopic,cardType:q.card_type,prompt:q.prompt,answer:q.answer,explanation:q.explanation,memoryCue:q.memory_cue,difficulty:q.difficulty,diagramType:q.diagram_type,diagramJson:q.diagram_json,sourceFile:q.source_file,sourcePage:q.source_page,mastered:isMastered_(s),marked:isMarked_(s),attempts:Number((s||{}).attempts||0),note:n||''}}
+function toClientQuestion_(q,s,n){const triplet=/triplet/i.test((q.chapter||'')+' '+(q.topic||'')+' '+(q.subtopic||''));return{id:q.question_id,chapter:q.chapter,topic:q.topic,subtopic:q.subtopic,cardType:q.card_type,prompt:q.prompt,answer:q.answer,explanation:q.explanation,memoryCue:q.memory_cue,difficulty:q.difficulty,diagramType:triplet?'':q.diagram_type,diagramJson:triplet?'':q.diagram_json,sourceFile:q.source_file,sourcePage:q.source_page,mastered:isMastered_(s),marked:isMarked_(s),attempts:Number((s||{}).attempts||0),note:n||''}}
 
 function advanceDailyPlan_(){const qs=getQuestions_().filter(active_),s=getStateMap_(),c=String(getSetting_('today_chapter',MATHS.DEFAULTS.today_chapter)),keep=bool_(getSetting_('keep_chapter_until_introduced',true)),unseen=qs.filter(q=>q.chapter===c&&!isMastered_(s[q.question_id])&&!Number((s[q.question_id]||{}).attempts||0));let next=c;if(!(keep&&unseen.length)){const p=sheetObjects_(getSheet_(MATHS.SHEETS.PLAN)).filter(r=>r.chapter&&String(r.status||'').toLowerCase()!=='continuous').sort((a,b)=>Number(a.order||999)-Number(b.order||999)),av=p.map(r=>String(r.chapter)).filter(x=>qs.some(q=>q.chapter===x&&!isMastered_(s[q.question_id])));if(av.length){const i=av.indexOf(c);next=av[(i+1+av.length)%av.length]}}setSetting_('current_day',Number(getSetting_('current_day',1))+1);setSetting_('today_chapter',next)}
 function getQuestions_(){return sheetObjects_(getSheet_(MATHS.SHEETS.QUESTIONS)).filter(r=>r.question_id)}function getGenerated_(){return sheetObjects_(getSheet_(MATHS.SHEETS.GENERATED)).filter(r=>r.question_id)}
