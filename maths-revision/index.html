@@ -1,96 +1,46 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#ffffff">
-  <title>Maths Revision</title>
-  <link rel="stylesheet" href="css/app.css?v=20260813-1">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>Maths Revision</title>
+<style>
+:root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#18202a;background:#f5f7fa;line-height:1.45;--bg:#f5f7fa;--card:#fff;--ink:#18202a;--muted:#687384;--line:#e4e8ee;--brand:#18202a;--soft:#f1f4f8;--green:#23794a}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink)}button,input,select,textarea{font:inherit}.hidden{display:none!important}.topbar{position:sticky;top:0;z-index:30;display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.8rem max(.75rem,calc((100vw - 980px)/2));background:rgba(255,255,255,.97);border-bottom:1px solid var(--line)}.brand{border:0;background:transparent;padding:0;font-weight:800;font-size:1rem}.status{font-size:.78rem;color:var(--muted)}.app{width:min(100% - 1.25rem,980px);margin:0 auto;padding:1rem 0 5.5rem}.hero{padding:.4rem 0 1rem}.eyebrow{margin:0;font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}h1{font-size:clamp(1.8rem,7vw,3rem);margin:.15rem 0 .3rem;line-height:1.05}h2{margin:.2rem 0 1rem}.card,.panel,.question-card{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:1rem;box-shadow:0 4px 14px rgba(23,34,50,.035)}.card-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.7rem}.card strong{display:block;font-size:1.15rem}.label,.small{font-size:.78rem;color:var(--muted)}.action-row{display:flex;gap:.65rem;margin-top:.8rem}.primary,.secondary{border-radius:10px;padding:.72rem .95rem;cursor:pointer;font-weight:750}.primary{border:1px solid var(--brand);background:var(--brand);color:#fff}.secondary{border:1px solid #d9dfe7;background:#fff;color:var(--ink)}button:disabled{opacity:.45;cursor:not-allowed}.wide{width:100%}.bottom-tabs{position:fixed;bottom:0;left:0;right:0;z-index:35;display:grid;grid-template-columns:repeat(5,1fr);background:#fff;border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}.bottom-tabs button{border:0;background:transparent;padding:.58rem .15rem;color:var(--muted);font-size:.68rem}.bottom-tabs button b{display:block;font-size:1.12rem}.bottom-tabs button.active{color:var(--ink);font-weight:800}.list{display:grid;gap:.65rem}.row{display:flex;align-items:center;justify-content:space-between;gap:.8rem}.tags{display:flex;gap:.35rem;flex-wrap:wrap}.tag{font-size:.7rem;padding:.25rem .5rem;border-radius:999px;background:var(--soft)}.quiz-toolbar,.quiz-nav,.question-meta{display:flex;align-items:center;justify-content:space-between;gap:.7rem}.progress-track{height:7px;margin:.8rem 0;background:#e6eaf0;border-radius:99px;overflow:hidden}.progress-bar{height:100%;width:0;background:var(--brand);transition:width .15s ease}.question-meta{font-size:.75rem;color:var(--muted)}.question-text{font-size:clamp(1.18rem,4.2vw,1.55rem);font-weight:800;white-space:pre-wrap;margin:1rem 0}.answer{font-size:1.12rem;font-weight:850;color:var(--green);white-space:pre-wrap}.explanation{margin-top:.8rem;padding:.85rem;background:var(--soft);border-radius:11px;white-space:pre-wrap}.memory{margin-top:.7rem;padding:.7rem .8rem;border-left:3px solid var(--brand);background:var(--soft);border-radius:9px}.note-line{margin-top:.7rem;padding:.65rem .8rem;border:1px dashed #cdd5df;border-radius:9px}.question-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-top:.85rem}.question-actions button{padding:.65rem .4rem}.active-state{border-color:var(--green)!important;color:var(--green)!important}.quiz-nav{position:sticky;bottom:0;background:var(--bg);padding:.7rem 0 calc(.7rem + env(safe-area-inset-bottom));margin-top:.6rem}.quiz-nav button{flex:1}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:.65rem}.field{display:grid;gap:.28rem}.field label{font-size:.72rem;color:var(--muted)}select,input,textarea{width:100%;padding:.7rem;border:1px solid #d9dfe7;border-radius:9px;background:#fff;color:var(--ink)}textarea{min-height:100px}.diagram{margin:.8rem auto;max-width:430px;border:1px solid var(--line);border-radius:12px;padding:.45rem}.diagram svg{width:100%;height:auto;display:block}.toast{position:fixed;left:50%;bottom:5.2rem;transform:translateX(-50%);background:#111827;color:#fff;padding:.65rem .8rem;border-radius:9px;z-index:80;font-size:.82rem}.modal{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;padding:1rem}.modal .card{width:min(100%,520px)}.loading{position:fixed;inset:0;z-index:100;background:var(--bg);display:grid;place-items:center;font-weight:800}
+@media(max-width:680px){.topbar{padding:.75rem .8rem}.app{width:min(100% - .9rem,980px);padding-top:.65rem}.card-grid{grid-template-columns:1fr 1fr}.card-grid .card:first-child{grid-column:1/-1}.card,.panel,.question-card{padding:.85rem;border-radius:13px}.action-row{display:grid}.form-grid{grid-template-columns:1fr}.quiz-toolbar{position:sticky;top:52px;background:var(--bg);z-index:20;padding:.35rem 0}.question-text{margin:.8rem 0}.explanation{padding:.75rem}.bottom-tabs button{padding:.5rem .05rem}}
+</style>
 </head>
 <body>
-  <header class="topbar">
-    <button id="homeButton" class="brand" type="button">Maths Revision</button>
-    <span id="connectionStatus" class="status">Connecting…</span>
-  </header>
-
-  <main id="app" class="app-shell" aria-live="polite">
-    <section id="homeView">
-      <section class="hero">
-        <p class="eyebrow">SSC Maths Revision</p>
-        <h1 id="dayTitle">Daily Revision</h1>
-        <p id="dayMessage">Loading today's chapter…</p>
-      </section>
-
-      <section class="card-grid">
-        <article class="card"><span class="label">Today</span><strong id="todayChapter">—</strong></article>
-        <article class="card"><span class="label">Active</span><strong id="todayActive">—</strong></article>
-        <article class="card"><span class="label">Mastered</span><strong id="masteredTotal">—</strong></article>
-      </section>
-
-      <section class="panel action-panel">
-        <button id="startDailyButton" class="primary-button" type="button" disabled>Start / Resume Daily Revision</button>
-        <button id="practiceMoreButton" class="secondary-button" type="button" disabled>Practice More Today's Chapter</button>
-      </section>
-
-      <nav class="section-tabs" aria-label="Maths sections">
-        <button data-view="chapters" type="button">Chapters</button>
-        <button data-view="library" type="button">Library</button>
-        <button data-view="ondemand" type="button">On Demand</button>
-        <button data-view="more" type="button">More</button>
-      </nav>
-
-      <section id="subView" class="subview"></section>
-    </section>
-
-    <section id="quizView" class="hidden">
-      <div class="quiz-toolbar">
-        <div>
-          <span id="quizTitle" class="label">Revision</span>
-          <strong id="quizCounter">1 / 1</strong>
-        </div>
-        <button id="pauseButton" class="secondary-button" type="button">Pause</button>
-      </div>
-      <div class="progress-track"><div id="quizProgressBar" class="progress-bar"></div></div>
-
-      <article class="question-card">
-        <div class="question-meta"><span id="questionMeta"></span><span id="questionId"></span></div>
-        <h2 id="questionText"></h2>
-        <div id="diagramBox" class="diagram-box hidden"></div>
-        <button id="showAnswerButton" class="primary-button wide" type="button">Show Answer</button>
-        <section id="answerBox" class="answer-box hidden">
-          <strong id="answerText"></strong>
-          <p id="explanationText"></p>
-          <p id="memoryCue" class="memory-cue hidden"></p>
-          <p id="personalNote" class="personal-note hidden"></p>
-          <div class="question-actions">
-            <button id="masteredButton" class="secondary-button" type="button">☆ Mastered</button>
-            <button id="markedButton" class="secondary-button" type="button">🔖 Mark</button>
-            <button id="noteButton" class="secondary-button" type="button">📝 Note</button>
-          </div>
-        </section>
-      </article>
-
-      <nav class="quiz-nav" aria-label="Quiz navigation">
-        <button id="previousButton" class="secondary-button" type="button">← Previous</button>
-        <button id="nextButton" class="primary-button" type="button">Next →</button>
-      </nav>
-    </section>
-  </main>
-
-  <dialog id="noteDialog" class="note-dialog">
-    <form method="dialog">
-      <h3>My note</h3>
-      <textarea id="noteText" placeholder="Add your own memory cue or observation"></textarea>
-      <div class="dialog-actions">
-        <button value="cancel" class="secondary-button">Cancel</button>
-        <button id="saveNoteButton" value="default" class="primary-button">Save</button>
-      </div>
-    </form>
-  </dialog>
-
-  <script src="js/config.js?v=20260813-1"></script>
-  <script src="js/api.js?v=20260813-1"></script>
-  <script src="js/quiz.js?v=20260813-1"></script>
-  <script src="js/app.js?v=20260813-1"></script>
-</body>
-</html>
+<div id="loading" class="loading">Loading Maths Revision…</div>
+<header class="topbar"><button id="brand" class="brand">Maths Revision</button><span id="status" class="status">Connecting…</span></header>
+<main id="app" class="app"></main>
+<nav id="tabs" class="bottom-tabs"><button data-view="home"><b>⌂</b>Home</button><button data-view="chapters"><b>▤</b>Chapters</button><button data-view="library"><b>▦</b>Library</button><button data-view="ondemand"><b>◆</b>On Demand</button><button data-view="more"><b>•••</b>More</button></nav>
+<div id="toast" class="toast hidden"></div><div id="modal"></div>
+<script>
+const S={boot:null,view:'home',quiz:null,index:0,revealed:false,startedAt:0,pending:false};
+const SESSION_KEY='mathsRevisionSession_v2';
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function server(fn,...args){return new Promise((res,rej)=>google.script.run.withSuccessHandler(res).withFailureHandler(e=>rej(new Error(e?.message||String(e))))[fn](...args));}
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.remove('hidden');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.add('hidden'),1800)}
+function saveLocal(){if(S.quiz)localStorage.setItem(SESSION_KEY,JSON.stringify({quiz:S.quiz,index:S.index,revealed:S.revealed}))}function loadLocal(){try{return JSON.parse(localStorage.getItem(SESSION_KEY)||'null')}catch{return null}}function clearLocal(){localStorage.removeItem(SESSION_KEY)}
+async function init(){try{S.boot=await server('getBootstrap');$('#loading').classList.add('hidden');$('#status').textContent='Connected';show('home')}catch(e){$('#loading').textContent=e.message;$('#status').textContent='Error'}}
+function show(v){S.view=v;document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.view===v));$('#tabs').classList.remove('hidden');if(v==='home')home();if(v==='chapters')chapters();if(v==='library')library();if(v==='ondemand')ondemand();if(v==='more')more();window.scrollTo({top:0})}
+function home(){const d=S.boot.dashboard,s=loadLocal();$('#app').innerHTML=`<section class="hero"><p class="eyebrow">SSC Maths Revision · Day ${d.day}</p><h1>${esc(d.todayChapter)}</h1><p class="small">${d.chapterRemaining} active · ${d.freshRemaining} not introduced · ${d.chapterMastered}/${d.chapterTotal} mastered</p></section><section class="card-grid"><article class="card"><span class="label">Today's chapter</span><strong>${esc(d.todayChapter)}</strong></article><article class="card"><span class="label">Mastered</span><strong>${d.mastered}</strong></article><article class="card"><span class="label">Marked</span><strong>${d.marked}</strong></article></section>${s?`<section class="panel" style="margin-top:.7rem"><div class="row"><div><strong>Paused session</strong><div class="small">${esc(s.quiz?.title||'Revision')} · ${Number(s.index||0)+1}/${s.quiz?.questions?.length||0}</div></div><button class="secondary" onclick="resumeLocal()">Resume</button></div></section>`:''}<section class="panel" style="margin-top:.7rem"><div class="action-row"><button class="primary" onclick="startQuiz({mode:'daily'})">Start Daily Revision</button><button class="secondary" onclick="startQuiz({mode:'practice_more',chapter:${JSON.stringify(d.todayChapter)}})">+ Practice More</button></div></section>`}
+function chapters(){const cs=S.boot.chapters||[];$('#app').innerHTML=`<h2>Chapters</h2><div class="list">${cs.map(c=>`<article class="card"><div class="row"><div><strong>${esc(c.chapter)}</strong><div class="small">${c.remaining} active · ${c.mastered}/${c.total} mastered</div></div><button class="secondary" onclick='startQuiz(${JSON.stringify({mode:'chapter',chapter:c.chapter})})'>Open bank</button></div><div class="tags" style="margin-top:.55rem">${Object.entries(c.topics).slice(0,7).map(([t,n])=>`<span class="tag">${esc(t)} ${n}</span>`).join('')}</div></article>`).join('')}</div>`}
+function library(){const l=S.boot.library,x=[['Formula',l.formulas,'∑'],['Methods',l.methods,'⚡'],['Fractions',l.fractions,'⅞'],['Triplets',l.triplets,'△'],['Marked',l.marked,'🔖'],['Notes',l.notes,'📝'],['Recent',l.recent,'＋']];$('#app').innerHTML=`<h2>Library</h2><div class="card-grid">${x.map(a=>`<button class="card" style="text-align:left" onclick='startQuiz(${JSON.stringify({mode:'library',cluster:a[0]})})'><strong>${a[2]} ${a[0]}</strong><span class="small">${a[1]} cards</span></button>`).join('')}</div>`}
+function opts(a){return(a||[]).map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('')}
+function ondemand(){const f=S.boot.filters||{};$('#app').innerHTML=`<h2>On Demand</h2><section class="card"><div class="form-grid"><div class="field"><label>Pool</label><select id="pool"><option value="ondemand">Database</option><option value="generated">Generated from chat</option></select></div><div class="field"><label>Count</label><select id="count"><option>10</option><option selected>20</option><option>30</option><option>50</option><option>100</option></select></div><div class="field"><label>Chapter</label><select id="chapter"><option value="">All</option>${opts(f.chapters)}</select></div><div class="field"><label>Topic</label><select id="topic"><option value="">All</option>${opts(f.topics)}</select></div><div class="field"><label>Subtopic</label><select id="subtopic"><option value="">All</option>${opts(f.subtopics)}</select></div><div class="field"><label>Card type</label><select id="ctype"><option value="">All</option>${opts(f.cardTypes)}</select></div></div><label class="small" style="display:block;margin:.75rem 0"><input id="markedOnly" type="checkbox" style="width:auto"> Marked only</label><label class="small" style="display:block;margin-bottom:.75rem"><input id="activeOnly" type="checkbox" style="width:auto" checked> Exclude mastered</label><button class="primary wide" onclick="runOD()">Start On Demand</button></section>`}
+function runOD(){startQuiz({mode:$('#pool').value,chapter:$('#chapter').value,topic:$('#topic').value,subtopic:$('#subtopic').value,cardType:$('#ctype').value,count:Number($('#count').value),markedOnly:$('#markedOnly').checked,activeOnly:$('#activeOnly').checked})}
+function more(){const d=S.boot.dashboard;$('#app').innerHTML=`<h2>More</h2><div class="list"><article class="card"><strong>Mastered bank</strong><div class="small">Mastered items leave Daily Revision but remain in chapter banks and On Demand.</div></article><article class="card"><strong>Progress</strong><div class="small">${d.mastered}/${d.total} permanent cards mastered.</div></article><article class="card"><strong>Generated practice</strong><div class="small">${d.generated} temporary/custom cards available.</div></article></div>`}
+async function startQuiz(r){if(S.pending)return;S.pending=true;try{const q=await server('getQuiz',r);if(!q.ok){toast(q.message);return}S.quiz=q;S.index=0;S.revealed=false;saveLocal();openQuiz()}catch(e){toast(e.message)}finally{S.pending=false}}
+function resumeLocal(){const x=loadLocal();if(!x?.quiz?.questions?.length){clearLocal();return}S.quiz=x.quiz;S.index=Math.min(Number(x.index||0),x.quiz.questions.length-1);S.revealed=!!x.revealed;openQuiz()}
+function openQuiz(){$('#tabs').classList.add('hidden');renderQ();window.scrollTo({top:0})}
+function renderQ(){const q=S.quiz.questions[S.index];S.startedAt=Date.now();const p=((S.index+1)/S.quiz.questions.length)*100;$('#app').innerHTML=`<div class="quiz-toolbar"><div><span class="label">${esc(S.quiz.title)}</span><strong>${S.index+1} / ${S.quiz.questions.length}</strong></div><button class="secondary" onclick="pauseQuiz()">Pause</button></div><div class="progress-track"><div class="progress-bar" style="width:${p}%"></div></div><article class="question-card"><div class="question-meta"><span>${esc(q.chapter)} · ${esc(q.topic)}${q.subtopic?' · '+esc(q.subtopic):''}</span><span>${esc(q.id)}</span></div><div class="question-text">${esc(q.prompt)}</div>${diagram(q)}<button class="primary wide ${S.revealed?'hidden':''}" onclick="reveal()">Show Answer</button><section class="${S.revealed?'':'hidden'}"><div class="answer">${esc(q.answer)}</div><div class="explanation">${esc(q.explanation||'')}</div>${q.memoryCue?`<div class="memory"><strong>Memory cue:</strong> ${esc(q.memoryCue)}</div>`:''}${q.note?`<div class="note-line"><strong>My note:</strong> ${esc(q.note)}</div>`:''}<div class="question-actions"><button class="secondary ${q.mastered?'active-state':''}" onclick="toggleMaster()">${q.mastered?'✓ Mastered':'☆ Mastered'}</button><button class="secondary ${q.marked?'active-state':''}" onclick="toggleMark()">${q.marked?'🔖 Marked':'🔖 Mark'}</button><button class="secondary" onclick="openNote()">📝 Note</button></div></section></article><nav class="quiz-nav"><button class="secondary" onclick="previousQ()" ${S.index===0?'disabled':''}>← Previous</button><button class="primary" onclick="nextQ()">${S.index===S.quiz.questions.length-1?'Finish':'Next →'}</button></nav>`;saveLocal()}
+function reveal(){S.revealed=true;saveLocal();renderQ()}function previousQ(){if(S.index>0){S.index--;S.revealed=true;renderQ()}}
+async function nextQ(){const q=S.quiz.questions[S.index];if(!S.revealed){reveal();return}server('saveQuestionAction',{questionId:q.id,recordAttempt:true,result:'seen',responseSec:Math.max(.1,(Date.now()-S.startedAt)/1000),mode:S.quiz.mode,mastered:q.mastered,marked:q.marked}).catch(console.error);if(S.index<S.quiz.questions.length-1){S.index++;S.revealed=false;renderQ();window.scrollTo({top:0});return}const daily=S.quiz.mode==='daily';clearLocal();S.quiz=null;if(daily)try{await server('completeDailySession')}catch(e){}S.boot=await server('getBootstrap');show('home');toast('Session complete')}
+function pauseQuiz(){saveLocal();S.quiz=null;show('home');toast('Session paused')}function toggleMaster(){const q=S.quiz.questions[S.index];q.mastered=!q.mastered;renderQ();server('saveQuestionAction',{questionId:q.id,mastered:q.mastered,marked:q.marked}).catch(()=>toast('Save failed'))}function toggleMark(){const q=S.quiz.questions[S.index];q.marked=!q.marked;renderQ();server('saveQuestionAction',{questionId:q.id,mastered:q.mastered,marked:q.marked}).catch(()=>toast('Save failed'))}
+function openNote(){const q=S.quiz.questions[S.index];$('#modal').innerHTML=`<div class="modal"><section class="card"><h2>My Note</h2><textarea id="noteText">${esc(q.note||'')}</textarea><div class="action-row"><button class="secondary" onclick="closeNote()">Cancel</button><button class="primary" onclick="saveMyNote()">Save</button></div></section></div>`}function closeNote(){$('#modal').innerHTML=''}async function saveMyNote(){const q=S.quiz.questions[S.index],t=$('#noteText').value;q.note=t;closeNote();renderQ();try{await server('saveNote',q.id,t);toast('Note saved')}catch(e){toast('Save failed')}}
+function diagram(q){const t=String(q.diagramType||'');if(!t)return'';let b='',a='<line x1="25" y1="115" x2="375" y2="115" stroke="currentColor"/><line x1="200" y1="18" x2="200" y2="215" stroke="currentColor"/>';if(/circle/i.test(t))b=`${a}<circle cx="200" cy="115" r="70" fill="none" stroke="currentColor" stroke-width="2"/>`;else if(/triangle|median|centroid|circum|ortho|right|equilateral/i.test(t))b=`${a}<polygon points="95,175 205,42 325,172" fill="none" stroke="currentColor" stroke-width="2"/>`;else if(/parallel/i.test(t))b=`${a}<line x1="55" y1="165" x2="340" y2="62" stroke="currentColor"/><line x1="65" y1="195" x2="350" y2="92" stroke="currentColor"/>`;else if(/two_lines|perpendicular|angle/i.test(t))b=`${a}<line x1="60" y1="190" x2="340" y2="55" stroke="currentColor"/><line x1="65" y1="55" x2="340" y2="180" stroke="currentColor"/>`;else if(/reflection_x/i.test(t))b=`${a}<circle cx="275" cy="60" r="5"/><circle cx="275" cy="170" r="5"/>`;else if(/reflection_y/i.test(t))b=`${a}<circle cx="285" cy="70" r="5"/><circle cx="115" cy="70" r="5"/>`;else b=a;return`<div class="diagram"><svg viewBox="0 0 400 230">${b}</svg></div>`}
+document.querySelectorAll('#tabs button').forEach(b=>b.addEventListener('click',()=>show(b.dataset.view)));$('#brand').addEventListener('click',()=>S.quiz?pauseQuiz():show('home'));init();
+</script></body></html>
