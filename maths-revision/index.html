@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <title>Maths Revision</title>
+  <link rel="stylesheet" href="css/app.css?v=20260813-1">
+</head>
+<body>
+  <header class="topbar">
+    <button id="homeButton" class="brand" type="button">Maths Revision</button>
+    <span id="connectionStatus" class="status">Connecting…</span>
+  </header>
+
+  <main id="app" class="app-shell" aria-live="polite">
+    <section id="homeView">
+      <section class="hero">
+        <p class="eyebrow">SSC Maths Revision</p>
+        <h1 id="dayTitle">Daily Revision</h1>
+        <p id="dayMessage">Loading today's chapter…</p>
+      </section>
+
+      <section class="card-grid">
+        <article class="card"><span class="label">Today</span><strong id="todayChapter">—</strong></article>
+        <article class="card"><span class="label">Active</span><strong id="todayActive">—</strong></article>
+        <article class="card"><span class="label">Mastered</span><strong id="masteredTotal">—</strong></article>
+      </section>
+
+      <section class="panel action-panel">
+        <button id="startDailyButton" class="primary-button" type="button" disabled>Start / Resume Daily Revision</button>
+        <button id="practiceMoreButton" class="secondary-button" type="button" disabled>Practice More Today's Chapter</button>
+      </section>
+
+      <nav class="section-tabs" aria-label="Maths sections">
+        <button data-view="chapters" type="button">Chapters</button>
+        <button data-view="library" type="button">Library</button>
+        <button data-view="ondemand" type="button">On Demand</button>
+        <button data-view="more" type="button">More</button>
+      </nav>
+
+      <section id="subView" class="subview"></section>
+    </section>
+
+    <section id="quizView" class="hidden">
+      <div class="quiz-toolbar">
+        <div>
+          <span id="quizTitle" class="label">Revision</span>
+          <strong id="quizCounter">1 / 1</strong>
+        </div>
+        <button id="pauseButton" class="secondary-button" type="button">Pause</button>
+      </div>
+      <div class="progress-track"><div id="quizProgressBar" class="progress-bar"></div></div>
+
+      <article class="question-card">
+        <div class="question-meta"><span id="questionMeta"></span><span id="questionId"></span></div>
+        <h2 id="questionText"></h2>
+        <div id="diagramBox" class="diagram-box hidden"></div>
+        <button id="showAnswerButton" class="primary-button wide" type="button">Show Answer</button>
+        <section id="answerBox" class="answer-box hidden">
+          <strong id="answerText"></strong>
+          <p id="explanationText"></p>
+          <p id="memoryCue" class="memory-cue hidden"></p>
+          <p id="personalNote" class="personal-note hidden"></p>
+          <div class="question-actions">
+            <button id="masteredButton" class="secondary-button" type="button">☆ Mastered</button>
+            <button id="markedButton" class="secondary-button" type="button">🔖 Mark</button>
+            <button id="noteButton" class="secondary-button" type="button">📝 Note</button>
+          </div>
+        </section>
+      </article>
+
+      <nav class="quiz-nav" aria-label="Quiz navigation">
+        <button id="previousButton" class="secondary-button" type="button">← Previous</button>
+        <button id="nextButton" class="primary-button" type="button">Next →</button>
+      </nav>
+    </section>
+  </main>
+
+  <dialog id="noteDialog" class="note-dialog">
+    <form method="dialog">
+      <h3>My note</h3>
+      <textarea id="noteText" placeholder="Add your own memory cue or observation"></textarea>
+      <div class="dialog-actions">
+        <button value="cancel" class="secondary-button">Cancel</button>
+        <button id="saveNoteButton" value="default" class="primary-button">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="js/config.js?v=20260813-1"></script>
+  <script src="js/api.js?v=20260813-1"></script>
+  <script src="js/quiz.js?v=20260813-1"></script>
+  <script src="js/app.js?v=20260813-1"></script>
+</body>
+</html>
