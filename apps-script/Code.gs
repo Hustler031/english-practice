@@ -36,7 +36,8 @@ function getBootstrap() {
     .map(r=>({id:r.Category_ID,name:r.Category_Name,parent:r.Parent_Category,home:truthy_(r.Home_Visible),count:Number(counts[r.Category_ID]||0)}));
   const today=todayKey_();
   const hinduToday=table_(EP.sheets.hindu).filter(r=>truthy_(r.Active)&&dateKey_(r.Date)===today).length;
-  const recall=table_(EP.sheets.recall).filter(r=>truthy_(r.Active)).length;
+  const recallIds=recallIds_(status);
+  const recall=all.filter(q=>isActive_(q)&&!(status[q.id]&&status[q.id].mastered)&&recallIds.has(q.id)).length;
   const mastered=Object.keys(status).filter(id=>status[id].mastered).length;
   return {
     schemaVersion:Number(cfg.SCHEMA_VERSION||3), dailyTarget:Number(cfg.DAILY_TARGET||120),
@@ -67,7 +68,7 @@ function getPracticeBatch(mode, options) {
   } else if(mode==='random'){
     pool=all.filter(active);
   } else if(mode==='recall'){
-    const ids=new Set(table_(EP.sheets.recall).filter(r=>truthy_(r.Active)).map(r=>String(r.Existing_Question_ID||'').trim()));
+    const ids=recallIds_(status);
     pool=all.filter(q=>active(q)&&ids.has(q.id));
   } else if(mode==='weak'){
     const ids=new Set(Object.keys(status).filter(id=>['weak','wrong'].includes(String(status[id].status||'').toLowerCase())||Number(status[id].wrong||0)>0));
@@ -221,6 +222,7 @@ function shuffleSafe_(q,entries){const type=String(q.questionType||'').toLowerCa
 function shuffle_(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 function canonicalCategory_(topic){const t=String(topic||'').toLowerCase();if(t.includes('spelling'))return'SPELLING';if(t.includes('idiom'))return'IDIOM';if(t.includes('phrasal'))return'PHRASAL';if(t.includes('one word')||t.includes('field of study')||t.includes('fields of study'))return'OWS';if(t.includes('synonym')||t.includes('antonym'))return'SYN_ANT';if(t.includes('confus'))return'CONFUSED';if(t.includes('sentence improvement'))return'SENT_IMP';if(t.includes('fill in'))return'FILL';if(t.includes('cloze'))return'CLOZE';if(t.includes('para'))return'PARA';if(t.includes('reading comprehension'))return'RC';if(t.includes('error'))return'ERROR';if(t.includes('grammar'))return'GRAMMAR';if(t.includes('vocab'))return'VOC';return'MISC';}
 function statusMap_(){const cache=CacheService.getScriptCache(),hit=cache.get(EP.cache.status);if(hit){try{return JSON.parse(hit)}catch(e){}}const out={};table_(EP.sheets.status).forEach(r=>out[String(r.Question_ID||'').trim()]={status:r.Status,attempts:Number(r.Attempts||0),wrong:Number(r.Wrong||0),nextReview:r.Next_Review,mastered:truthy_(r.Mastered),marked:truthy_(r.Marked_Review),lastAttempt:r.Last_Attempt});try{cache.put(EP.cache.status,JSON.stringify(out),30)}catch(e){}return out;}
+function recallIds_(status){const ids=new Set(Object.keys(status||{}).filter(id=>Number(status[id].attempts||0)>0));table_(EP.sheets.recall).filter(r=>truthy_(r.Active)).forEach(r=>{const id=String(r.Existing_Question_ID||'').trim();if(id)ids.add(id);});return ids;}
 function config_(){return table_(EP.sheets.config).reduce((a,r)=>(a[String(r.Key||'').trim()]=r.Value,a),{});}
 function table_(name){const s=sheet_(name),lr=s.getLastRow(),lc=s.getLastColumn();if(lr<2)return[];const v=s.getRange(1,1,lr,lc).getValues(),h=v.shift().map(String);return v.map(r=>{const o={};h.forEach((k,i)=>{if(k)o[k]=r[i]});return o;});}
 function truthy_(v){return v===true||String(v||'').toLowerCase()==='true';}
