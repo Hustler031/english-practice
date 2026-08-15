@@ -14,25 +14,31 @@ function getNewPracticeHub(){
     const dk=Utilities.formatDate(added,Session.getScriptTimeZone(),'yyyy-MM-dd');
     if(!grouped[id].latest||dk>grouped[id].latest)grouped[id].latest=dk;
   });
+  const savedIds=new Set(getSavedHinduQuestionIds());
+  const saved=all.filter(q=>savedIds.has(q.id)&&isActive_(q)&&!(status[q.id]&&status[q.id].mastered));
+  if(saved.length){
+    grouped.HINDU_WORDS={id:'HINDU_WORDS',name:'Hindu Words',total:saved.length,weak:saved.filter(q=>{const st=status[q.id]||{};return ['weak','wrong'].includes(String(st.status||'').toLowerCase())||Number(st.wrong||0)>0}).length,latest:'9999-12-31'};
+  }
   const categories=Object.values(grouped).sort((a,b)=>b.latest.localeCompare(a.latest)||a.name.localeCompare(b.name));
   return {days,categories,total:categories.reduce((n,x)=>n+x.total,0)};
 }
 
 function getNewPracticeBatch(category,kind,count){
-  const all=allQuestions_(), status=statusMap_(), days=Number(config_().NEW_CONTENT_DAYS||7), now=new Date();
-  const cutoff=new Date(now); cutoff.setDate(cutoff.getDate()-Math.max(0,days-1)); cutoff.setHours(0,0,0,0);
-  const wanted=String(category||'').trim(), mode=String(kind||'all').toLowerCase();
-  let pool=all.filter(q=>{
-    if(!isActive_(q)||(status[q.id]&&status[q.id].mastered))return false;
-    const added=recentContentDate_(q); if(!added||added<cutoff)return false;
-    const rawCat=canonicalCategory_(q.topic), id=rawCat==='MISC'?'NOT_SPECIFIED':rawCat;
-    if(wanted&&id!==wanted)return false;
-    if(mode==='weak'){
-      const st=status[q.id]||{};
-      return ['weak','wrong'].includes(String(st.status||'').toLowerCase())||Number(st.wrong||0)>0;
-    }
-    return true;
-  });
+  const all=allQuestions_(), status=statusMap_(), wanted=String(category||'').trim(), mode=String(kind||'all').toLowerCase();
+  let pool=[];
+  if(wanted==='HINDU_WORDS'){
+    const savedIds=new Set(getSavedHinduQuestionIds());
+    pool=all.filter(q=>savedIds.has(q.id)&&isActive_(q)&&!(status[q.id]&&status[q.id].mastered));
+  }else{
+    const days=Number(config_().NEW_CONTENT_DAYS||7),now=new Date(),cutoff=new Date(now);cutoff.setDate(cutoff.getDate()-Math.max(0,days-1));cutoff.setHours(0,0,0,0);
+    pool=all.filter(q=>{
+      if(!isActive_(q)||(status[q.id]&&status[q.id].mastered))return false;
+      const added=recentContentDate_(q); if(!added||added<cutoff)return false;
+      const rawCat=canonicalCategory_(q.topic), id=rawCat==='MISC'?'NOT_SPECIFIED':rawCat;
+      return !wanted||id===wanted;
+    });
+  }
+  if(mode==='weak')pool=pool.filter(q=>{const st=status[q.id]||{};return ['weak','wrong'].includes(String(st.status||'').toLowerCase())||Number(st.wrong||0)>0;});
   if(mode==='random'||mode==='weak')shuffle_(pool);
   const requested=Number(count||0);
   if(mode==='random')pool=pool.slice(0,Math.max(1,Math.min(20,requested||10)));
@@ -53,6 +59,6 @@ function recentContentDate_(q){
 }
 
 function newPracticeCategoryName_(id,topic){
-  const names={VOC:'Vocabulary',IDIOM:'Idioms & Phrases',PHRASAL:'Phrasal Verbs',OWS:'One Word Substitution / Fields of Study',SYN_ANT:'Synonyms & Antonyms',CONFUSED:'Confused Words',SPELLING:'Spelling',GRAMMAR:'Grammar',ERROR:'Error Detection',SENT_IMP:'Sentence Improvement',FILL:'Fill in the Blanks',CLOZE:'Cloze Test',PARA:'Para Jumbles',RC:'Reading Comprehension',NOT_SPECIFIED:'Not Specified / Other'};
+  const names={VOC:'Vocabulary',IDIOM:'Idioms & Phrases',PHRASAL:'Phrasal Verbs',OWS:'One Word Substitution / Fields of Study',SYN_ANT:'Synonyms & Antonyms',CONFUSED:'Confused Words',SPELLING:'Spelling',GRAMMAR:'Grammar',ERROR:'Error Detection',SENT_IMP:'Sentence Improvement',FILL:'Fill in the Blanks',CLOZE:'Cloze Test',PARA:'Para Jumbles',RC:'Reading Comprehension',HINDU_WORDS:'Hindu Words',NOT_SPECIFIED:'Not Specified / Other'};
   return names[id]||String(topic||'Not Specified / Other');
 }
