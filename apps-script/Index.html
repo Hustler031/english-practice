@@ -22,7 +22,7 @@
       </div>
     </section>
 
-    <section id="practiceView" class="app-page content hidden"><h2>Choose a Topic</h2><p class="muted">Tap a topic to start immediately.</p><div class="list-card" onclick="EPApp.openDemanded()"><b>🎯 Demanded Practice</b><div class="muted">Saved custom batches created for exactly what you want to practise</div></div><div class="list-card source-card" onclick="EPApp.openSources()"><b>📚 Source / PDF Practice</b><div class="muted">Choose a particular PDF, notes set or uploaded source</div></div><h3 class="section-title">Topic Practice</h3><div id="topicGrid" class="topic-grid"></div></section>
+    <section id="practiceView" class="app-page content hidden"><h2>Choose a Topic</h2><p class="muted">Tap a topic to start immediately.</p><div class="list-card" onclick="EPApp.openDemanded()"><b>🎯 Demanded Practice</b><div class="muted">Saved custom batches created for exactly what you want to practise</div></div><div class="list-card source-card" onclick="EPApp.openSources()"><b>📚 Source / PDF Practice</b><div class="muted">Handwritten notes, screenshots and named PDFs/sources</div></div><h3 class="section-title">Topic Practice</h3><div id="topicGrid" class="topic-grid"></div></section>
 
     <section id="revisionView" class="app-page content hidden"><h2>Revision Centre</h2><p class="muted">Review only what needs attention.</p><div class="list"><div class="list-card" onclick="EPApp.pickCount('due')"><b>⏰ Due Today</b><div class="muted">Spaced revision</div></div><div class="list-card" onclick="EPApp.pickCount('weak')"><b>🔥 Weak / Wrong</b><div class="muted">Questions that need correction</div></div><div class="list-card" onclick="EPApp.pickCount('recall')"><b>↻ Seen Before</b><div class="muted">Repeated material from new sources</div></div><div class="list-card" onclick="EPApp.openMastered()"><b>✓ Mastered / Don't Repeat</b><div id="masteredCount" class="muted">Excluded from normal repetition</div></div></div></section>
 
@@ -34,7 +34,7 @@
 
     <section id="demandedView" class="app-page content hidden"><div class="subhead"><button class="btn ghost" onclick="EPApp.showTab('practice')">← Back</button><div><h2>Demanded Practice</h2><p class="muted">Custom batches created for a specific topic, weakness or study request.</p></div></div><div id="demandedList" class="list"></div></section>
 
-    <section id="sourcesView" class="app-page content hidden"><div class="subhead"><button class="btn ghost" onclick="EPApp.showTab('practice')">← Back</button><div><h2>Sources / PDFs</h2><p class="muted">Each uploaded PDF or handwritten set remains a separate source.</p></div></div><div id="sourceList" class="list"></div></section>
+    <section id="sourcesView" class="app-page content hidden"><div class="subhead"><button class="btn ghost" onclick="EPApp.showTab('practice')">← Back</button><div><h2>Sources / PDFs</h2><p class="muted">Handwritten Notes, Screenshots and each named PDF/source stay organised separately.</p></div></div><div id="sourceList" class="list"></div></section>
 
     <section id="masteredView" class="app-page content hidden"><div class="subhead"><button class="btn ghost" onclick="EPApp.showTab('revision')">← Back</button><div><h2>Mastered</h2><p class="muted">Restore anything you marked by mistake.</p></div></div><div id="masteredList" class="list"></div></section>
 
@@ -48,5 +48,6 @@
 <?!= include('QuizJS'); ?>
 <?!= include('AppJS'); ?>
 <?!= include('HinduUI'); ?>
+<?!= include('SourceUI'); ?>
 </body>
 </html>
