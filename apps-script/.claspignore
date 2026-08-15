@@ -1,0 +1,6 @@
+# Keep deployment scoped to the live Apps Script source in this folder.
+README.md
+.clasp.json
+.claspignore
+*.md
+node_modules/**
