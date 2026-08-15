@@ -9,7 +9,7 @@ const ok = msg => console.log(`✅ ${msg}`);
 const requireText = (text, needle, label) => text.includes(needle) ? ok(label) : fail(`${label} — missing: ${needle}`);
 const requireRegex = (text, rx, label) => rx.test(text) ? ok(label) : fail(`${label} — pattern not found: ${rx}`);
 
-const requiredFiles = ['Code.gs','Demand.gs','NewPractice.gs','Index.html','Styles.html','AppJS.html','QuizJS.html','appsscript.json'];
+const requiredFiles = ['Code.gs','DailyV2.gs','Demand.gs','NewPractice.gs','Index.html','Styles.html','AppJS.html','QuizJS.html','appsscript.json'];
 for (const file of requiredFiles) {
   if (!fs.existsSync(path.join(root, file))) fail(`Required Apps Script file missing: ${file}`);
   else ok(`File present: ${file}`);
@@ -18,6 +18,7 @@ for (const file of requiredFiles) {
 if (process.exitCode) process.exit(process.exitCode);
 
 const code = read('Code.gs');
+const dailyV2 = read('DailyV2.gs');
 const demand = read('Demand.gs');
 const newPractice = read('NewPractice.gs');
 const index = read('Index.html');
@@ -25,8 +26,7 @@ const app = read('AppJS.html');
 const quiz = read('QuizJS.html');
 const manifestRaw = read('appsscript.json');
 
-// JavaScript syntax validation. HTML modules are script wrappers, so strip the wrapper only.
-for (const file of ['Code.gs','Demand.gs','NewPractice.gs']) {
+for (const file of ['Code.gs','DailyV2.gs','Demand.gs','NewPractice.gs']) {
   try { new vm.Script(read(file), { filename: file }); ok(`Server JavaScript syntax: ${file}`); }
   catch (e) { fail(`Server JavaScript syntax failed in ${file}: ${e.message}`); }
 }
@@ -36,7 +36,6 @@ for (const file of ['AppJS.html','QuizJS.html']) {
   catch (e) { fail(`Frontend JavaScript syntax failed in ${file}: ${e.message}`); }
 }
 
-// Manifest regression protection.
 let manifest;
 try { manifest = JSON.parse(manifestRaw); ok('appsscript.json is valid JSON'); }
 catch (e) { fail(`appsscript.json JSON parse failed: ${e.message}`); manifest = {}; }
@@ -44,7 +43,6 @@ if (manifest.runtimeVersion === 'V8') ok('Apps Script V8 runtime preserved'); el
 if (manifest.webapp?.access === 'ANYONE') ok('Web app access preserved as ANYONE'); else fail('appsscript.json webapp.access must be ANYONE');
 if (manifest.webapp?.executeAs === 'USER_DEPLOYING') ok('Web app executes as deploying user'); else fail('appsscript.json webapp.executeAs must be USER_DEPLOYING');
 
-// Existing live database connection: fail before deploy if accidentally removed/changed.
 requireText(code, "spreadsheetId: '1IgUGQZu6sp1STBCX6gyI5pHayLGVpmYYrkKGYdwkjak'", 'Live English spreadsheet connection preserved');
 requireText(code, "daily: 'Daily_Quiz'", 'Daily_Quiz sheet contract preserved');
 requireText(code, "performance: 'Performance'", 'Performance history sheet contract preserved');
@@ -53,10 +51,9 @@ requireText(code, "hindu: 'Hindu_Words'", 'Hindu_Words sheet contract preserved'
 requireText(code, "mastered: 'Mastered_Log'", 'Mastered_Log sheet contract preserved');
 requireText(demand, "const DEMAND_SHEET = 'Demanded_Practice'", 'Demanded_Practice sheet contract preserved');
 
-// Server application contracts.
 for (const [fn, label] of [
   ['function doGet(', 'Web-app doGet entry point'],
-  ['function getBootstrap(', 'Home/bootstrap API'],
+  ['function getBootstrap(', 'Legacy bootstrap API retained'],
   ['function getPracticeBatch(', 'Practice question loader'],
   ['function submitAnswer(', 'Answer submission API'],
   ['function setMarked(', 'Marked-question API'],
@@ -67,6 +64,16 @@ for (const [fn, label] of [
   ['function getHinduQuiz(', 'Hindu quiz API']
 ]) requireText(code, fn, label);
 requireText(code, 'markDaily_(id)', 'Daily completion is written during answer submission');
+for (const [needle,label] of [
+  ['function getBootstrapV2(', 'Fresh-first bootstrap API'],
+  ['function getDailyBatchV2(', 'Fresh-first Daily loader'],
+  ["const DAILY_V2_ROLLOUT='2026-08-16'", 'Daily V2 starts tomorrow'],
+  ["const DAILY_V2_DAY1='2026-08-14'", 'Daily day-number anchor preserved'],
+  ["Number((status[q.id]||{}).attempts||0)===0", 'Fresh questions are never-attempted'],
+  ["reason:'Yesterday Marked'", 'Previous-day marked carry-over'],
+  ['pendingFromPrevious', 'Incomplete previous day blocks progression'],
+  ["const DAILY_V2_HISTORY='Daily_History'", 'Daily history archive contract']
+]) requireText(dailyV2, needle, label);
 for (const [fn, label] of [
   ['function getDemandBatches(', 'Demanded batch history API'],
   ['function getDemandBatch(', 'Demanded batch loader'],
@@ -81,7 +88,6 @@ for (const [fn, label] of [
   ['NOT_SPECIFIED', 'New Practice uncategorized fallback']
 ]) requireText(newPractice, fn, label);
 
-// Mobile and page-shell protection.
 requireRegex(index, /<meta\s+name=["']viewport["'][^>]*width=device-width[^>]*initial-scale=1[^>]*viewport-fit=cover/i, 'Mobile viewport contract preserved');
 for (const [needle, label] of [
   ["include('Styles')", 'Styles include'],
@@ -105,9 +111,9 @@ for (const [needle, label] of [
   ['id="themeBtn"', 'Dark-mode control']
 ]) requireText(index, needle, label);
 
-// Frontend feature contracts.
 for (const [needle, label] of [
-  ["gas('getPracticeBatch','daily'", 'Daily 120 always refreshes from server'],
+  ["gas('getBootstrapV2'", 'Dashboard uses fresh-first Daily state'],
+  ["gas('getDailyBatchV2'", 'Daily practice always refreshes fresh-first state from server'],
   ["gas('getHinduQuizSynced'", 'Hindu quiz always refreshes from server'],
   ["gas('getNewPracticeHub'", 'New Practice hub refreshes from server'],
   ["gas('getNewPracticeBatch'", 'New Practice category practice uses server'],
@@ -119,7 +125,9 @@ for (const [needle, label] of [
   ['function openMastered()', 'Mastered Library UI'],
   ['function restoreMastered(', 'Mastered restore UI'],
   ['function toggleTheme()', 'Dark mode logic'],
-  ['function refreshDashboard()', 'Dashboard refresh logic']
+  ['function refreshDashboard()', 'Dashboard refresh logic'],
+  ['Complete Previous Target', 'Previous-day completion prompt'],
+  ['Fresh-first:', 'Fresh/carry composition shown on dashboard']
 ]) requireText(app, needle, label);
 
 for (const [needle, label] of [
