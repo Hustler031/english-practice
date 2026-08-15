@@ -9,7 +9,7 @@ const ok = msg => console.log(`✅ ${msg}`);
 const requireText = (text, needle, label) => text.includes(needle) ? ok(label) : fail(`${label} — missing: ${needle}`);
 const requireRegex = (text, rx, label) => rx.test(text) ? ok(label) : fail(`${label} — pattern not found: ${rx}`);
 
-const requiredFiles = ['Code.gs','Demand.gs','Index.html','Styles.html','AppJS.html','QuizJS.html','appsscript.json'];
+const requiredFiles = ['Code.gs','Demand.gs','NewPractice.gs','Index.html','Styles.html','AppJS.html','QuizJS.html','appsscript.json'];
 for (const file of requiredFiles) {
   if (!fs.existsSync(path.join(root, file))) fail(`Required Apps Script file missing: ${file}`);
   else ok(`File present: ${file}`);
@@ -19,13 +19,14 @@ if (process.exitCode) process.exit(process.exitCode);
 
 const code = read('Code.gs');
 const demand = read('Demand.gs');
+const newPractice = read('NewPractice.gs');
 const index = read('Index.html');
 const app = read('AppJS.html');
 const quiz = read('QuizJS.html');
 const manifestRaw = read('appsscript.json');
 
 // JavaScript syntax validation. HTML modules are script wrappers, so strip the wrapper only.
-for (const file of ['Code.gs','Demand.gs']) {
+for (const file of ['Code.gs','Demand.gs','NewPractice.gs']) {
   try { new vm.Script(read(file), { filename: file }); ok(`Server JavaScript syntax: ${file}`); }
   catch (e) { fail(`Server JavaScript syntax failed in ${file}: ${e.message}`); }
 }
@@ -73,6 +74,12 @@ for (const [fn, label] of [
   ['function getHinduQuizSynced(', 'Cross-device Hindu resume API'],
   ['function submitHinduAnswer(', 'Cross-device Hindu progress save']
 ]) requireText(demand, fn, label);
+for (const [fn, label] of [
+  ['function getNewPracticeHub(', 'New Practice category hub API'],
+  ['function getNewPracticeBatch(', 'New Practice batch loader'],
+  ['function recentContentDate_(', 'Recent-content date detection'],
+  ['NOT_SPECIFIED', 'New Practice uncategorized fallback']
+]) requireText(newPractice, fn, label);
 
 // Mobile and page-shell protection.
 requireRegex(index, /<meta\s+name=["']viewport["'][^>]*width=device-width[^>]*initial-scale=1[^>]*viewport-fit=cover/i, 'Mobile viewport contract preserved');
@@ -84,6 +91,8 @@ for (const [needle, label] of [
   ['id="practiceView"', 'Practice screen'],
   ['id="revisionView"', 'Revision screen'],
   ['id="libraryView"', 'Library screen'],
+  ['id="newView"', 'New Practice screen'],
+  ['onclick="EPApp.openNewPractice()"', 'New Practice home entry'],
   ['id="dailyStartBtn"', 'Daily start control'],
   ['id="dailyResumeBtn"', 'Daily resume control'],
   ['id="quizView"', 'Quiz screen'],
@@ -100,6 +109,10 @@ for (const [needle, label] of [
 for (const [needle, label] of [
   ["gas('getPracticeBatch','daily'", 'Daily 120 always refreshes from server'],
   ["gas('getHinduQuizSynced'", 'Hindu quiz always refreshes from server'],
+  ["gas('getNewPracticeHub'", 'New Practice hub refreshes from server'],
+  ["gas('getNewPracticeBatch'", 'New Practice category practice uses server'],
+  ['function openNewPractice()', 'New Practice UI'],
+  ['function startNewPractice(', 'New Practice start UI'],
   ['function openDemanded()', 'Demanded Practice UI'],
   ['function startDemandBatch(', 'Demanded batch start UI'],
   ['function openSources()', 'Source/PDF UI'],
