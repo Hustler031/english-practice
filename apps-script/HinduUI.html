@@ -1,0 +1,17 @@
+<script>
+(()=>{
+  function wire(){
+    const list=document.getElementById('hinduList');
+    if(!list||list.dataset.accordionWired)return;
+    list.dataset.accordionWired='1';
+    list.addEventListener('click',e=>{
+      const card=e.target.closest('.word-card');
+      if(!card||!list.contains(card))return;
+      card.classList.toggle('expanded');
+    });
+  }
+  document.addEventListener('DOMContentLoaded',wire);
+  const observer=new MutationObserver(()=>wire());
+  document.addEventListener('DOMContentLoaded',()=>{const list=document.getElementById('hinduList');if(list)observer.observe(list,{childList:true,subtree:false})});
+})();
+</script>
