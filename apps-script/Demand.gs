@@ -60,10 +60,10 @@ function archiveDemandBatch(batchId){
   return {ok:true};
 }
 
+// Hindu practice is intentionally repeatable. Completion marks the first pass,
+// but never removes today's words from subsequent practice rounds.
 function getHinduQuizSynced(){
-  const today=todayKey_();
-  const done=new Set(table_(EP.sheets.hindu).filter(r=>truthy_(r.Active)&&dateKey_(r.Date)===today&&String(r.Learning_Status||'').toLowerCase()==='completed').map(r=>'HINDU_'+String(r.Hindu_ID||'').trim()));
-  return getHinduQuiz().filter(q=>!done.has(q.id));
+  return getHinduQuiz();
 }
 
 function submitHinduAnswer(payload){
@@ -92,5 +92,22 @@ function submitHinduAnswer(payload){
 function getHinduPracticeProgress(){
   const today=todayKey_();
   const rows=table_(EP.sheets.hindu).filter(r=>truthy_(r.Active)&&dateKey_(r.Date)===today);
-  return {total:rows.length,completed:rows.filter(r=>String(r.Learning_Status||'').toLowerCase()==='completed').length};
+  const total=rows.length;
+  if(!total) return {total:0,completed:0,roundsCompleted:0,nextRound:1};
+
+  const qids=rows.map(r=>resolveHinduQuestionId_(String(r.Hindu_ID||'').trim())).filter(Boolean);
+  const counts=Object.fromEntries(qids.map(id=>[id,0]));
+  if(qids.length){
+    const perf=sheet_(EP.sheets.performance).getDataRange().getValues();
+    if(perf.length>1){
+      const header=perf[0].map(x=>String(x||'').trim().toLowerCase());
+      let qi=header.findIndex(x=>x==='question_id'||x==='question id'||x==='questionid');
+      if(qi<0) qi=1;
+      perf.slice(1).forEach(r=>{const id=String(r[qi]||'').trim();if(Object.prototype.hasOwnProperty.call(counts,id))counts[id]++});
+    }
+  }
+  const attempts=qids.map(id=>Number(counts[id]||0));
+  const roundsCompleted=attempts.length===total?Math.min.apply(null,attempts):0;
+  const completed=rows.filter(r=>String(r.Learning_Status||'').toLowerCase()==='completed').length;
+  return {total,completed,roundsCompleted,nextRound:roundsCompleted+1};
 }
