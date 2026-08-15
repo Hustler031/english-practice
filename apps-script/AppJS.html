@@ -7,8 +7,19 @@ const EPApp=(()=>{
   function toggleTheme(){const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;localStorage.setItem('ep-theme',next);$('themeBtn').textContent=next==='dark'?'☀':'☾'}
   function allViews(){return['home','practice','revision','library','new','hindu','demanded','sources','mastered']}
   function showTab(name){allViews().forEach(tab=>{const v=$(tab+'View');if(v)v.classList.toggle('hidden',tab!==name)});$('quizView').classList.add('hidden');document.body.classList.remove('quiz-active');$('bottomNav').classList.toggle('hidden',['new','hindu','demanded','sources','mastered'].includes(name));document.querySelectorAll('.bottom-tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));window.scrollTo({top:0,behavior:'smooth'});if(name==='home')refreshResumeCard()}
-  async function load(){initTheme();showTab('home');try{boot=await gas('getBootstrap');renderBootstrap();renderTopics();refreshResumeCard();gas('warmPracticeCache').catch(()=>{})}catch(e){toast('Could not load dashboard: '+e.message)}}
-  function renderBootstrap(){const s=boot.stats,target=boot.dailyTarget||120,done=s.dailyCompleted||0,total=s.dailyTotal||0;$('dailyProgress').textContent=`${done} / ${total||target}`;$('dailyBar').style.width=`${Math.min(100,(done/Math.max(1,total||target))*100)}%`;$('dailyNote').textContent=total<target?`${total} unique active questions are currently available. Daily 120 will automatically expand as your database grows.`:'';$('hinduCount').textContent=s.hinduToday?`${s.hinduToday} words today`:'Today’s batch not added yet';$('recallCount').textContent=s.recall?`${s.recall} items waiting`:'Seen-before content';$('masteredCount').textContent=s.mastered?`${s.mastered} excluded items`:'Don’t repeat'}
+  async function load(){initTheme();showTab('home');try{boot=await gas('getBootstrapV2');renderBootstrap();renderTopics();refreshResumeCard();gas('warmPracticeCache').catch(()=>{})}catch(e){toast('Could not load dashboard: '+e.message)}}
+  function renderBootstrap(){
+    const s=boot.stats,target=boot.dailyTarget||120,done=s.dailyCompleted||0,total=s.dailyTotal||0,di=boot.dailyInfo||{};
+    const heroTitle=document.querySelector('#homeView .hero h2');
+    if(heroTitle){heroTitle.textContent=di.pendingFromPrevious?`Day ${di.dayNo} · Complete Previous Target`:`Day ${di.dayNo||1} · Today's English Practice`;}
+    $('dailyProgress').textContent=`${done} / ${total||target}`;
+    $('dailyBar').style.width=`${Math.min(100,(done/Math.max(1,total||target))*100)}%`;
+    if(di.pendingFromPrevious){$('dailyNote').textContent=`Today is Day ${di.todayDayNo}. Finish the remaining ${Math.max(0,total-done)} questions from Day ${di.dayNo} first; Day ${di.todayDayNo} unlocks automatically.`;}
+    else if(total<target){$('dailyNote').textContent=`${total} eligible questions available today. Daily practice will not recycle old questions just to reach 120.`;}
+    else if(di.activeDate>='2026-08-16'){$('dailyNote').textContent=`Fresh-first: ${di.freshCount||0} unseen + ${di.carryCount||0} marked from the previous day.`;}
+    else{$('dailyNote').textContent='';}
+    $('hinduCount').textContent=s.hinduToday?`${s.hinduToday} words today`:'Today’s batch not added yet';$('recallCount').textContent=s.recall?`${s.recall} items waiting`:'Seen-before content';$('masteredCount').textContent=s.mastered?`${s.mastered} excluded items`:'Don’t repeat'
+  }
   function renderTopics(){const grid=$('topicGrid');grid.innerHTML='';const icons={VOC:'Aa',IDIOM:'💬',PHRASAL:'↗',OWS:'1W',SYN_ANT:'⇄',CONFUSED:'≠',SPELLING:'✓',GRAMMAR:'G',ERROR:'!',SENT_IMP:'✎',FILL:'…',CLOZE:'▤',PARA:'↕',RC:'📖',MISC:'+'};(boot?.categories||[]).filter(c=>c.id!=='HINDU_VOCAB').forEach(c=>{const b=document.createElement('button'),count=Number(c.count||0);b.className='feature-card';if(count<=0){b.disabled=true;b.innerHTML=`<span>${icons[c.id]||'•'}</span><b>${esc(c.name)}</b><small>No questions added yet</small>`}else{b.innerHTML=`<span>${icons[c.id]||'•'}</span><b>${esc(c.name)}</b><small>${count} available · tap to start</small>`;b.onclick=()=>start('category',{count:Math.min(20,count),category:c.id,returnTab:'practice'})}grid.appendChild(b)})}
   function pickCount(mode,category){pendingMode=mode;pendingCategory=category||null;const wrap=$('countButtons');wrap.innerHTML='';(boot?.extraCounts||[10,20,30,50]).forEach(n=>{const b=document.createElement('button');b.textContent=n;b.onclick=()=>start(mode,{count:n,category:pendingCategory,returnTab:returnTabForMode(mode)});wrap.appendChild(b)});$('countSheet').classList.remove('hidden')}
   function closePicker(e){if(e&&e.target!==$('countSheet'))return;$('countSheet').classList.add('hidden')}
@@ -17,7 +28,7 @@ const EPApp=(()=>{
     closePicker();
     if(mode==='daily'){
       EPQuiz.replaceSavedFor('daily');
-      try{const qs=await gas('getPracticeBatch','daily',opts);if(!qs.length){toast('Today’s Daily 120 is already completed.');await refreshDashboard();return}document.body.classList.add('quiz-active');$('bottomNav').classList.add('hidden');EPQuiz.start(qs,{mode:'daily',returnTab:'home',serverSynced:true});return}catch(e){toast('Could not load Daily 120: '+e.message);return}
+      try{const qs=await gas('getDailyBatchV2');if(!qs.length){toast('This Daily target is completed.');await refreshDashboard();return}document.body.classList.add('quiz-active');$('bottomNav').classList.add('hidden');EPQuiz.start(qs,{mode:'daily',returnTab:'home',serverSynced:true});return}catch(e){toast('Could not load Daily practice: '+e.message);return}
     }
     if(EPQuiz.hasSavedSessionFor(mode)){
       if(EPQuiz.isSameRequested(mode,opts)){EPQuiz.resumeOther();return}
@@ -27,56 +38,29 @@ const EPApp=(()=>{
     try{const qs=await gas('getPracticeBatch',mode,opts);if(!qs.length){toast('No eligible questions in this section yet.');return}document.body.classList.add('quiz-active');$('bottomNav').classList.add('hidden');EPQuiz.start(qs,{mode,category:opts.category||'',source:opts.source||'',returnTab:opts.returnTab||returnTabForMode(mode)})}catch(e){toast('Could not load practice: '+e.message)}
   }
 
-  async function openNewPractice(){
-    showTab('new');
-    $('newPracticeList').innerHTML='<div class="empty card">Loading recently added content…</div>';
-    try{
-      const hub=await gas('getNewPracticeHub');
-      $('newPracticeNote').textContent=`Content added in the last ${hub.days} days · ${hub.total} questions`;
-      if(!hub.categories.length){$('newPracticeList').innerHTML='<div class="empty card">No recently added dated content is available yet.</div>';return}
-      $('newPracticeList').innerHTML=hub.categories.map(c=>`<div class="list-card"><div class="row between"><div><b>${esc(c.name)}</b><div class="muted">${c.total} recent questions${c.weak?` · ${c.weak} weak`:''}</div></div><span class="tag">${esc(c.latest||'')}</span></div><div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap"><button class="btn soft mini" onclick='EPApp.startNewPractice(${JSON.stringify(c.id)},"all",0,${JSON.stringify(c.name)})'>Practice All</button><button class="btn soft mini" ${c.weak?'':'disabled'} onclick='EPApp.startNewPractice(${JSON.stringify(c.id)},"weak",0,${JSON.stringify(c.name)})'>Weak${c.weak?` (${c.weak})`:''}</button><button class="btn soft mini" onclick='EPApp.startNewPractice(${JSON.stringify(c.id)},"random",10,${JSON.stringify(c.name)})'>Random 10</button></div></div>`).join('');
-    }catch(e){$('newPracticeList').innerHTML=`<div class="empty card">${esc(e.message)}</div>`}
-  }
-  async function startNewPractice(category,kind,count,name){
-    const opts={category,batchId:kind,returnTab:'new'};
-    if(EPQuiz.hasSavedSessionFor('new')){
-      if(EPQuiz.isSameRequested('new',opts)){EPQuiz.resumeOther();return}
-      if(!confirm('A paused extra practice set exists. Start this new-content set and replace it?'))return;
-      EPQuiz.replaceSavedFor('new');
-    }
-    try{
-      const qs=await gas('getNewPracticeBatch',category,kind,count||0);
-      if(!qs.length){toast(kind==='weak'?'No weak questions in this new category yet.':'No eligible recent questions in this category.');return}
-      document.body.classList.add('quiz-active');$('bottomNav').classList.add('hidden');
-      EPQuiz.start(qs,{mode:'new',category,batchId:kind,title:`${name||'New Practice'} · ${kind==='all'?'Practice All':kind==='weak'?'Weak':'Random'}`,returnTab:'new'});
-    }catch(e){toast('Could not load New Practice: '+e.message)}
-  }
+  async function openNewPractice(){showTab('new');$('newPracticeList').innerHTML='<div class="empty card">Loading recently added content…</div>';try{const hub=await gas('getNewPracticeHub');$('newPracticeNote').textContent=`Content added in the last ${hub.days} days · ${hub.total} questions`;if(!hub.categories.length){$('newPracticeList').innerHTML='<div class="empty card">No recently added dated content is available yet.</div>';return}$('newPracticeList').innerHTML=hub.categories.map(c=>`<div class="list-card"><div class="row between"><div><b>${esc(c.name)}</b><div class="muted">${c.total} recent questions${c.weak?` · ${c.weak} weak`:''}</div></div><span class="tag">${esc(c.latest||'')}</span></div><div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap"><button class="btn soft mini" onclick='EPApp.startNewPractice(${JSON.stringify(c.id)},"all",0,${JSON.stringify(c.name)})'>Practice All</button><button class="btn soft mini" ${c.weak?'':'disabled'} onclick='EPApp.startNewPractice(${JSON.stringify(c.id)},"weak",0,${JSON.stringify(c.name)})'>Weak${c.weak?` (${c.weak})`:''}</button><button class="btn soft mini" onclick='EPApp.startNewPractice(${JSON.stringify(c.id)},"random",10,${JSON.stringify(c.name)})'>Random 10</button></div></div>`).join('')}catch(e){$('newPracticeList').innerHTML=`<div class="empty card">${esc(e.message)}</div>`}}
+  async function startNewPractice(category,kind,count,name){const opts={category,batchId:kind,returnTab:'new'};if(EPQuiz.hasSavedSessionFor('new')){if(EPQuiz.isSameRequested('new',opts)){EPQuiz.resumeOther();return}if(!confirm('A paused extra practice set exists. Start this new-content set and replace it?'))return;EPQuiz.replaceSavedFor('new')}try{const qs=await gas('getNewPracticeBatch',category,kind,count||0);if(!qs.length){toast(kind==='weak'?'No weak questions in this new category yet.':'No eligible recent questions in this category.');return}document.body.classList.add('quiz-active');$('bottomNav').classList.add('hidden');EPQuiz.start(qs,{mode:'new',category,batchId:kind,title:`${name||'New Practice'} · ${kind==='all'?'Practice All':kind==='weak'?'Weak':'Random'}`,returnTab:'new'})}catch(e){toast('Could not load New Practice: '+e.message)}}
 
   async function openDemanded(){showTab('demanded');$('demandedList').innerHTML='<div class="empty card">Loading demanded batches…</div>';try{const rows=await gas('getDemandBatches');$('demandedList').innerHTML=rows.length?rows.map(x=>`<div class="list-card" onclick='EPApp.startDemandBatch(${JSON.stringify(x.id)},${JSON.stringify(x.name)})'><div class="row between"><div><b>🎯 ${esc(x.name)}</b><div class="muted">${x.count} questions${x.created?' · '+esc(x.created):''}</div>${x.notes?`<div class="muted">${esc(x.notes)}</div>`:''}</div><span>›</span></div></div>`).join(''):'<div class="empty card">No demanded batch yet. Ask me in ChatGPT for a topic or weakness-based set and it will appear here.</div>'}catch(e){$('demandedList').innerHTML=`<div class="empty card">${esc(e.message)}</div>`}}
-  async function startDemandBatch(batchId,name){
-    const opts={batchId,title:name,returnTab:'demanded'};
-    if(EPQuiz.hasSavedSessionFor('demand')){
-      if(EPQuiz.isSameRequested('demand',opts)){EPQuiz.resumeOther();return}
-      if(!confirm('A paused extra practice set exists. Open this demanded batch and replace that extra session?'))return;
-      EPQuiz.replaceSavedFor('demand');
-    }
-    try{const qs=await gas('getDemandBatch',batchId);if(!qs.length){toast('No eligible questions remain in this batch.');return}document.body.classList.add('quiz-active');$('bottomNav').classList.add('hidden');EPQuiz.start(qs,{mode:'demand',batchId,title:name,returnTab:'demanded'})}catch(e){toast('Could not load demanded batch: '+e.message)}
-  }
+  async function startDemandBatch(batchId,name){const opts={batchId,title:name,returnTab:'demanded'};if(EPQuiz.hasSavedSessionFor('demand')){if(EPQuiz.isSameRequested('demand',opts)){EPQuiz.resumeOther();return}if(!confirm('A paused extra practice set exists. Open this demanded batch and replace that extra session?'))return;EPQuiz.replaceSavedFor('demand')}try{const qs=await gas('getDemandBatch',batchId);if(!qs.length){toast('No eligible questions remain in this batch.');return}document.body.classList.add('quiz-active');$('bottomNav').classList.add('hidden');EPQuiz.start(qs,{mode:'demand',batchId,title:name,returnTab:'demanded'})}catch(e){toast('Could not load demanded batch: '+e.message)}}
 
   async function openHindu(){showTab('hindu');$('hinduList').innerHTML='<div class="empty card">Loading today’s words…</div>';try{const words=await gas('getHinduToday');renderHindu(words)}catch(e){$('hinduList').innerHTML=`<div class="empty card">${esc(e.message)}</div>`}}
   function renderHindu(words){$('hinduActions').classList.toggle('hidden',!words.length);if(!words.length){$('hinduList').innerHTML='<div class="empty card">Today’s 10-word batch has not been added yet.</div>';return}$('hinduList').innerHTML=words.map((w,i)=>`<article class="word-card"><div class="row between"><div><span class="word-no">${i+1}</span><b class="word-title">${esc(w.word)}</b></div><span class="tag">${esc(w.pos||'')}</span></div><p class="meaning">${esc(w.meaning||'')}</p>${w.synonyms?`<p><b>Synonyms:</b> ${esc(w.synonyms)}</p>`:''}${w.antonyms?`<p><b>Antonyms:</b> ${esc(w.antonyms)}</p>`:''}${w.example?`<p><b>Example:</b> ${esc(w.example)}</p>`:''}${w.usage?`<p><b>Usage:</b> ${esc(w.usage)}</p>`:''}${w.tip?`<p class="tipbox"><b>Tip:</b> ${esc(w.tip)}</p>`:''}${w.memory?`<p><b>Remember:</b> ${esc(w.memory)}</p>`:''}<div class="muted source-line">${esc(w.sourceName||'')} ${w.date?'· '+esc(w.date):''}</div></article>`).join('')}
-  async function startHinduQuiz(){EPQuiz.replaceSavedFor('hindu');try{const qs=await gas('getHinduQuizSynced');if(!qs.length){toast('Today’s Hindu-word practice is already completed.');return}document.body.classList.add('quiz-active');$('bottomNav').classList.add('hidden');EPQuiz.start(qs,{mode:'hindu',returnTab:'hindu',serverSynced:true})}catch(e){toast(e.message)}}
+  async function startHinduQuiz(){EPQuiz.replaceSavedFor('hindu');try{const qs=await gas('getHinduQuizSynced');if(!qs.length){toast('Today’s Hindu-word batch is not available.');return}document.body.classList.add('quiz-active');$('bottomNav').classList.add('hidden');EPQuiz.start(qs,{mode:'hindu',returnTab:'hindu',serverSynced:true})}catch(e){toast(e.message)}}
   async function openSources(){showTab('sources');$('sourceList').innerHTML='<div class="empty card">Loading sources…</div>';try{const rows=await gas('getSources');$('sourceList').innerHTML=rows.length?rows.map(s=>`<div class="list-card source-item" onclick='EPApp.startSource(${JSON.stringify(s.key)})'><div class="row between"><div><b>${esc(s.name)}</b><div class="muted">${s.count} questions${s.categorySummary?' · '+esc(s.categorySummary):''}</div></div><span>›</span></div></div>`).join(''):'<div class="empty card">No PDF/source metadata yet. Future uploads will appear here automatically.</div>'}catch(e){$('sourceList').innerHTML=`<div class="empty card">${esc(e.message)}</div>`}}
   function startSource(key){start('source',{source:key,count:20,returnTab:'sources'})}
   async function openMastered(){showTab('mastered');$('masteredList').innerHTML='<div class="empty card">Loading mastered questions…</div>';try{const rows=await gas('getMasteredItems');$('masteredList').innerHTML=rows.length?rows.map(x=>`<div class="list-card"><div class="row between"><div><b>${esc(x.word||x.id)}</b><div class="muted">${esc(x.topic||'')} ${x.source?'· '+esc(x.source):''}</div></div><button class="btn soft mini" onclick='event.stopPropagation();EPApp.restoreMastered(${JSON.stringify(x.id)})'>Restore</button></div></div>`).join(''):'<div class="empty card">Nothing is marked Mastered.</div>'}catch(e){$('masteredList').innerHTML=`<div class="empty card">${esc(e.message)}</div>`}}
-  async function restoreMastered(id){try{await gas('restoreMastered',id);toast('Restored to normal practice');boot=await gas('getBootstrap');renderBootstrap();renderTopics();openMastered()}catch(e){toast('Restore failed: '+e.message)}}
+  async function restoreMastered(id){try{await gas('restoreMastered',id);toast('Restored to normal practice');boot=await gas('getBootstrapV2');renderBootstrap();renderTopics();openMastered()}catch(e){toast('Restore failed: '+e.message)}}
   function refreshResumeCard(){
-    const o=EPQuiz.getOtherSummary(),s=boot&&boot.stats?boot.stats:{},done=Number(s.dailyCompleted||0),total=Number(s.dailyTotal||boot?.dailyTarget||120);
-    $('dailyStartBtn').classList.toggle('hidden',done>0&&done<total);$('dailyResumeBtn').classList.toggle('hidden',!(done>0&&done<total));if(done>0&&done<total)$('dailyResumeBtn').textContent=`Resume Daily 120 · ${done}/${total} completed`;
-    if(done>=total&&total>0){$('dailyStartBtn').disabled=true;$('dailyStartBtn').textContent='Daily 120 Completed ✓'}else{$('dailyStartBtn').disabled=false;$('dailyStartBtn').textContent='Start / Continue Daily Practice'}
+    const o=EPQuiz.getOtherSummary(),s=boot&&boot.stats?boot.stats:{},di=boot&&boot.dailyInfo?boot.dailyInfo:{},done=Number(s.dailyCompleted||0),total=Number(s.dailyTotal||boot?.dailyTarget||120),remaining=Math.max(0,total-done);
+    const partial=done>0&&done<total;
+    $('dailyStartBtn').classList.toggle('hidden',partial);
+    $('dailyResumeBtn').classList.toggle('hidden',!partial);
+    if(partial)$('dailyResumeBtn').textContent=di.pendingFromPrevious?`Complete Day ${di.dayNo} · ${remaining} left`:`Continue Day ${di.dayNo||1} · ${remaining} left`;
+    if(done>=total&&total>0){$('dailyStartBtn').disabled=true;$('dailyStartBtn').textContent=`Day ${di.dayNo||1} Completed ✓`}else{$('dailyStartBtn').disabled=false;$('dailyStartBtn').textContent=di.pendingFromPrevious?`Complete Day ${di.dayNo}`:`Start Day ${di.dayNo||1} Practice`}
     const card=$('resumeCard');if(!o){card.classList.add('hidden')}else{card.classList.remove('hidden');$('resumeText').textContent=`${o.title} · ${o.index+1}/${o.total}`}
   }
-  async function refreshDashboard(){try{boot=await gas('getBootstrap');renderBootstrap();refreshResumeCard()}catch(e){}}
+  async function refreshDashboard(){try{boot=await gas('getBootstrapV2');renderBootstrap();refreshResumeCard()}catch(e){}}
   function returnTabForMode(mode){if(mode==='category'||mode==='source')return'practice';if(mode==='demand')return'demanded';if(mode==='new')return'new';if(['due','weak','recall'].includes(mode))return'revision';if(mode==='hindu')return'hindu';return'home'}
   function toast(msg){const t=$('toast');t.textContent=msg;t.classList.remove('hidden');clearTimeout(t._timer);t._timer=setTimeout(()=>t.classList.add('hidden'),2600)}
   function call(fn,...args){return gas(fn,...args)}
