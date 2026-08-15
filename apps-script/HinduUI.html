@@ -1,6 +1,6 @@
 <script>
 (()=>{
-  function wire(){
+  function wireAccordion(){
     const list=document.getElementById('hinduList');
     if(!list||list.dataset.accordionWired)return;
     list.dataset.accordionWired='1';
@@ -10,8 +10,45 @@
       card.classList.toggle('expanded');
     });
   }
-  document.addEventListener('DOMContentLoaded',wire);
-  const observer=new MutationObserver(()=>wire());
+
+  async function refreshRoundButton(){
+    const wrap=document.getElementById('hinduActions');
+    const btn=wrap&&wrap.querySelector('button');
+    if(!btn||typeof EPApp==='undefined'||!EPApp.call)return;
+    try{
+      const p=await EPApp.call('getHinduPracticeProgress');
+      if(!p||!Number(p.total||0))return;
+      const completed=Math.max(0,Number(p.roundsCompleted||0));
+      const next=Math.max(1,Number(p.nextRound||completed+1));
+      btn.textContent=completed>0?`Practice Again · Round ${next}`:`Start Practice · Round 1`;
+      btn.dataset.round=String(next);
+      btn.title=completed>0?`${completed} full round${completed===1?'':'s'} completed today`:'';
+    }catch(e){}
+  }
+
+  function wireOverrides(){
+    if(typeof EPApp==='undefined'||EPApp.__hinduRoundWired)return;
+    EPApp.__hinduRoundWired=true;
+
+    const originalOpen=EPApp.openHindu;
+    EPApp.openHindu=async function(){
+      const result=await originalOpen.apply(this,arguments);
+      wireAccordion();
+      refreshRoundButton();
+      return result;
+    };
+
+    const originalShow=EPApp.showTab;
+    EPApp.showTab=function(name){
+      const result=originalShow.apply(this,arguments);
+      if(name==='hindu')setTimeout(refreshRoundButton,120);
+      return result;
+    };
+  }
+
+  function init(){wireAccordion();wireOverrides();refreshRoundButton()}
+  document.addEventListener('DOMContentLoaded',init);
+  const observer=new MutationObserver(()=>{wireAccordion();if(!document.getElementById('hinduView')?.classList.contains('hidden'))refreshRoundButton()});
   document.addEventListener('DOMContentLoaded',()=>{const list=document.getElementById('hinduList');if(list)observer.observe(list,{childList:true,subtree:false})});
 })();
 </script>
