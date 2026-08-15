@@ -28,7 +28,7 @@ const EPQuiz=(()=>{
   function snapshot(){return{questions:state.questions,index:state.index,answers:state.answers,marked:state.marked,vocabAdded:state.vocabAdded,meta:state.meta,returnTab:state.returnTab,savedAt:Date.now()}}
   function persist(){if(!state.questions.length)return;try{localStorage.setItem(keyForMode(state.meta.mode),JSON.stringify(snapshot()))}catch(e){}if(EPApp.refreshResumeCard)EPApp.refreshResumeCard()}
   function clearCurrentSaved(){localStorage.removeItem(keyForMode(state.meta.mode));if(EPApp.refreshResumeCard)EPApp.refreshResumeCard()}
-  function savedByKey(key){migrateLegacy();try{const x=JSON.parse(localStorage.getItem(key)||'null');if(!x||!Array.isArray(x.questions)&&!x.questions.length)return null;return x}catch(e){return null}}
+  function savedByKey(key){migrateLegacy();try{const x=JSON.parse(localStorage.getItem(key)||'null');if(!x||!Array.isArray(x.questions)||!x.questions.length)return null;return x}catch(e){return null}}
   function savedForMode(mode){return savedByKey(keyForMode(mode))}
   function summary(s){if(!s)return null;return{title:labelMode(s.meta||{},s.questions[s.index]||{}),index:Number(s.index||0),total:s.questions.length}}
   function getDailySummary(){return summary(savedByKey(DAILY_KEY))}function getOtherSummary(){return summary(savedByKey(OTHER_KEY))}function getHinduSummary(){return summary(savedByKey(HINDU_KEY))}
