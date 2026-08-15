@@ -1,0 +1,110 @@
+name: Deploy English Apps Script
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps-script/**'
+      - '.github/scripts/validate-english.cjs'
+      - '.github/workflows/deploy-english-apps-script.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: english-apps-script-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate English application contracts
+        run: node .github/scripts/validate-english.cjs
+
+      - name: Verify required deployment secrets
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          CLASP_JSON: ${{ secrets.CLASP_JSON }}
+          DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$CLASPRC_JSON" || { echo '::error::Missing GitHub secret CLASPRC_JSON'; exit 1; }
+          test -n "$CLASP_JSON" || { echo '::error::Missing GitHub secret CLASP_JSON'; exit 1; }
+          test -n "$DEPLOYMENT_ID" || { echo '::error::Missing GitHub secret DEPLOYMENT_ID'; exit 1; }
+          echo 'Required deployment secrets are present.'
+
+      - name: Install clasp
+        run: npm install --global @google/clasp@3.3.0
+
+      - name: Restore clasp authentication and project config
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          CLASP_JSON: ${{ secrets.CLASP_JSON }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          chmod 600 "$HOME/.clasprc.json"
+          printf '%s' "$CLASP_JSON" > apps-script/.clasp.json
+          chmod 600 apps-script/.clasp.json
+          node -e "JSON.parse(require('fs').readFileSync(process.env.HOME+'/.clasprc.json','utf8')); console.log('CLASPRC_JSON valid JSON')"
+          node -e "const x=JSON.parse(require('fs').readFileSync('apps-script/.clasp.json','utf8')); if(!x.scriptId) throw new Error('CLASP_JSON is missing scriptId'); console.log('CLASP_JSON valid; Script ID configured')"
+
+      - name: Verify clasp authentication
+        working-directory: apps-script
+        run: clasp show-authorized-user --json
+
+      - name: Verify Apps Script files selected for push
+        working-directory: apps-script
+        run: clasp show-file-status
+
+      - name: Push source to existing Apps Script project
+        working-directory: apps-script
+        run: clasp push --force
+
+      - name: Verify existing deployment ID is present
+        working-directory: apps-script
+        env:
+          DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+        run: |
+          set -euo pipefail
+          clasp list-deployments | tee /tmp/deployments.txt
+          grep -F "$DEPLOYMENT_ID" /tmp/deployments.txt >/dev/null || {
+            echo '::error::DEPLOYMENT_ID does not belong to this Apps Script project. Refusing to create a new deployment.'
+            exit 1
+          }
+
+      - name: Update existing web-app deployment
+        working-directory: apps-script
+        env:
+          DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+        run: |
+          set -euo pipefail
+          SHORT_SHA="${GITHUB_SHA::7}"
+          clasp update-deployment "$DEPLOYMENT_ID" --description "GitHub Actions ${SHORT_SHA}"
+
+      - name: Confirm deployment remains present
+        working-directory: apps-script
+        env:
+          DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+        run: |
+          set -euo pipefail
+          clasp list-deployments | tee /tmp/deployments-after.txt
+          grep -F "$DEPLOYMENT_ID" /tmp/deployments-after.txt >/dev/null
+          echo "Existing deployment updated successfully: $DEPLOYMENT_ID"
+
+      - name: Remove restored credentials
+        if: always()
+        run: |
+          rm -f "$HOME/.clasprc.json" apps-script/.clasp.json
