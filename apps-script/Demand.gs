@@ -24,9 +24,7 @@ function getDemandBatches(){
     if(!groups[id]) groups[id]={id,name:String(r[1]||id),created:r[4],notes:String(r[6]||''),count:0};
     groups[id].count++;
   });
-  return Object.values(groups).sort((a,b)=>new Date(b.created||0)-new Date(a.created||0)).map(x=>({
-    id:x.id,name:x.name,count:x.count,created:x.created?Utilities.formatDate(new Date(x.created),Session.getScriptTimeZone(),'dd MMM yyyy'):'',notes:x.notes
-  }));
+  return Object.values(groups).sort((a,b)=>new Date(b.created||0)-new Date(a.created||0)).map(x=>({id:x.id,name:x.name,count:x.count,created:x.created?Utilities.formatDate(new Date(x.created),Session.getScriptTimeZone(),'dd MMM yyyy'):'',notes:x.notes}));
 }
 
 function getDemandBatch(batchId){
@@ -34,9 +32,7 @@ function getDemandBatch(batchId){
   if(!id) throw new Error('Batch ID required');
   const s=ensureDemandSheet_();
   if(s.getLastRow()<2) return [];
-  const rows=s.getRange(2,1,s.getLastRow()-1,8).getValues()
-    .filter(r=>String(r[0]||'').trim()===id && (r[7]===true || String(r[7]).toLowerCase()==='true' || String(r[7])==='1'))
-    .sort((a,b)=>Number(a[3]||0)-Number(b[3]||0));
+  const rows=s.getRange(2,1,s.getLastRow()-1,8).getValues().filter(r=>String(r[0]||'').trim()===id && (r[7]===true || String(r[7]).toLowerCase()==='true' || String(r[7])==='1')).sort((a,b)=>Number(a[3]||0)-Number(b[3]||0));
   const all=allQuestions_(), map=Object.fromEntries(all.map(q=>[q.id,q])), status=statusMap_();
   return rows.map(r=>map[String(r[2]||'').trim()]).filter(q=>q&&isActive_(q)&&!(status[q.id]&&status[q.id].mastered)).map(serveQuestion_);
 }
@@ -64,15 +60,9 @@ function archiveDemandBatch(batchId){
   return {ok:true};
 }
 
-// Cross-device sync for The Hindu daily quiz only.
-// Daily 120 already syncs through Daily_Quiz + submitAnswer/markDaily_.
 function getHinduQuizSynced(){
   const today=todayKey_();
-  const done=new Set(
-    table_(EP.sheets.hindu)
-      .filter(r=>truthy_(r.Active)&&dateKey_(r.Date)===today&&String(r.Learning_Status||'').toLowerCase()==='completed')
-      .map(r=>'HINDU_'+String(r.Hindu_ID||'').trim())
-  );
+  const done=new Set(table_(EP.sheets.hindu).filter(r=>truthy_(r.Active)&&dateKey_(r.Date)===today&&String(r.Learning_Status||'').toLowerCase()==='completed').map(r=>'HINDU_'+String(r.Hindu_ID||'').trim()));
   return getHinduQuiz().filter(q=>!done.has(q.id));
 }
 
@@ -83,12 +73,20 @@ function submitHinduAnswer(payload){
   if(!id) throw new Error('Hindu word ID required');
   const s=sheet_(EP.sheets.hindu), row=findRow_(s,1,id);
   if(row<2) throw new Error('Hindu word not found');
-  const now=new Date();
-  const first=s.getRange(row,18).getValue();
+  const now=new Date(),first=s.getRange(row,18).getValue();
   s.getRange(row,16).setValue('Completed');
-  if(!first) s.getRange(row,18).setValue(now);
+  if(!first)s.getRange(row,18).setValue(now);
   s.getRange(row,19).setValue(now);
-  return {ok:true,correct:!!payload.localCorrect,correctKey:String(payload.correctKey||'')};
+  const qid=resolveHinduQuestionId_(id),q=qid?findQuestion_(qid):null;
+  if(q){
+    const ok=!!payload.localCorrect,secs=Math.max(0,Number(payload.timeSeconds||0));
+    const attemptId=qid+'-HINDU-'+now.getTime()+'-'+Math.random().toString(36).slice(2,8);
+    sheet_(EP.sheets.performance).appendRow([now,qid,String(payload.selectedKey||''),ok,secs,false,attemptId,q.topic||'',q.conceptId||'']);
+    const st=upsertStatus_(q,ok,secs,false,now);
+    setQuestionLearningStatus_(qid,st.status==='Strong'?'Active':'Learning');
+    clearStatusCache_();
+  }
+  return {ok:true,correct:!!payload.localCorrect,correctKey:String(payload.correctKey||''),questionId:qid};
 }
 
 function getHinduPracticeProgress(){
