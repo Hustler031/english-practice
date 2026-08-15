@@ -1,0 +1,48 @@
+<script>
+(()=>{
+  let batches=[];
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  function controls(batchId,name,weakStarted){
+    return `<div class="list-card"><b>Practice</b><div class="muted" style="margin-top:4px">Weak includes questions you have already started/attempted.</div><div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap"><button class="btn soft mini" onclick='EPApp.startDemandManaged(${JSON.stringify(batchId)},"all",0,${JSON.stringify(name)})'>Practice All</button><button class="btn soft mini" ${weakStarted?'':'disabled'} onclick='EPApp.startDemandManaged(${JSON.stringify(batchId)},"weak",0,${JSON.stringify(name)})'>Weak / Started${weakStarted?` (${weakStarted})`:''}</button></div></div><div class="list-card"><b>Random Practice</b><div class="muted" style="margin-top:4px">Priority: weak → recent → marked → started → remaining</div><div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap">${[10,20,50,100].map(n=>`<button class="btn soft mini" onclick='EPApp.startDemandManaged(${JSON.stringify(batchId)},"random",${n},${JSON.stringify(name)})'>Random ${n}</button>`).join('')}</div></div>`;
+  }
+  async function openDemanded(){
+    EPApp.showTab('demanded');
+    const list=document.getElementById('demandedList');
+    list.innerHTML='<div class="empty card">Loading demanded practice…</div>';
+    try{
+      const data=await Promise.all([EPApp.call('getDemandBatches'),EPApp.call('getDemandHubStats')]);
+      batches=data[0]||[];const stats=data[1]||{count:0,weakStarted:0,batches:0};
+      let html='';
+      if(stats.count){
+        html+=`<div class="card"><h3 style="margin:0 0 4px">🎯 All Demanded Practice</h3><div class="muted">${stats.count} unique questions · ${stats.batches} batches${stats.weakStarted?` · ${stats.weakStarted} weak/started`:''}</div></div>${controls('__ALL__','All Demanded Practice',stats.weakStarted)}<h3 class="section-title">Demanded Sets</h3>`;
+      }
+      html+=batches.length?batches.map((x,i)=>`<div class="list-card" onclick="EPApp.openDemandHub(${i})"><div class="row between"><div><b>🎯 ${esc(x.name)}</b><div class="muted">${x.count} questions${x.created?' · '+esc(x.created):''}${x.weakStarted?` · ${x.weakStarted} weak/started`:''}</div>${x.notes?`<div class="muted">${esc(x.notes)}</div>`:''}</div><span>›</span></div></div>`).join(''):'<div class="empty card">No demanded batch yet.</div>';
+      list.innerHTML=html;
+    }catch(e){list.innerHTML=`<div class="empty card">${esc(e.message)}</div>`}
+  }
+  function openDemandHub(index){
+    const x=batches[index];if(!x)return;
+    const list=document.getElementById('demandedList');
+    list.innerHTML=`<div class="card"><button class="btn ghost mini" onclick="EPApp.openDemanded()">← All Demanded Sets</button><h2 style="margin:14px 0 4px">🎯 ${esc(x.name)}</h2><div class="muted">${x.count} questions${x.created?' · '+esc(x.created):''}${x.weakStarted?` · ${x.weakStarted} weak/started`:''}</div>${x.notes?`<div class="muted" style="margin-top:6px">${esc(x.notes)}</div>`:''}</div>${controls(x.id,x.name,x.weakStarted)}`;
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+  async function startDemandManaged(batchId,kind,count,name){
+    const opts={batchId:batchId+'::'+kind+(count?'-'+count:''),title:name,returnTab:'demanded'};
+    if(EPQuiz.hasSavedSessionFor('demand')){
+      if(EPQuiz.isSameRequested('demand',opts)){EPQuiz.resumeOther();return}
+      if(!confirm('A paused demanded practice set exists. Start this one and replace it?'))return;
+      EPQuiz.replaceSavedFor('demand');
+    }
+    try{
+      const qs=await EPApp.call('getDemandPracticeBatch',batchId,kind,count||0);
+      if(!qs.length){EPApp.toast(kind==='weak'?'No weak or started questions in this demanded set yet.':'No eligible questions in this demanded set.');return}
+      document.body.classList.add('quiz-active');document.getElementById('bottomNav').classList.add('hidden');
+      EPQuiz.start(qs,{mode:'demand',batchId:opts.batchId,title:`${name} · ${kind==='all'?'Practice All':kind==='weak'?'Weak / Started':'Random '+count}`,returnTab:'demanded'});
+    }catch(e){EPApp.toast('Could not load demanded practice: '+e.message)}
+  }
+  EPApp.openDemanded=openDemanded;
+  EPApp.openDemandHub=openDemandHub;
+  EPApp.startDemandManaged=startDemandManaged;
+  EPApp.startDemandBatch=(batchId,name)=>{const i=batches.findIndex(x=>x.id===batchId);if(i>=0)openDemandHub(i);else startDemandManaged(batchId,'all',0,name)};
+})();
+</script>
