@@ -11,30 +11,72 @@ function ensureDemandSheet_(){
   return s;
 }
 
-function getDemandBatches(){
+function demandRows_(batchId){
   const s=ensureDemandSheet_();
   if(s.getLastRow()<2) return [];
-  const rows=s.getRange(2,1,s.getLastRow()-1,8).getValues();
-  const groups={};
-  rows.forEach(r=>{
+  const wanted=String(batchId||'').trim();
+  return s.getRange(2,1,s.getLastRow()-1,8).getValues().filter(r=>{
     const active=r[7]===true || String(r[7]).toLowerCase()==='true' || String(r[7])==='1';
-    if(!active) return;
-    const id=String(r[0]||'').trim(), qid=String(r[2]||'').trim();
-    if(!id||!qid) return;
-    if(!groups[id]) groups[id]={id,name:String(r[1]||id),created:r[4],notes:String(r[6]||''),count:0};
-    groups[id].count++;
+    if(!active)return false;
+    const id=String(r[0]||'').trim(),qid=String(r[2]||'').trim();
+    return !!id&&!!qid&&(!wanted||wanted==='__ALL__'||id===wanted);
   });
-  return Object.values(groups).sort((a,b)=>new Date(b.created||0)-new Date(a.created||0)).map(x=>({id:x.id,name:x.name,count:x.count,created:x.created?Utilities.formatDate(new Date(x.created),Session.getScriptTimeZone(),'dd MMM yyyy'):'',notes:x.notes}));
+}
+
+function demandWeakOrStarted_(st){
+  st=st||{};
+  return ['weak','wrong'].includes(String(st.status||'').toLowerCase())||Number(st.wrong||0)>0||Number(st.attempts||0)>0;
+}
+
+function demandQuestionPool_(batchId){
+  const rows=demandRows_(batchId),all=allQuestions_(),map=Object.fromEntries(all.map(q=>[q.id,q])),status=statusMap_(),seen=new Set(),out=[];
+  rows.sort((a,b)=>Number(a[3]||0)-Number(b[3]||0)).forEach(r=>{
+    const qid=String(r[2]||'').trim(),q=map[qid];
+    if(!q||seen.has(qid)||!isActive_(q)||(status[qid]&&status[qid].mastered))return;
+    seen.add(qid);out.push({q,created:r[4]});
+  });
+  return out;
+}
+
+function getDemandBatches(){
+  const rows=demandRows_(''),status=statusMap_(),all=allQuestions_(),map=Object.fromEntries(all.map(q=>[q.id,q])),groups={};
+  rows.forEach(r=>{
+    const id=String(r[0]||'').trim(),qid=String(r[2]||'').trim(),q=map[qid];
+    if(!q||!isActive_(q)||(status[qid]&&status[qid].mastered))return;
+    if(!groups[id]) groups[id]={id,name:String(r[1]||id),created:r[4],notes:String(r[6]||''),count:0,weakStarted:0,seen:new Set()};
+    const g=groups[id];if(g.seen.has(qid))return;g.seen.add(qid);g.count++;if(demandWeakOrStarted_(status[qid]||{}))g.weakStarted++;
+  });
+  return Object.values(groups).sort((a,b)=>new Date(b.created||0)-new Date(a.created||0)).map(x=>({id:x.id,name:x.name,count:x.count,weakStarted:x.weakStarted,created:x.created?Utilities.formatDate(new Date(x.created),Session.getScriptTimeZone(),'dd MMM yyyy'):'',notes:x.notes}));
+}
+
+function getDemandHubStats(){
+  const status=statusMap_(),pool=demandQuestionPool_('__ALL__');
+  return {count:pool.length,weakStarted:pool.filter(x=>demandWeakOrStarted_(status[x.q.id]||{})).length,batches:getDemandBatches().length};
+}
+
+function getDemandPracticeBatch(batchId,mode,count){
+  const id=String(batchId||'__ALL__').trim()||'__ALL__',kind=String(mode||'all').toLowerCase(),requested=Math.max(1,Math.min(100,Number(count||20))),status=statusMap_();
+  let pool=demandQuestionPool_(id);
+  if(kind==='weak'){
+    pool=pool.filter(x=>demandWeakOrStarted_(status[x.q.id]||{}));shuffle_(pool);
+  }else if(kind==='random'){
+    const now=Date.now(),buckets=[[],[],[],[],[]];
+    pool.forEach(x=>{
+      const q=x.q,st=status[q.id]||{},recent=typeof recentContentDate_==='function'?recentContentDate_(q):null,days=recent?(now-recent.getTime())/86400000:999;
+      const weak=['weak','wrong'].includes(String(st.status||'').toLowerCase())||Number(st.wrong||0)>0;
+      if(weak)buckets[0].push(x);
+      else if(days<=7)buckets[1].push(x);
+      else if(st.marked||String(st.status||'').toLowerCase()==='marked')buckets[2].push(x);
+      else if(Number(st.attempts||0)>0)buckets[3].push(x);
+      else buckets[4].push(x);
+    });
+    buckets.forEach(shuffle_);pool=buckets.flat().slice(0,requested);
+  }
+  return pool.map(x=>serveQuestion_(x.q));
 }
 
 function getDemandBatch(batchId){
-  const id=String(batchId||'').trim();
-  if(!id) throw new Error('Batch ID required');
-  const s=ensureDemandSheet_();
-  if(s.getLastRow()<2) return [];
-  const rows=s.getRange(2,1,s.getLastRow()-1,8).getValues().filter(r=>String(r[0]||'').trim()===id && (r[7]===true || String(r[7]).toLowerCase()==='true' || String(r[7])==='1')).sort((a,b)=>Number(a[3]||0)-Number(b[3]||0));
-  const all=allQuestions_(), map=Object.fromEntries(all.map(q=>[q.id,q])), status=statusMap_();
-  return rows.map(r=>map[String(r[2]||'').trim()]).filter(q=>q&&isActive_(q)&&!(status[q.id]&&status[q.id].mastered)).map(serveQuestion_);
+  return getDemandPracticeBatch(batchId,'all',100);
 }
 
 function createDemandBatch(batchName, questionIds, notes){
