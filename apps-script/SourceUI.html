@@ -1,0 +1,39 @@
+<script>
+(()=>{
+  let sources=[];
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  function sourceIcon(kind){return kind==='handwritten'?'✍️':kind==='screenshot'?'🖼️':kind==='pdf'?'📄':'📚'}
+  async function openSources(){
+    EPApp.showTab('sources');
+    const list=document.getElementById('sourceList');
+    list.innerHTML='<div class="empty card">Loading sources…</div>';
+    try{
+      sources=await EPApp.call('getSourceHub');
+      list.innerHTML=sources.length?sources.map((s,i)=>`<div class="list-card" onclick="EPApp.openSourceHub(${i})"><div class="row between"><div><b>${sourceIcon(s.kind)} ${esc(s.name)}</b><div class="muted">${s.count} questions${s.weak?` · ${s.weak} weak`:''}${s.recent?` · ${s.recent} recent`:''}</div>${s.categorySummary?`<div class="muted">${esc(s.categorySummary)}</div>`:''}</div><span>›</span></div></div>`).join(''):'<div class="empty card">No managed sources added yet.</div>';
+    }catch(e){list.innerHTML=`<div class="empty card">${esc(e.message)}</div>`}
+  }
+  function openSourceHub(index){
+    const s=sources[index];if(!s)return;
+    const list=document.getElementById('sourceList');
+    list.innerHTML=`<div class="card"><button class="btn ghost mini" onclick="EPApp.openSources()">← All Sources</button><h2 style="margin:14px 0 4px">${sourceIcon(s.kind)} ${esc(s.name)}</h2><div class="muted">${s.count} questions${s.weak?` · ${s.weak} weak`:''}${s.recent?` · ${s.recent} recent`:''}</div></div><div class="list-card"><b>Practice</b><div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap"><button class="btn soft mini" onclick='EPApp.startSourceManaged(${JSON.stringify(s.key)},"all",0,${JSON.stringify(s.name)})'>Practice All</button><button class="btn soft mini" ${s.weak?'':'disabled'} onclick='EPApp.startSourceManaged(${JSON.stringify(s.key)},"weak",0,${JSON.stringify(s.name)})'>Weak${s.weak?` (${s.weak})`:''}</button></div></div><div class="list-card"><b>Random Practice</b><div class="muted" style="margin-top:4px">Priority: weak → recent → marked/seen → remaining</div><div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap">${[10,20,50,100].map(n=>`<button class="btn soft mini" onclick='EPApp.startSourceManaged(${JSON.stringify(s.key)},"random",${n},${JSON.stringify(s.name)})'>Random ${n}</button>`).join('')}</div></div>`;
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+  async function startSourceManaged(key,kind,count,name){
+    const opts={source:key,batchId:kind+(count?'-'+count:''),returnTab:'sources'};
+    if(EPQuiz.hasSavedSessionFor('source')){
+      if(EPQuiz.isSameRequested('source',opts)){EPQuiz.resumeOther();return}
+      if(!confirm('A paused source practice set exists. Start this one and replace it?'))return;
+      EPQuiz.replaceSavedFor('source');
+    }
+    try{
+      const qs=await EPApp.call('getSourcePracticeBatch',key,kind,count||0);
+      if(!qs.length){EPApp.toast(kind==='weak'?'No weak questions in this source yet.':'No eligible questions in this source.');return}
+      document.body.classList.add('quiz-active');document.getElementById('bottomNav').classList.add('hidden');
+      EPQuiz.start(qs,{mode:'source',source:key,batchId:opts.batchId,title:name,returnTab:'sources'});
+    }catch(e){EPApp.toast('Could not load source practice: '+e.message)}
+  }
+  EPApp.openSources=openSources;
+  EPApp.openSourceHub=openSourceHub;
+  EPApp.startSourceManaged=startSourceManaged;
+})();
+</script>
