@@ -36,7 +36,7 @@ need(dash,'function getTodayActivityCount(','Today activity API');
 ['Topic Practice','Started','New','Random','View All'].forEach(x=>need(tui,x,x));
 ['All New Practice','View All','Practice All','Weak','Random'].forEach(x=>need(nui,x,x));
 need(dui,'[10,20,50,100]','Demand random sizes 10/20/50/100');
-['View All','Practice All','Weak','Random','THE_HINDU'].forEach(x=>need(sui,x,x));
+['View All','Practice All','Weak','Random','kind===\'hindu\''].forEach(x=>need(sui,x,x));
 ['Practice Again · Round','hindu:today'].forEach(x=>need(hui,x,x));
 ['getTodayActivityCount','getEncounterProgress','optimisticDailyProgress','data-tab="progress"','repeat(5,1fr)'].forEach(x=>need(dbui,x,x));
 ['Starred Questions','My Words','View All','Practice All','chooseCount','Add to Practice','openCapture'].forEach(x=>need(savedui,x,x));
