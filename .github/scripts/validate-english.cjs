@@ -39,6 +39,6 @@ need(dui,'[10,20,50,100]','Demand random sizes 10/20/50/100');
 ['View All','Practice All','Weak','Random','kind===\'hindu\''].forEach(x=>need(sui,x,x));
 ['Practice Again · Round','hindu:today'].forEach(x=>need(hui,x,x));
 ['getTodayActivityCount','getEncounterProgress','optimisticDailyProgress','data-tab="progress"','repeat(5,1fr)','EPFast.get(\'progress\')'].forEach(x=>need(dbui,x,x));
-['Starred Questions','My Words','Review','Pending GPT','Add to Practice','openCapture'].forEach(x=>need(savedui,x,x));
+['Starred Questions','My Words','Review','Pending GPT','onclick="EPSaved.addToPractice','openCapture'].forEach(x=>need(savedui,x,x));
 if(process.exitCode){console.error('\nValidation failed. Deployment must not proceed.');process.exit(process.exitCode)}
 console.log('\n✅ English application contract validation passed.');
