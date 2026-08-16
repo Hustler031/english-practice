@@ -28,17 +28,17 @@ need(code,"spreadsheetId: '1IgUGQZu6sp1STBCX6gyI5pHayLGVpmYYrkKGYdwkjak'",'Live 
 ['function addHinduToVocab(','function getSavedHinduQuestionIds('].forEach(x=>need(hindu,x,x));
 need(dash,'function getTodayActivityCount(','Today activity API');
 ['function getEncounterProgress(','todayNew','categories'].forEach(x=>need(progress,x,x));
-['function captureMyWord(','autoMeaningForMyWord_','api.dictionaryapi.dev','function getStarredQuestionList(','function promoteMyWordToPractice(','My_Words'].forEach(x=>need(saved,x,x));
+['function captureMyWord(','Pending GPT','function setMyWordGPTEnrichment(','Correct_Option','function getPendingMyWords(','function getStarredQuestionList(','function promoteMyWordToPractice(','My_Words'].forEach(x=>need(saved,x,x));
 ['id="homeView"','id="dailyStartBtn"','id="todayDoneBadge"',"include('FastUI')","include('TopicUI')","include('NewPracticeUI')","include('SavedUI')",'Loading daily plan…','onclick="EPApp.openSaved()"','onclick="EPSaved.openCapture()"'].forEach(x=>need(index,x,x));
 ['getBootstrapV2','getDailyBatchV2','Complete Previous Target','Fresh-first:'].forEach(x=>need(app,x,x));
 ["EPApp.call('submitAnswer'",'function next()','function pause()'].forEach(x=>need(quiz,x,x));
-['prefetch','source:hub','topic:hub','saved:hub'].forEach(x=>need(fast,x,x));
+['window.EPFast','prefetch','source:hub','topic:hub','saved:hub'].forEach(x=>need(fast,x,x));
 ['Topic Practice','Started','New','Random','View All'].forEach(x=>need(tui,x,x));
 ['All New Practice','View All','Practice All','Weak','Random'].forEach(x=>need(nui,x,x));
 need(dui,'[10,20,50,100]','Demand random sizes 10/20/50/100');
 ['View All','Practice All','Weak','Random','kind===\'hindu\''].forEach(x=>need(sui,x,x));
 ['Practice Again · Round','hindu:today'].forEach(x=>need(hui,x,x));
-['getTodayActivityCount','getEncounterProgress','optimisticDailyProgress','data-tab="progress"','repeat(5,1fr)'].forEach(x=>need(dbui,x,x));
-['Starred Questions','My Words','View All','Practice All','chooseCount','Add to Practice','openCapture'].forEach(x=>need(savedui,x,x));
+['getTodayActivityCount','getEncounterProgress','optimisticDailyProgress','data-tab="progress"','repeat(5,1fr)','EPFast.get(\'progress\')'].forEach(x=>need(dbui,x,x));
+['Starred Questions','My Words','Review','Pending GPT','Add to Practice','openCapture'].forEach(x=>need(savedui,x,x));
 if(process.exitCode){console.error('\nValidation failed. Deployment must not proceed.');process.exit(process.exitCode)}
 console.log('\n✅ English application contract validation passed.');
