@@ -7,6 +7,12 @@ const EPApp=(()=>{
   function toggleTheme(){const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;localStorage.setItem('ep-theme',next);$('themeBtn').textContent=next==='dark'?'☀':'☾'}
   function allViews(){return['home','practice','revision','library','new','hindu','demanded','sources','mastered']}
   function showTab(name){allViews().forEach(tab=>{const v=$(tab+'View');if(v)v.classList.toggle('hidden',tab!==name)});$('quizView').classList.add('hidden');document.body.classList.remove('quiz-active');$('bottomNav').classList.toggle('hidden',['new','hindu','demanded','sources','mastered'].includes(name));document.querySelectorAll('.bottom-tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));window.scrollTo({top:0,behavior:'smooth'});if(name==='home')refreshResumeCard()}
+  function showPracticeLoading(label){
+    let v=$('practiceLoading');
+    if(!v){v=document.createElement('div');v.id='practiceLoading';v.style.cssText='position:fixed;inset:0;z-index:100;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px';v.innerHTML='<div style="text-align:center"><div style="width:42px;height:42px;border:4px solid var(--line);border-top-color:var(--primary);border-radius:50%;margin:0 auto 16px;animation:epLoadSpin .75s linear infinite"></div><b id="practiceLoadingText" style="font-size:18px">Loading practice…</b><div class="muted" style="margin-top:7px">Preparing your remaining questions</div></div>';document.body.appendChild(v);if(!document.getElementById('epLoadSpinStyle')){const st=document.createElement('style');st.id='epLoadSpinStyle';st.textContent='@keyframes epLoadSpin{to{transform:rotate(360deg)}}';document.head.appendChild(st)}}
+    const t=$('practiceLoadingText');if(t)t.textContent=label||'Loading practice…';v.classList.remove('hidden');
+  }
+  function hidePracticeLoading(){const v=$('practiceLoading');if(v)v.classList.add('hidden')}
   async function load(){initTheme();showTab('home');try{boot=await gas('getBootstrapV2');renderBootstrap();renderTopics();refreshResumeCard();gas('warmPracticeCache').catch(()=>{})}catch(e){toast('Could not load dashboard: '+e.message)}}
   function renderBootstrap(){
     const s=boot.stats,target=boot.dailyTarget||120,done=s.dailyCompleted||0,total=s.dailyTotal||0,di=boot.dailyInfo||{};
@@ -28,7 +34,9 @@ const EPApp=(()=>{
     closePicker();
     if(mode==='daily'){
       EPQuiz.replaceSavedFor('daily');
-      try{const qs=await gas('getDailyBatchV2');if(!qs.length){toast('This Daily target is completed.');await refreshDashboard();return}document.body.classList.add('quiz-active');$('bottomNav').classList.add('hidden');EPQuiz.start(qs,{mode:'daily',returnTab:'home',serverSynced:true});return}catch(e){toast('Could not load Daily practice: '+e.message);return}
+      const day=boot&&boot.dailyInfo&&boot.dailyInfo.dayNo?boot.dailyInfo.dayNo:'';
+      showPracticeLoading(day?`Loading Day ${day} Practice…`:'Loading Daily Practice…');
+      try{const qs=await gas('getDailyBatchV2');if(!qs.length){hidePracticeLoading();toast('This Daily target is completed.');await refreshDashboard();return}document.body.classList.add('quiz-active');$('bottomNav').classList.add('hidden');hidePracticeLoading();EPQuiz.start(qs,{mode:'daily',returnTab:'home',serverSynced:true});return}catch(e){hidePracticeLoading();toast('Could not load Daily practice: '+e.message);return}
     }
     if(EPQuiz.hasSavedSessionFor(mode)){
       if(EPQuiz.isSameRequested(mode,opts)){EPQuiz.resumeOther();return}
