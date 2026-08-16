@@ -13,18 +13,47 @@ function myWordsRows_(){
   return vals.slice(1).map((r,i)=>{const o={_row:i+2};h.forEach((k,j)=>o[k]=r[j]);return o;});
 }
 
+function autoMeaningForMyWord_(word,qid){
+  const norm=String(word||'').trim().toLocaleLowerCase();if(!norm)return '';
+  const all=allQuestions_();
+  const exact=all.find(q=>String(q.word||'').trim().toLocaleLowerCase()===norm);
+  if(exact){
+    const raw=table_(EP.sheets.questions).find(r=>String(r.Question_ID||'').trim()===String(exact.id||''));
+    if(raw){const k=String(raw.Correct||'').trim().toUpperCase(),ans=String(raw['Option_'+k]||'').trim();if(ans)return ans;}
+    if(String(exact.explanation||'').trim())return String(exact.explanation||'').trim();
+  }
+  try{
+    const url='https://api.dictionaryapi.dev/api/v2/entries/en/'+encodeURIComponent(String(word||'').trim());
+    const res=UrlFetchApp.fetch(url,{muteHttpExceptions:true,followRedirects:true});
+    if(res.getResponseCode()>=200&&res.getResponseCode()<300){
+      const data=JSON.parse(res.getContentText()||'[]'),entry=Array.isArray(data)&&data[0],meanings=entry&&Array.isArray(entry.meanings)?entry.meanings:[];
+      for(let i=0;i<meanings.length;i++){
+        const m=meanings[i]||{},defs=Array.isArray(m.definitions)?m.definitions:[];
+        if(defs[0]&&defs[0].definition){
+          const pos=String(m.partOfSpeech||'').trim(),def=String(defs[0].definition||'').trim(),ex=String(defs[0].example||'').trim();
+          return (pos?'('+pos+') ':'')+def+(ex?' Example: '+ex:'');
+        }
+      }
+    }
+  }catch(e){}
+  if(qid){
+    const origin=findQuestion_(qid);if(origin&&String(origin.explanation||'').trim())return 'Context clue: '+String(origin.explanation||'').trim();
+  }
+  return '';
+}
+
 function captureMyWord(payload){
   payload=payload||{};const word=String(payload.word||'').trim();if(!word)throw new Error('Enter a word first.');
-  const meaning=String(payload.meaning||'').trim(),context=String(payload.context||'').trim(),qid=String(payload.questionId||'').trim(),module=String(payload.module||'').trim(),source=String(payload.source||'').trim(),now=new Date(),norm=word.toLocaleLowerCase();
+  const qid=String(payload.questionId||'').trim(),providedMeaning=String(payload.meaning||'').trim(),meaning=providedMeaning||autoMeaningForMyWord_(word,qid),context=String(payload.context||'').trim(),module=String(payload.module||'').trim(),source=String(payload.source||'').trim(),now=new Date(),norm=word.toLocaleLowerCase();
   const s=myWordsSheet_(),existing=myWordsRows_().find(x=>truthy_(x.Active)&&String(x.Word||'').trim().toLocaleLowerCase()===norm);
   if(existing){
     const oldMeaning=String(existing.Meaning||'').trim(),oldContext=String(existing.Context||'').trim();
     s.getRange(existing._row,2,1,8).setValues([[word,meaning||oldMeaning,context||oldContext,qid||existing.Origin_Question_ID,module||existing.Origin_Module,source||existing.Source,existing.Created_At||now,now]]);
-    return {ok:true,id:existing.Saved_ID,duplicate:true,status:String(existing.Status||'Saved')};
+    return {ok:true,id:existing.Saved_ID,duplicate:true,status:String(existing.Status||'Saved'),meaning:meaning||oldMeaning};
   }
   const id='MW_'+Utilities.formatDate(now,Session.getScriptTimeZone(),'yyyyMMdd_HHmmss')+'_'+Math.random().toString(36).slice(2,6).toUpperCase();
   s.appendRow([id,word,meaning,context,qid,module,source,now,now,'Saved','',true]);
-  return {ok:true,id,duplicate:false,status:'Saved'};
+  return {ok:true,id,duplicate:false,status:'Saved',meaning};
 }
 
 function updateMyWord(payload){
@@ -47,13 +76,18 @@ function getMySavedHub(){
   return {starred:starred.length,starredWeak:weak,words:words.length,wordsAdded:words.filter(x=>x.practiceQuestionId||String(x.status).toLowerCase()==='added').length};
 }
 
+function getStarredQuestionList(){
+  const status=statusMap_();
+  return allQuestions_().filter(q=>isActive_(q)&&!(status[q.id]&&status[q.id].mastered)&&isStarredStatus_(status[q.id]||{})).map(q=>({id:q.id,word:q.word||'',question:q.question||'',category:canonicalCategory_(q.topic),topic:q.topic||'',weak:isWeakStatus_(status[q.id]||{}),attempts:Number((status[q.id]||{}).attempts||0),source:q.sourceFile||q.sourceId||''}));
+}
+
 function getStarredPracticeBatch(kind,count){
   const status=statusMap_(),mode=String(kind||'all').toLowerCase();
   let pool=allQuestions_().filter(q=>isActive_(q)&&!(status[q.id]&&status[q.id].mastered)&&isStarredStatus_(status[q.id]||{}));
   if(mode==='weak')pool=pool.filter(q=>isWeakStatus_(status[q.id]||{}));
   if(mode==='random'||mode==='weak')shuffle_(pool);
   const requested=Math.max(1,Math.min(100,Number(count||10)));
-  if(mode==='random')pool=pool.slice(0,requested);
+  if(mode==='random'||(mode==='weak'&&Number(count||0)>0))pool=pool.slice(0,requested);
   return pool.map(serveQuestion_);
 }
 
@@ -67,7 +101,7 @@ function getMySavedWordQuestionIds(){
 function promoteMyWordToPractice(savedId){
   const id=String(savedId||'').trim(),s=myWordsSheet_(),row=findRow_(s,1,id);if(row<2)throw new Error('Saved word not found.');
   const r=s.getRange(row,1,1,MY_WORDS_HEADERS.length).getValues()[0],word=String(r[1]||'').trim(),meaning=String(r[2]||'').trim(),context=String(r[3]||'').trim();
-  if(!word)throw new Error('Word cannot be blank.');if(!meaning)throw new Error('Add a meaning/explanation before adding this word to practice.');
+  if(!word)throw new Error('Word cannot be blank.');if(!meaning)throw new Error('Meaning is still unavailable. Add or edit it before adding this word to practice.');
   const existing=allQuestions_().find(q=>isActive_(q)&&canonicalCategory_(q.topic)==='VOC'&&String(q.word||'').trim().toLocaleLowerCase()===word.toLocaleLowerCase());
   if(existing){s.getRange(row,9,1,3).setValues([[new Date(),'Added',existing.id]]);return {ok:true,questionId:existing.id,linked:true};}
 
