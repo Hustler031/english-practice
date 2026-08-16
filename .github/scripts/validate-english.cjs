@@ -6,10 +6,10 @@ const read=n=>fs.readFileSync(path.join(root,n),'utf8');
 const fail=m=>{console.error(`\n❌ ${m}`);process.exitCode=1};
 const ok=m=>console.log(`✅ ${m}`);
 const need=(t,n,l)=>t.includes(n)?ok(l):fail(`${l} — missing: ${n}`);
-const required=['Code.gs','DailyV2.gs','Demand.gs','NewPractice.gs','SourcePractice.gs','HinduVocab.gs','DashboardStats.gs','Index.html','Styles.html','AppJS.html','QuizJS.html','HinduUI.html','SourceUI.html','DemandUI.html','DashboardUI.html','appsscript.json'];
+const required=['Code.gs','DailyV2.gs','Demand.gs','NewPractice.gs','SourcePractice.gs','HinduVocab.gs','DashboardStats.gs','ProgressStats.gs','Index.html','Styles.html','AppJS.html','QuizJS.html','HinduUI.html','SourceUI.html','DemandUI.html','DashboardUI.html','appsscript.json'];
 required.forEach(f=>fs.existsSync(path.join(root,f))?ok(`File present: ${f}`):fail(`Required Apps Script file missing: ${f}`));
 if(process.exitCode)process.exit(process.exitCode);
-const server=['Code.gs','DailyV2.gs','Demand.gs','NewPractice.gs','SourcePractice.gs','HinduVocab.gs','DashboardStats.gs'];
+const server=['Code.gs','DailyV2.gs','Demand.gs','NewPractice.gs','SourcePractice.gs','HinduVocab.gs','DashboardStats.gs','ProgressStats.gs'];
 const front=['AppJS.html','QuizJS.html','HinduUI.html','SourceUI.html','DemandUI.html','DashboardUI.html'];
 server.forEach(f=>{try{new vm.Script(read(f),{filename:f});ok(`Server JavaScript syntax: ${f}`)}catch(e){fail(`Server JavaScript syntax failed in ${f}: ${e.message}`)}});
 front.forEach(f=>{try{const js=read(f).replace(/^\s*<script[^>]*>/i,'').replace(/<\/script>\s*$/i,'');new vm.Script(js,{filename:f});ok(`Frontend JavaScript syntax: ${f}`)}catch(e){fail(`Frontend JavaScript syntax failed in ${f}: ${e.message}`)}});
@@ -17,7 +17,7 @@ let manifest={};try{manifest=JSON.parse(read('appsscript.json'));ok('appsscript.
 if(manifest.runtimeVersion==='V8')ok('Apps Script V8 runtime preserved');else fail('V8 runtime required');
 if(manifest.webapp?.access==='ANYONE')ok('Web app access preserved as ANYONE');else fail('webapp.access must be ANYONE');
 if(manifest.webapp?.executeAs==='USER_DEPLOYING')ok('Web app executes as deploying user');else fail('webapp.executeAs must be USER_DEPLOYING');
-const code=read('Code.gs'),daily=read('DailyV2.gs'),demand=read('Demand.gs'),np=read('NewPractice.gs'),source=read('SourcePractice.gs'),hindu=read('HinduVocab.gs'),dash=read('DashboardStats.gs'),index=read('Index.html'),app=read('AppJS.html'),quiz=read('QuizJS.html'),dui=read('DemandUI.html'),sui=read('SourceUI.html'),hui=read('HinduUI.html'),dbui=read('DashboardUI.html');
+const code=read('Code.gs'),daily=read('DailyV2.gs'),demand=read('Demand.gs'),np=read('NewPractice.gs'),source=read('SourcePractice.gs'),hindu=read('HinduVocab.gs'),dash=read('DashboardStats.gs'),progress=read('ProgressStats.gs'),index=read('Index.html'),app=read('AppJS.html'),quiz=read('QuizJS.html'),dui=read('DemandUI.html'),sui=read('SourceUI.html'),hui=read('HinduUI.html'),dbui=read('DashboardUI.html');
 need(code,"spreadsheetId: '1IgUGQZu6sp1STBCX6gyI5pHayLGVpmYYrkKGYdwkjak'",'Live English spreadsheet preserved');
 ['function doGet(','function getPracticeBatch(','function submitAnswer(','function setMarked(','function markMastered('].forEach(x=>need(code,x,x));
 ['function getBootstrapV2(','function getDailyBatchV2(','syncDailyCompletionsFromPerformanceV2_','pendingFromPrevious',"const DAILY_V2_HISTORY='Daily_History'"].forEach(x=>need(daily,x,x));
@@ -26,13 +26,13 @@ need(code,"spreadsheetId: '1IgUGQZu6sp1STBCX6gyI5pHayLGVpmYYrkKGYdwkjak'",'Live 
 ['function getSourceHub(','function getSourcePracticeBatch(','buckets.flat().slice(0,requested)'].forEach(x=>need(source,x,x));
 ['function addHinduToVocab(','function getSavedHinduQuestionIds('].forEach(x=>need(hindu,x,x));
 need(dash,'function getTodayActivityCount(','Today activity API');
-['id="homeView"','id="dailyStartBtn"','id="todayDoneBadge"',"include('DashboardUI')",'id="quizView"','onclick="EPQuiz.next()"'].forEach(x=>need(index,x,x));
+['function getEncounterProgress(','todayNew','categories'].forEach(x=>need(progress,x,x));
+['id="homeView"','id="dailyStartBtn"','id="todayDoneBadge"',"include('DashboardUI')",'Loading daily plan…','id="quizView"','onclick="EPQuiz.next()"'].forEach(x=>need(index,x,x));
 ['getBootstrapV2','getDailyBatchV2','Complete Previous Target','Fresh-first:'].forEach(x=>need(app,x,x));
 ["EPApp.call('submitAnswer'",'function next()','function pause()'].forEach(x=>need(quiz,x,x));
 need(dui,'[10,20,50,100]','Demand random sizes 10/20/50/100');
 need(sui,'[10,20,50,100]','Source random sizes 10/20/50/100');
 need(hui,'Practice Again · Round','Repeatable Hindu rounds');
-need(dbui,'Loading daily plan','Day loading guard');
-need(dbui,'getTodayActivityCount','Today badge refresh');
+['getTodayActivityCount','getEncounterProgress','optimisticDailyProgress','data-tab="progress"','repeat(5,1fr)'].forEach(x=>need(dbui,x,x));
 if(process.exitCode){console.error('\nValidation failed. Deployment must not proceed.');process.exit(process.exitCode)}
 console.log('\n✅ English application contract validation passed.');
