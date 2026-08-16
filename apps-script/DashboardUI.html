@@ -4,83 +4,15 @@
   const DAILY_SESSION_KEY='ep-quiz-daily-v5',DAILY_BASE_KEY='ep-daily-ui-base-v1';
   const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   const pct=v=>Math.max(0,Math.min(100,Number(v||0)));
-
-  async function refreshTodayBadge(){
-    if(refreshing||typeof EPApp==='undefined'||!EPApp.call)return;
-    const badge=document.getElementById('todayDoneBadge');if(!badge)return;
-    refreshing=true;
-    try{const x=await EPApp.call('getTodayActivityCount');badge.textContent=`✓ ${Number(x&&x.count||0)} today`;badge.classList.remove('hidden')}catch(e){}finally{refreshing=false}
-  }
-
-  function revealDailyControls(){
-    const hero=document.querySelector('#homeView .hero'),title=hero&&hero.querySelector('h2');
-    if(hero&&title&&/^Day\s+\d+/.test(title.textContent||''))hero.classList.add('daily-ready');
-  }
-
-  function parseDailyProgress(){
-    const txt=String(document.getElementById('dailyProgress')?.textContent||'');
-    const m=txt.match(/(\d+)\s*\/\s*(\d+)/);return m?{done:Number(m[1]),total:Number(m[2])}:null;
-  }
+  async function refreshTodayBadge(){if(refreshing||typeof EPApp==='undefined'||!EPApp.call)return;const badge=document.getElementById('todayDoneBadge');if(!badge)return;refreshing=true;try{const x=await EPApp.call('getTodayActivityCount');badge.textContent=`✓ ${Number(x&&x.count||0)} today`;badge.classList.remove('hidden')}catch(e){}finally{refreshing=false}}
+  function revealDailyControls(){const hero=document.querySelector('#homeView .hero'),title=hero&&hero.querySelector('h2');if(hero&&title&&/^Day\s+\d+/.test(title.textContent||''))hero.classList.add('daily-ready')}
+  function parseDailyProgress(){const txt=String(document.getElementById('dailyProgress')?.textContent||''),m=txt.match(/(\d+)\s*\/\s*(\d+)/);return m?{done:Number(m[1]),total:Number(m[2])}:null}
   function rememberDailyBase(){const p=parseDailyProgress();if(p)try{sessionStorage.setItem(DAILY_BASE_KEY,JSON.stringify(p))}catch(e){}}
-  function optimisticDailyProgress(){
-    let base=null,saved=null;
-    try{base=JSON.parse(sessionStorage.getItem(DAILY_BASE_KEY)||'null');saved=JSON.parse(localStorage.getItem(DAILY_SESSION_KEY)||'null')}catch(e){}
-    if(!base||!saved||saved.meta?.mode!=='daily')return;
-    const answered=Object.keys(saved.answers||{}).length,total=Math.max(1,Number(base.total||0)),done=Math.min(total,Number(base.done||0)+answered);
-    const text=document.getElementById('dailyProgress'),bar=document.getElementById('dailyBar');
-    if(text)text.textContent=`${done} / ${total}`;
-    if(bar)bar.style.width=`${Math.min(100,done*100/total)}%`;
-  }
-
-  function ensureProgressShell(){
-    if(document.getElementById('progressView'))return;
-    const main=document.getElementById('main');if(!main)return;
-    const section=document.createElement('section');section.id='progressView';section.className='app-page content hidden';section.innerHTML='<h2>Progress</h2><p class="muted">Coverage counts a question once after you encounter it anywhere in the app.</p><div id="progressSummary" class="card progress-summary"><div class="muted">Loading coverage…</div></div><h3 class="section-title">Category Coverage</h3><div id="progressList" class="progress-list"><div class="empty card">Loading coverage…</div></div>';
-    main.appendChild(section);
-    const nav=document.getElementById('bottomNav');if(nav&&!nav.querySelector('[data-tab="progress"]')){
-      const b=document.createElement('button');b.className='bottom-tab';b.dataset.tab='progress';b.innerHTML='<b>◔</b>Progress';b.onclick=()=>EPApp.showTab('progress');nav.appendChild(b);
-    }
-    const style=document.createElement('style');style.textContent='.nav{grid-template-columns:repeat(5,1fr)!important}.progress-summary{display:grid;gap:12px}.progress-overall{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.progress-overall>div{display:grid;gap:3px;text-align:center}.progress-overall span,.progress-meta,.progress-today{font-size:12px;color:var(--muted)}.progress-overall b{font-size:18px}.coverage-bar{height:9px;background:var(--line);border-radius:999px;overflow:hidden}.coverage-bar i{display:block;height:100%;background:var(--ok);border-radius:999px}.coverage-bar.small{height:7px;margin:10px 0 6px}.progress-list{display:grid;gap:10px}.progress-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px}.progress-card strong{font-size:13px}.progress-today{text-align:center}.bottom-tab[data-tab="progress"] b{font-size:19px}';document.head.appendChild(style);
-  }
-
-  async function loadProgress(){
-    if(progressLoading||typeof EPApp==='undefined'||!EPApp.call)return;
-    const list=document.getElementById('progressList'),summary=document.getElementById('progressSummary');if(!list||!summary)return;
-    progressLoading=true;list.innerHTML='<div class="empty card">Loading coverage…</div>';
-    try{
-      const p=await EPApp.call('getEncounterProgress');
-      summary.innerHTML=`<div class="progress-overall"><div><span>Encountered</span><b>${Number(p.encountered||0)} / ${Number(p.total||0)}</b></div><div><span>Left</span><b>${Number(p.left||0)}</b></div><div><span>Coverage</span><b>${Number(p.percent||0)}%</b></div></div><div class="coverage-bar"><i style="width:${pct(p.percent)}%"></i></div><div class="progress-today">Today: <b>${Number(p.todayActivity||0)}</b> unique attempts · <b>${Number(p.todayNew||0)}</b> new encounters</div>`;
-      const rows=p.categories||[];
-      list.innerHTML=rows.length?rows.map(c=>`<article class="progress-card"><div class="row between"><b>${esc(c.name)}</b><strong>${Number(c.encountered||0)} / ${Number(c.total||0)}</strong></div><div class="coverage-bar small"><i style="width:${pct(c.percent)}%"></i></div><div class="row between progress-meta"><span>${Number(c.left||0)} left</span><span>${Number(c.percent||0)}%</span></div></article>`).join(''):'<div class="empty card">No active questions available yet.</div>';
-    }catch(e){list.innerHTML=`<div class="empty card">${esc(e.message)}</div>`}finally{progressLoading=false}
-  }
-
-  function init(){
-    ensureProgressShell();refreshTodayBadge();revealDailyControls();
-    const hero=document.querySelector('#homeView .hero');if(hero)new MutationObserver(revealDailyControls).observe(hero,{subtree:true,childList:true,characterData:true});
-    if(typeof EPApp!=='undefined'&&!EPApp.__dashboardUiWired){
-      EPApp.__dashboardUiWired=true;
-      const originalShow=EPApp.showTab;
-      EPApp.showTab=function(name){
-        const progress=document.getElementById('progressView');
-        if(name==='progress'){
-          document.querySelectorAll('.app-page').forEach(v=>v.classList.add('hidden'));document.getElementById('quizView')?.classList.add('hidden');document.body.classList.remove('quiz-active');progress?.classList.remove('hidden');document.getElementById('bottomNav')?.classList.remove('hidden');document.querySelectorAll('.bottom-tab').forEach(b=>b.classList.toggle('active',b.dataset.tab==='progress'));window.scrollTo({top:0,behavior:'smooth'});loadProgress();return;
-        }
-        if(progress)progress.classList.add('hidden');
-        const r=originalShow.apply(this,arguments);if(name==='home')setTimeout(refreshTodayBadge,80);return r;
-      };
-      const originalRefresh=EPApp.refreshDashboard;
-      EPApp.refreshDashboard=async function(){const r=await originalRefresh.apply(this,arguments);revealDailyControls();refreshTodayBadge();return r};
-      const originalStartDirect=EPApp.startDirect;
-      EPApp.startDirect=function(mode){if(mode==='daily')rememberDailyBase();return originalStartDirect.apply(this,arguments)};
-      EPApp.loadProgress=loadProgress;
-    }
-    if(typeof EPQuiz!=='undefined'&&!EPQuiz.__dailyOptimisticWired){
-      EPQuiz.__dailyOptimisticWired=true;
-      const originalPause=EPQuiz.pause;
-      EPQuiz.pause=function(){optimisticDailyProgress();return originalPause.apply(this,arguments)};
-    }
-  }
+  function optimisticDailyProgress(){let base=null,saved=null;try{base=JSON.parse(sessionStorage.getItem(DAILY_BASE_KEY)||'null');saved=JSON.parse(localStorage.getItem(DAILY_SESSION_KEY)||'null')}catch(e){}if(!base||!saved||saved.meta?.mode!=='daily')return;const answered=Object.keys(saved.answers||{}).length,total=Math.max(1,Number(base.total||0)),done=Math.min(total,Number(base.done||0)+answered),text=document.getElementById('dailyProgress'),bar=document.getElementById('dailyBar');if(text)text.textContent=`${done} / ${total}`;if(bar)bar.style.width=`${Math.min(100,done*100/total)}%`}
+  function ensureProgressShell(){if(document.getElementById('progressView'))return;const main=document.getElementById('main');if(!main)return;const section=document.createElement('section');section.id='progressView';section.className='app-page content hidden';section.innerHTML='<h2>Progress</h2><p class="muted">Coverage counts a question once after you encounter it anywhere in the app.</p><div id="progressSummary" class="card progress-summary"></div><h3 class="section-title">Category Coverage</h3><div id="progressList" class="progress-list"></div>';main.appendChild(section);const nav=document.getElementById('bottomNav');if(nav&&!nav.querySelector('[data-tab="progress"]')){const b=document.createElement('button');b.className='bottom-tab';b.dataset.tab='progress';b.innerHTML='<b>◔</b>Progress';b.onclick=()=>EPApp.showTab('progress');nav.appendChild(b)}const style=document.createElement('style');style.textContent='.nav{grid-template-columns:repeat(5,1fr)!important}.progress-summary{display:grid;gap:12px}.progress-overall{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.progress-overall>div{display:grid;gap:3px;text-align:center}.progress-overall span,.progress-meta,.progress-today{font-size:12px;color:var(--muted)}.progress-overall b{font-size:18px}.coverage-bar{height:9px;background:var(--line);border-radius:999px;overflow:hidden}.coverage-bar i{display:block;height:100%;background:var(--ok);border-radius:999px}.coverage-bar.small{height:7px;margin:10px 0 6px}.progress-list{display:grid;gap:10px}.progress-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px}.progress-card strong{font-size:13px}.progress-today{text-align:center}.bottom-tab[data-tab="progress"] b{font-size:19px}';document.head.appendChild(style)}
+  function renderProgress(p){const list=document.getElementById('progressList'),summary=document.getElementById('progressSummary');if(!list||!summary||!p)return;summary.innerHTML=`<div class="progress-overall"><div><span>Encountered</span><b>${Number(p.encountered||0)} / ${Number(p.total||0)}</b></div><div><span>Left</span><b>${Number(p.left||0)}</b></div><div><span>Coverage</span><b>${Number(p.percent||0)}%</b></div></div><div class="coverage-bar"><i style="width:${pct(p.percent)}%"></i></div><div class="progress-today">Today: <b>${Number(p.todayActivity||0)}</b> unique attempts · <b>${Number(p.todayNew||0)}</b> new encounters</div>`;const rows=p.categories||[];list.innerHTML=rows.length?rows.map(c=>`<article class="progress-card"><div class="row between"><b>${esc(c.name)}</b><strong>${Number(c.encountered||0)} / ${Number(c.total||0)}</strong></div><div class="coverage-bar small"><i style="width:${pct(c.percent)}%"></i></div><div class="row between progress-meta"><span>${Number(c.left||0)} left</span><span>${Number(c.percent||0)}%</span></div></article>`).join(''):'<div class="empty card">No active questions available yet.</div>'}
+  async function loadProgress(){if(progressLoading||typeof EPApp==='undefined'||!EPApp.call)return;const cached=window.EPFast&&EPFast.get('progress');if(cached)renderProgress(cached);else{document.getElementById('progressSummary').innerHTML='<div class="muted">Preparing coverage…</div>';document.getElementById('progressList').innerHTML=''}progressLoading=true;try{const p=await EPApp.call('getEncounterProgress');if(window.EPFast)EPFast.set('progress',p);renderProgress(p)}catch(e){if(!cached)document.getElementById('progressList').innerHTML=`<div class="empty card">${esc(e.message)}</div>`}finally{progressLoading=false}}
+  function init(){ensureProgressShell();refreshTodayBadge();revealDailyControls();const hero=document.querySelector('#homeView .hero');if(hero)new MutationObserver(revealDailyControls).observe(hero,{subtree:true,childList:true,characterData:true});if(typeof EPApp!=='undefined'&&!EPApp.__dashboardUiWired){EPApp.__dashboardUiWired=true;const originalShow=EPApp.showTab;EPApp.showTab=function(name){const progress=document.getElementById('progressView');if(name==='progress'){document.querySelectorAll('.app-page').forEach(v=>v.classList.add('hidden'));document.getElementById('quizView')?.classList.add('hidden');document.body.classList.remove('quiz-active');progress?.classList.remove('hidden');document.getElementById('bottomNav')?.classList.remove('hidden');document.querySelectorAll('.bottom-tab').forEach(b=>b.classList.toggle('active',b.dataset.tab==='progress'));window.scrollTo({top:0,behavior:'smooth'});loadProgress();return}if(progress)progress.classList.add('hidden');const r=originalShow.apply(this,arguments);if(name==='home')setTimeout(refreshTodayBadge,80);return r};const originalRefresh=EPApp.refreshDashboard;EPApp.refreshDashboard=async function(){const r=await originalRefresh.apply(this,arguments);revealDailyControls();refreshTodayBadge();if(window.EPFast)EPFast.drop('progress');return r};const originalStartDirect=EPApp.startDirect;EPApp.startDirect=function(mode){if(mode==='daily')rememberDailyBase();return originalStartDirect.apply(this,arguments)};EPApp.loadProgress=loadProgress}if(typeof EPQuiz!=='undefined'&&!EPQuiz.__dailyOptimisticWired){EPQuiz.__dailyOptimisticWired=true;const originalPause=EPQuiz.pause;EPQuiz.pause=function(){optimisticDailyProgress();return originalPause.apply(this,arguments)}}}
   document.addEventListener('DOMContentLoaded',init);
 })();
 </script>
