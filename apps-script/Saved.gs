@@ -1,79 +1,80 @@
 const MY_WORDS_SHEET='My_Words';
-const MY_WORDS_HEADERS=['Saved_ID','Word','Meaning','Context','Origin_Question_ID','Origin_Module','Source','Created_At','Updated_At','Status','Practice_Question_ID','Active'];
+const MY_WORDS_HEADERS=['Saved_ID','Word','Meaning','Context','Origin_Question_ID','Origin_Module','Source','Created_At','Updated_At','Status','Practice_Question_ID','Active','Part_of_Speech','Synonyms','Antonyms','Example','Explanation','Question','Option_A','Option_B','Option_C','Option_D','Correct_Option','GPT_Status','GPT_Updated_At','GPT_Source'];
 
 function myWordsSheet_(){
   let s=ss_().getSheetByName(MY_WORDS_SHEET);
-  if(!s){s=ss_().insertSheet(MY_WORDS_SHEET);s.getRange(1,1,1,MY_WORDS_HEADERS.length).setValues([MY_WORDS_HEADERS]);s.setFrozenRows(1);}
+  if(!s){s=ss_().insertSheet(MY_WORDS_SHEET);s.setFrozenRows(1);}
+  ensureMyWordsSchema_(s);
   return s;
+}
+
+function ensureMyWordsSchema_(s){
+  const width=Math.max(s.getLastColumn(),MY_WORDS_HEADERS.length),current=s.getRange(1,1,1,width).getValues()[0].map(x=>String(x||'').trim());
+  const missing=MY_WORDS_HEADERS.filter(h=>!current.includes(h));
+  if(!current.some(Boolean)){
+    s.getRange(1,1,1,MY_WORDS_HEADERS.length).setValues([MY_WORDS_HEADERS]);
+  }else if(missing.length){
+    const next=current.filter(Boolean).concat(missing);
+    s.getRange(1,1,1,next.length).setValues([next]);
+  }
+  s.setFrozenRows(1);
 }
 
 function myWordsRows_(){
   const s=myWordsSheet_();if(s.getLastRow()<2)return [];
-  const vals=s.getRange(1,1,s.getLastRow(),MY_WORDS_HEADERS.length).getValues(),h=vals[0];
-  return vals.slice(1).map((r,i)=>{const o={_row:i+2};h.forEach((k,j)=>o[k]=r[j]);return o;});
+  const lastCol=Math.max(s.getLastColumn(),MY_WORDS_HEADERS.length),vals=s.getRange(1,1,s.getLastRow(),lastCol).getValues(),h=vals[0].map(x=>String(x||'').trim());
+  return vals.slice(1).map((r,i)=>{const o={_row:i+2};h.forEach((k,j)=>{if(k)o[k]=r[j]});return o;});
 }
 
-function autoMeaningForMyWord_(word,qid){
-  const norm=String(word||'').trim().toLocaleLowerCase();if(!norm)return '';
-  const all=allQuestions_();
-  const exact=all.find(q=>String(q.word||'').trim().toLocaleLowerCase()===norm);
-  if(exact){
-    const raw=table_(EP.sheets.questions).find(r=>String(r.Question_ID||'').trim()===String(exact.id||''));
-    if(raw){const k=String(raw.Correct||'').trim().toUpperCase(),ans=String(raw['Option_'+k]||'').trim();if(ans)return ans;}
-    if(String(exact.explanation||'').trim())return String(exact.explanation||'').trim();
-  }
-  try{
-    const url='https://api.dictionaryapi.dev/api/v2/entries/en/'+encodeURIComponent(String(word||'').trim());
-    const res=UrlFetchApp.fetch(url,{muteHttpExceptions:true,followRedirects:true});
-    if(res.getResponseCode()>=200&&res.getResponseCode()<300){
-      const data=JSON.parse(res.getContentText()||'[]'),entry=Array.isArray(data)&&data[0],meanings=entry&&Array.isArray(entry.meanings)?entry.meanings:[];
-      for(let i=0;i<meanings.length;i++){
-        const m=meanings[i]||{},defs=Array.isArray(m.definitions)?m.definitions:[];
-        if(defs[0]&&defs[0].definition){
-          const pos=String(m.partOfSpeech||'').trim(),def=String(defs[0].definition||'').trim(),ex=String(defs[0].example||'').trim();
-          return (pos?'('+pos+') ':'')+def+(ex?' Example: '+ex:'');
-        }
-      }
-    }
-  }catch(e){}
-  if(qid){
-    const origin=findQuestion_(qid);if(origin&&String(origin.explanation||'').trim())return 'Context clue: '+String(origin.explanation||'').trim();
-  }
-  return '';
+function myWordCol_(s,name){
+  const h=s.getRange(1,1,1,s.getLastColumn()).getValues()[0].map(x=>String(x||'').trim()),i=h.indexOf(name);if(i<0)throw new Error('My_Words column missing: '+name);return i+1;
 }
 
 function captureMyWord(payload){
   payload=payload||{};const word=String(payload.word||'').trim();if(!word)throw new Error('Enter a word first.');
-  const qid=String(payload.questionId||'').trim(),providedMeaning=String(payload.meaning||'').trim(),meaning=providedMeaning||autoMeaningForMyWord_(word,qid),context=String(payload.context||'').trim(),module=String(payload.module||'').trim(),source=String(payload.source||'').trim(),now=new Date(),norm=word.toLocaleLowerCase();
-  const s=myWordsSheet_(),existing=myWordsRows_().find(x=>truthy_(x.Active)&&String(x.Word||'').trim().toLocaleLowerCase()===norm);
+  const qid=String(payload.questionId||'').trim(),context=String(payload.context||'').trim(),module=String(payload.module||'').trim(),source=String(payload.source||'').trim(),now=new Date(),norm=word.toLocaleLowerCase(),s=myWordsSheet_();
+  const existing=myWordsRows_().find(x=>truthy_(x.Active)&&String(x.Word||'').trim().toLocaleLowerCase()===norm);
   if(existing){
-    const oldMeaning=String(existing.Meaning||'').trim(),oldContext=String(existing.Context||'').trim();
-    s.getRange(existing._row,2,1,8).setValues([[word,meaning||oldMeaning,context||oldContext,qid||existing.Origin_Question_ID,module||existing.Origin_Module,source||existing.Source,existing.Created_At||now,now]]);
-    return {ok:true,id:existing.Saved_ID,duplicate:true,status:String(existing.Status||'Saved'),meaning:meaning||oldMeaning};
+    const row=existing._row,updates={Context:context||existing.Context||'',Origin_Question_ID:qid||existing.Origin_Question_ID||'',Origin_Module:module||existing.Origin_Module||'',Source:source||existing.Source||'',Updated_At:now};
+    Object.entries(updates).forEach(([k,v])=>s.getRange(row,myWordCol_(s,k)).setValue(v));
+    if(!String(existing.GPT_Status||'').trim()&&!String(existing.Practice_Question_ID||'').trim())s.getRange(row,myWordCol_(s,'GPT_Status')).setValue('Pending GPT');
+    return {ok:true,id:existing.Saved_ID,duplicate:true,status:String(existing.Status||'Saved'),gptStatus:String(existing.GPT_Status||'Pending GPT')};
   }
   const id='MW_'+Utilities.formatDate(now,Session.getScriptTimeZone(),'yyyyMMdd_HHmmss')+'_'+Math.random().toString(36).slice(2,6).toUpperCase();
-  s.appendRow([id,word,meaning,context,qid,module,source,now,now,'Saved','',true]);
-  return {ok:true,id,duplicate:false,status:'Saved',meaning};
+  const obj={Saved_ID:id,Word:word,Meaning:'',Context:context,Origin_Question_ID:qid,Origin_Module:module,Source:source,Created_At:now,Updated_At:now,Status:'Saved',Practice_Question_ID:'',Active:true,Part_of_Speech:'',Synonyms:'',Antonyms:'',Example:'',Explanation:'',Question:'',Option_A:'',Option_B:'',Option_C:'',Option_D:'',Correct_Option:'',GPT_Status:'Pending GPT',GPT_Updated_At:'',GPT_Source:''};
+  const headers=s.getRange(1,1,1,s.getLastColumn()).getValues()[0].map(x=>String(x||'').trim());s.appendRow(headers.map(h=>Object.prototype.hasOwnProperty.call(obj,h)?obj[h]:''));
+  return {ok:true,id,duplicate:false,status:'Saved',gptStatus:'Pending GPT'};
 }
 
 function updateMyWord(payload){
   payload=payload||{};const id=String(payload.id||'').trim(),s=myWordsSheet_(),row=findRow_(s,1,id);if(row<2)throw new Error('Saved word not found.');
-  const word=String(payload.word||'').trim(),meaning=String(payload.meaning||'').trim(),context=String(payload.context||'').trim();if(!word)throw new Error('Word cannot be blank.');
-  s.getRange(row,2,1,3).setValues([[word,meaning,context]]);s.getRange(row,9).setValue(new Date());
-  return {ok:true,id};
+  const word=String(payload.word||'').trim();if(!word)throw new Error('Word cannot be blank.');
+  const updates={Word:word,Meaning:String(payload.meaning||''),Context:String(payload.context||''),Updated_At:new Date()};
+  Object.entries(updates).forEach(([k,v])=>s.getRange(row,myWordCol_(s,k)).setValue(v));return {ok:true,id};
+}
+
+function setMyWordGPTEnrichment(payload){
+  payload=payload||{};const id=String(payload.id||payload.savedId||'').trim(),s=myWordsSheet_(),row=findRow_(s,1,id);if(row<2)throw new Error('Saved word not found.');
+  const fields={Meaning:'meaning',Part_of_Speech:'partOfSpeech',Synonyms:'synonyms',Antonyms:'antonyms',Example:'example',Explanation:'explanation',Question:'question',Option_A:'optionA',Option_B:'optionB',Option_C:'optionC',Option_D:'optionD',Correct_Option:'correctOption',GPT_Source:'source'};
+  Object.entries(fields).forEach(([col,key])=>{if(Object.prototype.hasOwnProperty.call(payload,key))s.getRange(row,myWordCol_(s,col)).setValue(String(payload[key]??''))});
+  s.getRange(row,myWordCol_(s,'GPT_Status')).setValue(String(payload.gptStatus||'Ready'));
+  s.getRange(row,myWordCol_(s,'GPT_Updated_At')).setValue(new Date());s.getRange(row,myWordCol_(s,'Updated_At')).setValue(new Date());
+  return {ok:true,id,status:String(payload.gptStatus||'Ready')};
 }
 
 function getMyWords(){
   return myWordsRows_().filter(x=>truthy_(x.Active)).sort((a,b)=>new Date(b.Created_At||0)-new Date(a.Created_At||0)).map(x=>({
-    id:String(x.Saved_ID||''),word:String(x.Word||''),meaning:String(x.Meaning||''),context:String(x.Context||''),questionId:String(x.Origin_Question_ID||''),module:String(x.Origin_Module||''),source:String(x.Source||''),status:String(x.Status||'Saved'),practiceQuestionId:String(x.Practice_Question_ID||''),created:x.Created_At instanceof Date?Utilities.formatDate(x.Created_At,Session.getScriptTimeZone(),'yyyy-MM-dd'):String(x.Created_At||'')
+    id:String(x.Saved_ID||''),word:String(x.Word||''),meaning:String(x.Meaning||''),context:String(x.Context||''),questionId:String(x.Origin_Question_ID||''),module:String(x.Origin_Module||''),source:String(x.Source||''),status:String(x.Status||'Saved'),practiceQuestionId:String(x.Practice_Question_ID||''),created:x.Created_At instanceof Date?Utilities.formatDate(x.Created_At,Session.getScriptTimeZone(),'yyyy-MM-dd'):String(x.Created_At||''),partOfSpeech:String(x.Part_of_Speech||''),synonyms:String(x.Synonyms||''),antonyms:String(x.Antonyms||''),example:String(x.Example||''),explanation:String(x.Explanation||''),question:String(x.Question||''),optionA:String(x.Option_A||''),optionB:String(x.Option_B||''),optionC:String(x.Option_C||''),optionD:String(x.Option_D||''),correctOption:String(x.Correct_Option||''),gptStatus:String(x.GPT_Status||'Pending GPT'),gptUpdated:x.GPT_Updated_At instanceof Date?Utilities.formatDate(x.GPT_Updated_At,Session.getScriptTimeZone(),'yyyy-MM-dd HH:mm'):String(x.GPT_Updated_At||''),gptSource:String(x.GPT_Source||'')
   }));
 }
+
+function getPendingMyWords(){return getMyWords().filter(x=>!x.practiceQuestionId&&String(x.gptStatus||'').toLowerCase()!=='ready');}
 
 function getMySavedHub(){
   const status=statusMap_(),all=allQuestions_();
   const starred=all.filter(q=>isActive_(q)&&!(status[q.id]&&status[q.id].mastered)&&isStarredStatus_(status[q.id]||{}));
   const weak=starred.filter(q=>isWeakStatus_(status[q.id]||{})).length,words=getMyWords();
-  return {starred:starred.length,starredWeak:weak,words:words.length,wordsAdded:words.filter(x=>x.practiceQuestionId||String(x.status).toLowerCase()==='added').length};
+  return {starred:starred.length,starredWeak:weak,words:words.length,wordsReady:words.filter(x=>String(x.gptStatus||'').toLowerCase()==='ready').length,wordsAdded:words.filter(x=>x.practiceQuestionId||String(x.status).toLowerCase()==='added').length};
 }
 
 function getStarredQuestionList(){
@@ -86,40 +87,30 @@ function getStarredPracticeBatch(kind,count){
   let pool=allQuestions_().filter(q=>isActive_(q)&&!(status[q.id]&&status[q.id].mastered)&&isStarredStatus_(status[q.id]||{}));
   if(mode==='weak')pool=pool.filter(q=>isWeakStatus_(status[q.id]||{}));
   if(mode==='random'||mode==='weak')shuffle_(pool);
-  const requested=Math.max(1,Math.min(100,Number(count||10)));
-  if(mode==='random'||(mode==='weak'&&Number(count||0)>0))pool=pool.slice(0,requested);
+  const requested=Math.max(1,Math.min(100,Number(count||10)));if(mode==='random'||(mode==='weak'&&Number(count||0)>0))pool=pool.slice(0,requested);
   return pool.map(serveQuestion_);
 }
 
 function isStarredStatus_(st){return !!st.marked||String(st.status||'').toLowerCase()==='marked'||Number(st.markedCount||0)>0;}
 function isWeakStatus_(st){return ['weak','wrong'].includes(String(st.status||'').toLowerCase())||Number(st.wrong||0)>0;}
-
-function getMySavedWordQuestionIds(){
-  return getMyWords().map(x=>x.practiceQuestionId).filter(Boolean);
-}
+function getMySavedWordQuestionIds(){return getMyWords().map(x=>x.practiceQuestionId).filter(Boolean);}
 
 function promoteMyWordToPractice(savedId){
   const id=String(savedId||'').trim(),s=myWordsSheet_(),row=findRow_(s,1,id);if(row<2)throw new Error('Saved word not found.');
-  const r=s.getRange(row,1,1,MY_WORDS_HEADERS.length).getValues()[0],word=String(r[1]||'').trim(),meaning=String(r[2]||'').trim(),context=String(r[3]||'').trim();
-  if(!word)throw new Error('Word cannot be blank.');if(!meaning)throw new Error('Meaning is still unavailable. Add or edit it before adding this word to practice.');
+  const h=s.getRange(1,1,1,s.getLastColumn()).getValues()[0].map(x=>String(x||'').trim()),r=s.getRange(row,1,1,s.getLastColumn()).getValues()[0],o={};h.forEach((k,i)=>{if(k)o[k]=r[i]});
+  const word=String(o.Word||'').trim(),meaning=String(o.Meaning||'').trim(),gptStatus=String(o.GPT_Status||'').trim().toLowerCase();
+  if(!word)throw new Error('Word cannot be blank.');if(gptStatus!=='ready')throw new Error('GPT review is not ready yet.');if(!meaning)throw new Error('Prepared meaning is missing.');
   const existing=allQuestions_().find(q=>isActive_(q)&&canonicalCategory_(q.topic)==='VOC'&&String(q.word||'').trim().toLocaleLowerCase()===word.toLocaleLowerCase());
-  if(existing){s.getRange(row,9,1,3).setValues([[new Date(),'Added',existing.id]]);return {ok:true,questionId:existing.id,linked:true};}
+  if(existing){s.getRange(row,myWordCol_(s,'Updated_At')).setValue(new Date());s.getRange(row,myWordCol_(s,'Status')).setValue('Added');s.getRange(row,myWordCol_(s,'Practice_Question_ID')).setValue(existing.id);return {ok:true,questionId:existing.id,linked:true};}
 
-  const raw=table_(EP.sheets.questions),distractors=[];
-  raw.forEach(q=>{
-    if(canonicalCategory_(q.Topic)!=='VOC')return;
-    const key=String(q.Correct||'').trim().toUpperCase(),m=String(q['Option_'+key]||'').trim();
-    if(m&&m.toLocaleLowerCase()!==meaning.toLocaleLowerCase()&&!distractors.some(x=>x.toLocaleLowerCase()===m.toLocaleLowerCase()))distractors.push(m);
-  });
-  myWordsRows_().forEach(x=>{const m=String(x.Meaning||'').trim();if(m&&m.toLocaleLowerCase()!==meaning.toLocaleLowerCase()&&!distractors.some(y=>y.toLocaleLowerCase()===m.toLocaleLowerCase()))distractors.push(m);});
-  shuffle_(distractors);while(distractors.length<3)distractors.push(['A different unrelated meaning','An opposite or unrelated idea','None of these meanings'][distractors.length]||'Another unrelated meaning');
-  const opts=shuffle_([{correct:true,text:meaning},...distractors.slice(0,3).map(x=>({correct:false,text:x}))]),letters=['A','B','C','D'],correct=letters[opts.findIndex(x=>x.correct)];
-  const digest=Utilities.computeDigest(Utilities.DigestAlgorithm.MD5,word.toLocaleLowerCase()).slice(0,5).map(x=>(x<0?x+256:x).toString(16).padStart(2,'0')).join('').toUpperCase();
-  const qid='MYWORD_'+Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyyMMdd')+'_'+digest;
-  const values={Question_ID:qid,Topic:'Vocabulary',Word:word,Question:'Choose the closest meaning of '+word+'.',Option_A:opts[0].text,Option_B:opts[1].text,Option_C:opts[2].text,Option_D:opts[3].text,Correct:correct,Explanation:meaning+(context?' Context: '+context:''),Subtopic:'My Saved Words',Question_Type:'Meaning',Source_File:'My Saved Words',Source_Page:'',Concept_ID:'MYWORD_'+digest,Difficulty:'Medium',Source_ID:'MY_SAVED_WORDS',Learning_Status:'New',Content_Status:'Active',First_Seen_Date:'',Last_Seen_Date:'',Seen_Count:0,Duplicate_Group_ID:'',Exam_Relevance:'User-saved vocabulary',Tip:'Captured during practice for deliberate revision.',Usage_Note:context};
-  const qs=sheet_(EP.sheets.questions),headers=qs.getRange(1,1,1,qs.getLastColumn()).getValues()[0].map(String),out=headers.map(h=>Object.prototype.hasOwnProperty.call(values,h)?values[h]:'');
-  qs.appendRow(out);SpreadsheetApp.flush();
-  try{CacheService.getScriptCache().remove(EP.cache.questionsMeta);}catch(e){}
-  s.getRange(row,9,1,3).setValues([[new Date(),'Added',qid]]);
-  return {ok:true,questionId:qid,linked:false};
+  let opts=['A','B','C','D'].map(k=>String(o['Option_'+k]||'').trim()),correct=String(o.Correct_Option||'').trim().toUpperCase();
+  if(!['A','B','C','D'].includes(correct)||opts.some(x=>!x)){
+    const distractors=[];table_(EP.sheets.questions).forEach(q=>{if(canonicalCategory_(q.Topic)!=='VOC')return;const k=String(q.Correct||'').trim().toUpperCase(),m=String(q['Option_'+k]||'').trim();if(m&&m.toLocaleLowerCase()!==meaning.toLocaleLowerCase()&&!distractors.some(x=>x.toLocaleLowerCase()===m.toLocaleLowerCase()))distractors.push(m)});shuffle_(distractors);while(distractors.length<3)distractors.push(['A related but incorrect meaning','An opposite idea','A different usage'][distractors.length]||'Another meaning');const mixed=shuffle_([{c:true,t:meaning},...distractors.slice(0,3).map(x=>({c:false,t:x}))]);opts=mixed.map(x=>x.t);correct=['A','B','C','D'][mixed.findIndex(x=>x.c)];
+  }
+  const digest=Utilities.computeDigest(Utilities.DigestAlgorithm.MD5,word.toLocaleLowerCase()).slice(0,5).map(x=>(x<0?x+256:x).toString(16).padStart(2,'0')).join('').toUpperCase(),qid='MYWORD_'+Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyyMMdd')+'_'+digest;
+  const question=String(o.Question||'').trim()||('Choose the closest meaning of '+word+'.');
+  const explanation=String(o.Explanation||'').trim()||[meaning,String(o.Part_of_Speech||'').trim()?('Part of speech: '+o.Part_of_Speech):'',String(o.Synonyms||'').trim()?('Synonyms: '+o.Synonyms):'',String(o.Antonyms||'').trim()?('Antonyms: '+o.Antonyms):'',String(o.Example||'').trim()?('Example: '+o.Example):'',String(o.Context||'').trim()?('Context: '+o.Context):''].filter(Boolean).join('\n');
+  const values={Question_ID:qid,Topic:'Vocabulary',Word:word,Question:question,Option_A:opts[0],Option_B:opts[1],Option_C:opts[2],Option_D:opts[3],Correct:correct,Explanation:explanation,Subtopic:'My Saved Words',Question_Type:'Meaning',Source_File:'My Saved Words',Source_Page:'',Concept_ID:'MYWORD_'+digest,Difficulty:'Medium',Source_ID:'MY_SAVED_WORDS',Learning_Status:'New',Content_Status:'Active',First_Seen_Date:'',Last_Seen_Date:'',Seen_Count:0,Duplicate_Group_ID:'',Exam_Relevance:'User-saved vocabulary',Tip:String(o.Synonyms||'').trim()?('Recall with: '+o.Synonyms):'Captured during practice for deliberate revision.',Usage_Note:String(o.Example||o.Context||'')};
+  const qs=sheet_(EP.sheets.questions),headers=qs.getRange(1,1,1,qs.getLastColumn()).getValues()[0].map(String);qs.appendRow(headers.map(k=>Object.prototype.hasOwnProperty.call(values,k)?values[k]:''));SpreadsheetApp.flush();try{CacheService.getScriptCache().remove(EP.cache.questionsMeta)}catch(e){}
+  s.getRange(row,myWordCol_(s,'Updated_At')).setValue(new Date());s.getRange(row,myWordCol_(s,'Status')).setValue('Added');s.getRange(row,myWordCol_(s,'Practice_Question_ID')).setValue(qid);return {ok:true,questionId:qid,linked:false};
 }
