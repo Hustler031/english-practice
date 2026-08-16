@@ -27,6 +27,7 @@ function ensureDailyV2_(all,status,target){
   const today=todayKey_(),s=sheet_(EP.sheets.daily);
   let rows=table_(EP.sheets.daily).filter(r=>String(r.Question_ID||'').trim());
   rows=normalizeDailyRowsV2_(rows,all,status,s);
+  rows=syncDailyCompletionsFromPerformanceV2_(rows,s);
 
   // Preserve the already-created/completed 15 Aug set exactly as it is.
   if(today<DAILY_V2_ROLLOUT){
@@ -77,6 +78,28 @@ function previousMarkedIdsV2_(rows,status){
 function normalizeDailyRowsV2_(rows,all,status,s){
   const map=Object.fromEntries(all.map(q=>[q.id,q]));
   rows.forEach((r,i)=>{const id=String(r.Question_ID||'').trim(),q=map[id],done=String(r.Status||'').toLowerCase()==='completed';if(!done&&(!q||!isActive_(q)||(status[id]&&status[id].mastered))){s.getRange(i+2,5).setValue('Completed');r.Status='Completed';}});
+  return rows;
+}
+
+function syncDailyCompletionsFromPerformanceV2_(rows,s){
+  if(!rows.length)return rows;
+  const perf=sheet_(EP.sheets.performance);
+  if(perf.getLastRow()<2)return rows;
+  const values=perf.getDataRange().getValues();
+  if(values.length<2)return rows;
+  const header=values[0].map(x=>String(x||'').trim().toLowerCase());
+  let ti=header.findIndex(x=>x==='timestamp'||x==='time'||x==='attempt_time'||x==='attempt timestamp');
+  let qi=header.findIndex(x=>x==='question_id'||x==='question id'||x==='questionid');
+  if(ti<0)ti=0;if(qi<0)qi=1;
+  const latest={};
+  values.slice(1).forEach(r=>{const id=String(r[qi]||'').trim();if(!id)return;const d=r[ti] instanceof Date?r[ti]:new Date(r[ti]);if(isNaN(d))return;if(!latest[id]||d>latest[id])latest[id]=d;});
+  rows.forEach((r,i)=>{
+    if(String(r.Status||'').toLowerCase()==='completed')return;
+    const id=String(r.Question_ID||'').trim(),batchKey=dateKey_(r.Quiz_Date),attempt=latest[id];
+    if(!id||!batchKey||!attempt)return;
+    const parts=batchKey.split('-').map(Number),start=new Date(parts[0],parts[1]-1,parts[2],0,0,0,0);
+    if(attempt>=start){s.getRange(i+2,5).setValue('Completed');r.Status='Completed';}
+  });
   return rows;
 }
 
