@@ -23,14 +23,14 @@ need(code,"spreadsheetId: '1IgUGQZu6sp1STBCX6gyI5pHayLGVpmYYrkKGYdwkjak'",'Live 
 ['function getBootstrapV2(','function getDailyBatchV2(','syncDailyCompletionsFromPerformanceV2_','pendingFromPrevious',"const DAILY_V2_HISTORY='Daily_History'"].forEach(x=>need(daily,x,x));
 ['function getDemandBatches(','function getDemandPracticeBatch(','function submitHinduAnswer(','function getHinduPracticeProgress('].forEach(x=>need(demand,x,x));
 ['function getNewPracticeHub(','function getNewPracticeBatch(','NOT_SPECIFIED'].forEach(x=>need(np,x,x));
-['function getSourceHub(','function getSourcePracticeBatch(','weak → recent'].forEach(x=>need(source,x,x));
+['function getSourceHub(','function getSourcePracticeBatch(','buckets.flat().slice(0,requested)'].forEach(x=>need(source,x,x));
 ['function addHinduToVocab(','function getSavedHinduQuestionIds('].forEach(x=>need(hindu,x,x));
 need(dash,'function getTodayActivityCount(','Today activity API');
 ['id="homeView"','id="dailyStartBtn"','id="todayDoneBadge"',"include('DashboardUI')",'id="quizView"','onclick="EPQuiz.next()"'].forEach(x=>need(index,x,x));
 ['getBootstrapV2','getDailyBatchV2','Complete Previous Target','Fresh-first:'].forEach(x=>need(app,x,x));
-['Background answer save',"EPApp.call('submitAnswer'",'function next()','function pause()'].forEach((x,i)=>{if(i)need(quiz,x,x)});
-['Random 10','Random 20','Random 50','Random 100'].forEach(x=>need(dui,x,`Demand ${x}`));
-['Random 10','Random 20','Random 50','Random 100'].forEach(x=>need(sui,x,`Source ${x}`));
+["EPApp.call('submitAnswer'",'function next()','function pause()'].forEach(x=>need(quiz,x,x));
+need(dui,'[10,20,50,100]','Demand random sizes 10/20/50/100');
+need(sui,'[10,20,50,100]','Source random sizes 10/20/50/100');
 need(hui,'Practice Again · Round','Repeatable Hindu rounds');
 need(dbui,'Loading daily plan','Day loading guard');
 need(dbui,'getTodayActivityCount','Today badge refresh');
