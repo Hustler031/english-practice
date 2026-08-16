@@ -1,0 +1,39 @@
+<script>
+(()=>{
+  let loading=false;
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  function pct(v){return Math.max(0,Math.min(100,Number(v||0)))}
+  async function loadProgress(){
+    if(loading||typeof EPApp==='undefined'||!EPApp.call)return;
+    const list=document.getElementById('progressList'),summary=document.getElementById('progressSummary');if(!list||!summary)return;
+    loading=true;list.innerHTML='<div class="empty card">Loading coverage…</div>';
+    try{
+      const p=await EPApp.call('getEncounterProgress');
+      summary.innerHTML=`<div class="progress-overall"><div><span>Encountered</span><b>${Number(p.encountered||0)} / ${Number(p.total||0)}</b></div><div><span>Left</span><b>${Number(p.left||0)}</b></div><div><span>Coverage</span><b>${Number(p.percent||0)}%</b></div></div><div class="coverage-bar"><i style="width:${pct(p.percent)}%"></i></div><div class="progress-today">Today: <b>${Number(p.todayActivity||0)}</b> unique attempts · <b>${Number(p.todayNew||0)}</b> new encounters</div>`;
+      const rows=p.categories||[];
+      list.innerHTML=rows.length?rows.map(c=>`<article class="progress-card"><div class="row between"><b>${esc(c.name)}</b><strong>${Number(c.encountered||0)} / ${Number(c.total||0)}</strong></div><div class="coverage-bar small"><i style="width:${pct(c.percent)}%"></i></div><div class="row between progress-meta"><span>${Number(c.left||0)} left</span><span>${Number(c.percent||0)}%</span></div></article>`).join(''):'<div class="empty card">No active questions available yet.</div>';
+    }catch(e){list.innerHTML=`<div class="empty card">${esc(e.message)}</div>`}finally{loading=false}
+  }
+  function wire(){
+    if(typeof EPApp==='undefined'||EPApp.__progressUiWired)return;
+    EPApp.__progressUiWired=true;
+    const originalShow=EPApp.showTab;
+    EPApp.showTab=function(name){
+      const progress=document.getElementById('progressView');
+      if(name==='progress'){
+        document.querySelectorAll('.app-page').forEach(v=>v.classList.add('hidden'));
+        document.getElementById('quizView')?.classList.add('hidden');
+        document.body.classList.remove('quiz-active');
+        progress?.classList.remove('hidden');
+        document.getElementById('bottomNav')?.classList.remove('hidden');
+        document.querySelectorAll('.bottom-tab').forEach(b=>b.classList.toggle('active',b.dataset.tab==='progress'));
+        window.scrollTo({top:0,behavior:'smooth'});loadProgress();return;
+      }
+      if(progress)progress.classList.add('hidden');
+      return originalShow.apply(this,arguments);
+    };
+    EPApp.loadProgress=loadProgress;
+  }
+  document.addEventListener('DOMContentLoaded',wire);
+})();
+</script>
