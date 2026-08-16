@@ -2,27 +2,13 @@
 const EPFast=(()=>{
   const PREFIX='ep-fast-v2:';
   const mem={};
-  function get(key){
-    if(Object.prototype.hasOwnProperty.call(mem,key))return mem[key];
-    try{const raw=localStorage.getItem(PREFIX+key);if(!raw)return null;const x=JSON.parse(raw);mem[key]=x.value;return x.value}catch(e){return null}
-  }
+  function get(key){if(Object.prototype.hasOwnProperty.call(mem,key))return mem[key];try{const raw=localStorage.getItem(PREFIX+key);if(!raw)return null;const x=JSON.parse(raw);mem[key]=x.value;return x.value}catch(e){return null}}
   function set(key,value){mem[key]=value;try{localStorage.setItem(PREFIX+key,JSON.stringify({savedAt:Date.now(),value}))}catch(e){}return value}
   function drop(key){delete mem[key];try{localStorage.removeItem(PREFIX+key)}catch(e){}}
   async function fetch(key,fn,...args){const value=await EPApp.call(fn,...args);return set(key,value)}
-  async function swr(key,fn,args,render,onError){
-    const cached=get(key);if(cached!=null)try{render(cached,true)}catch(e){}
-    try{const fresh=await fetch(key,fn,...(args||[]));render(fresh,false);return fresh}catch(e){if(cached==null&&onError)onError(e);return cached}
-  }
-  function prefetch(){
-    if(typeof EPApp==='undefined'||!EPApp.call)return;
-    const jobs=[
-      ['saved:hub','getMySavedHub'],['saved:words','getMyWords'],['saved:starred','getStarredQuestionList'],
-      ['new:hub','getNewPracticeHub'],['source:hub','getSourceHub'],['topic:hub','getTopicPracticeHub'],
-      ['demand:hub','getDemandBatches'],['progress','getEncounterProgress']
-    ];
-    let delay=250;jobs.forEach(([k,fn])=>{setTimeout(()=>fetch(k,fn).catch(()=>{}),delay);delay+=180});
-  }
-  document.addEventListener('DOMContentLoaded',()=>setTimeout(prefetch,900));
+  async function swr(key,fn,args,render,onError){const cached=get(key);if(cached!=null)try{render(cached,true)}catch(e){}try{const fresh=await fetch(key,fn,...(args||[]));render(fresh,false);return fresh}catch(e){if(cached==null&&onError)onError(e);return cached}}
+  function prefetch(){if(typeof EPApp==='undefined'||!EPApp.call)return;const jobs=[['saved:hub','getMySavedHub'],['saved:words','getMyWords'],['saved:starred','getStarredQuestionList'],['new:hub','getNewPracticeHub'],['source:hub','getSourceHub'],['topic:hub','getTopicPracticeHub'],['demand:hub','getDemandBatches'],['demand:stats','getDemandHubStats'],['progress','getEncounterProgress'],['hindu:today','getHinduToday'],['hindu:progress','getHinduPracticeProgress']];let delay=250;jobs.forEach(([k,fn])=>{setTimeout(()=>fetch(k,fn).catch(()=>{}),delay);delay+=160})}
+  document.addEventListener('DOMContentLoaded',()=>setTimeout(prefetch,850));
   return{get,set,drop,fetch,swr,prefetch};
 })();
 </script>
