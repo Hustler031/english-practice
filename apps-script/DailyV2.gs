@@ -28,8 +28,9 @@ function ensureDailyV2_(all,status,target){
   let rows=table_(EP.sheets.daily).filter(r=>String(r.Question_ID||'').trim());
   rows=normalizeDailyRowsV2_(rows,all,status,s);
   rows=syncDailyCompletionsFromPerformanceV2_(rows,s);
+  rows=repairSkippedDailyDateV2_(rows,s,today);
 
-  // Preserve the already-created/completed 15 Aug set exactly as it is.
+  // Preserve pre-rollout data exactly; V2 progression starts from 16 Aug onward.
   if(today<DAILY_V2_ROLLOUT){
     const todayRows=rows.filter(r=>dateKey_(r.Quiz_Date)===today);
     return {rows:todayRows,info:dailyInfoV2_(todayRows,today,false,target)};
@@ -44,8 +45,9 @@ function ensureDailyV2_(all,status,target){
     archiveDailyV2_(rows,batchDate);
     const carryIds=previousMarkedIdsV2_(rows,status);
     if(s.getLastRow()>1)s.getRange(2,1,s.getLastRow()-1,Math.max(7,s.getLastColumn())).clearContent();
-    rows=createDailyV2_(all,status,target,today,carryIds,s);
-    return {rows,info:dailyInfoV2_(rows,today,false,target)};
+    const nextDate=addDaysKeyV2_(batchDate,1);
+    rows=createDailyV2_(all,status,target,nextDate,carryIds,s);
+    return {rows,info:dailyInfoV2_(rows,nextDate,nextDate!==today,target)};
   }
 
   if(batchDate===today&&rows.length)return {rows,info:dailyInfoV2_(rows,today,false,target)};
@@ -53,7 +55,7 @@ function ensureDailyV2_(all,status,target){
   return {rows,info:dailyInfoV2_(rows,today,false,target)};
 }
 
-function createDailyV2_(all,status,target,today,carryIds,s){
+function createDailyV2_(all,status,target,batchDate,carryIds,s){
   const active=q=>isActive_(q)&&!(status[q.id]&&status[q.id].mastered);
   const map=Object.fromEntries(all.map(q=>[q.id,q]));
   const carry=shuffle_((carryIds||[]).map(id=>map[id]).filter(q=>q&&active(q))).slice(0,Math.min(20,target));
@@ -67,8 +69,8 @@ function createDailyV2_(all,status,target,today,carryIds,s){
   freshSelected.forEach(q=>selected.push({q,priority:70,reason:(typeof recentContentDate_==='function'&&recentContentDate_(q))?'Fresh · Recent':'Fresh · Unseen'}));
   carry.forEach(q=>selected.push({q,priority:90,reason:'Yesterday Marked'}));
   shuffle_(selected);
-  if(selected.length){const out=selected.map(x=>[x.q.id,x.priority,x.reason,today,'New',x.q.topic||'',x.q.conceptId||'']);s.getRange(2,1,out.length,7).setValues(out);}
-  return table_(EP.sheets.daily).filter(r=>dateKey_(r.Quiz_Date)===today&&String(r.Question_ID||'').trim());
+  if(selected.length){const out=selected.map(x=>[x.q.id,x.priority,x.reason,batchDate,'New',x.q.topic||'',x.q.conceptId||'']);s.getRange(2,1,out.length,7).setValues(out);}
+  return table_(EP.sheets.daily).filter(r=>dateKey_(r.Quiz_Date)===batchDate&&String(r.Question_ID||'').trim());
 }
 
 function previousMarkedIdsV2_(rows,status){
@@ -101,6 +103,38 @@ function syncDailyCompletionsFromPerformanceV2_(rows,s){
     if(attempt>=start){s.getRange(i+2,5).setValue('Completed');r.Status='Completed';}
   });
   return rows;
+}
+
+// If an earlier bug jumped from Day N straight to today's calendar day, repair an untouched
+// generated batch by relabelling it as the first missing sequential day. This preserves the
+// exact 120 selected questions instead of discarding them.
+function repairSkippedDailyDateV2_(rows,s,today){
+  if(!rows.length)return rows;
+  const batchDate=dateKey_(rows[0].Quiz_Date);
+  const done=rows.filter(r=>String(r.Status||'').toLowerCase()==='completed').length;
+  if(batchDate!==today||done>0)return rows;
+  const latest=latestArchivedDailyDateV2_();
+  if(!latest)return rows;
+  const expected=addDaysKeyV2_(latest,1);
+  if(expected>=today)return rows;
+  if(s.getLastRow()>1)s.getRange(2,4,s.getLastRow()-1,1).setValue(expected);
+  rows.forEach(r=>r.Quiz_Date=expected);
+  return rows;
+}
+
+function latestArchivedDailyDateV2_(){
+  const ss=ss_(),h=ss.getSheetByName(DAILY_V2_HISTORY);
+  if(!h||h.getLastRow()<2)return'';
+  const vals=h.getRange(2,1,h.getLastRow()-1,1).getValues();
+  let latest='';
+  vals.forEach(r=>{const k=dateKey_(r[0]);if(k&&(!latest||k>latest))latest=k;});
+  return latest;
+}
+
+function addDaysKeyV2_(key,days){
+  const p=String(key||todayKey_()).split('-').map(Number),d=new Date(Date.UTC(p[0],p[1]-1,p[2]));
+  d.setUTCDate(d.getUTCDate()+Number(days||0));
+  return Utilities.formatDate(d,'UTC','yyyy-MM-dd');
 }
 
 function dailyInfoV2_(rows,activeDate,pending,target){
