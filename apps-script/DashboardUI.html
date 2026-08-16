@@ -1,0 +1,27 @@
+<script>
+(()=>{
+  let refreshing=false;
+  async function refreshTodayBadge(){
+    if(refreshing||typeof EPApp==='undefined'||!EPApp.call)return;
+    const badge=document.getElementById('todayDoneBadge');if(!badge)return;
+    refreshing=true;
+    try{const x=await EPApp.call('getTodayActivityCount');badge.textContent=`✓ ${Number(x&&x.count||0)} today`;badge.classList.remove('hidden')}catch(e){}finally{refreshing=false}
+  }
+  function revealDailyControls(){
+    const hero=document.querySelector('#homeView .hero'),title=hero&&hero.querySelector('h2');
+    if(hero&&title&&/^Day\s+\d+/.test(title.textContent||''))hero.classList.add('daily-ready');
+  }
+  function init(){
+    refreshTodayBadge();revealDailyControls();
+    const hero=document.querySelector('#homeView .hero');if(hero)new MutationObserver(revealDailyControls).observe(hero,{subtree:true,childList:true,characterData:true});
+    if(typeof EPApp!=='undefined'&&!EPApp.__dashboardUiWired){
+      EPApp.__dashboardUiWired=true;
+      const originalShow=EPApp.showTab;
+      EPApp.showTab=function(name){const r=originalShow.apply(this,arguments);if(name==='home')setTimeout(refreshTodayBadge,80);return r};
+      const originalRefresh=EPApp.refreshDashboard;
+      EPApp.refreshDashboard=async function(){const r=await originalRefresh.apply(this,arguments);revealDailyControls();refreshTodayBadge();return r};
+    }
+  }
+  document.addEventListener('DOMContentLoaded',init);
+})();
+</script>
