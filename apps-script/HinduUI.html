@@ -1,54 +1,12 @@
 <script>
 (()=>{
-  function wireAccordion(){
-    const list=document.getElementById('hinduList');
-    if(!list||list.dataset.accordionWired)return;
-    list.dataset.accordionWired='1';
-    list.addEventListener('click',e=>{
-      const card=e.target.closest('.word-card');
-      if(!card||!list.contains(card))return;
-      card.classList.toggle('expanded');
-    });
-  }
-
-  async function refreshRoundButton(){
-    const wrap=document.getElementById('hinduActions');
-    const btn=wrap&&wrap.querySelector('button');
-    if(!btn||typeof EPApp==='undefined'||!EPApp.call)return;
-    try{
-      const p=await EPApp.call('getHinduPracticeProgress');
-      if(!p||!Number(p.total||0))return;
-      const completed=Math.max(0,Number(p.roundsCompleted||0));
-      const next=Math.max(1,Number(p.nextRound||completed+1));
-      btn.textContent=completed>0?`Practice Again · Round ${next}`:`Start Practice · Round 1`;
-      btn.dataset.round=String(next);
-      btn.title=completed>0?`${completed} full round${completed===1?'':'s'} completed today`:'';
-    }catch(e){}
-  }
-
-  function wireOverrides(){
-    if(typeof EPApp==='undefined'||EPApp.__hinduRoundWired)return;
-    EPApp.__hinduRoundWired=true;
-
-    const originalOpen=EPApp.openHindu;
-    EPApp.openHindu=async function(){
-      const result=await originalOpen.apply(this,arguments);
-      wireAccordion();
-      refreshRoundButton();
-      return result;
-    };
-
-    const originalShow=EPApp.showTab;
-    EPApp.showTab=function(name){
-      const result=originalShow.apply(this,arguments);
-      if(name==='hindu')setTimeout(refreshRoundButton,120);
-      return result;
-    };
-  }
-
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  function wireAccordion(){const list=document.getElementById('hinduList');if(!list||list.dataset.accordionWired)return;list.dataset.accordionWired='1';list.addEventListener('click',e=>{const card=e.target.closest('.word-card');if(card&&list.contains(card))card.classList.toggle('expanded')})}
+  function renderWords(words){const list=document.getElementById('hinduList'),actions=document.getElementById('hinduActions');if(!list)return;actions?.classList.toggle('hidden',!words.length);if(!words.length){list.innerHTML='<div class="empty card">Today’s 10-word batch has not been added yet.</div>';return}list.innerHTML=words.map((w,i)=>`<article class="word-card"><div class="row between"><div><span class="word-no">${i+1}</span><b class="word-title">${esc(w.word)}</b></div><span class="tag">${esc(w.pos||'')}</span></div><p class="meaning">${esc(w.meaning||'')}</p>${w.synonyms?`<p><b>Synonyms:</b> ${esc(w.synonyms)}</p>`:''}${w.antonyms?`<p><b>Antonyms:</b> ${esc(w.antonyms)}</p>`:''}${w.example?`<p><b>Example:</b> ${esc(w.example)}</p>`:''}${w.usage?`<p><b>Usage:</b> ${esc(w.usage)}</p>`:''}${w.tip?`<p class="tipbox"><b>Tip:</b> ${esc(w.tip)}</p>`:''}${w.memory?`<p><b>Remember:</b> ${esc(w.memory)}</p>`:''}<div class="muted source-line">${esc(w.sourceName||'The Hindu')} ${w.date?'· '+esc(w.date):''}</div></article>`).join('');wireAccordion()}
+  async function refreshRoundButton(){const wrap=document.getElementById('hinduActions'),btn=wrap&&wrap.querySelector('button');if(!btn||typeof EPApp==='undefined'||!EPApp.call)return;const cached=window.EPFast&&EPFast.get('hindu:progress');if(cached)applyRound(cached);try{const p=await EPApp.call('getHinduPracticeProgress');if(window.EPFast)EPFast.set('hindu:progress',p);applyRound(p)}catch(e){}}
+  function applyRound(p){const btn=document.getElementById('hinduActions')?.querySelector('button');if(!btn||!p||!Number(p.total||0))return;const completed=Math.max(0,Number(p.roundsCompleted||0)),next=Math.max(1,Number(p.nextRound||completed+1));btn.textContent=completed>0?`Practice Again · Round ${next}`:'Start Practice · Round 1';btn.dataset.round=String(next)}
+  function wireOverrides(){if(typeof EPApp==='undefined'||EPApp.__hinduRoundWired)return;EPApp.__hinduRoundWired=true;EPApp.openHindu=async function(){EPApp.showTab('hindu');const cached=window.EPFast&&EPFast.get('hindu:today');if(cached)renderWords(cached);else document.getElementById('hinduList').innerHTML='<div class="list-card"><div class="muted">Preparing today’s words…</div></div>';refreshRoundButton();try{const words=await EPApp.call('getHinduToday');if(window.EPFast)EPFast.set('hindu:today',words);renderWords(words)}catch(e){if(!cached)document.getElementById('hinduList').innerHTML='<div class="empty card">Could not load today’s words.</div>'}};const originalShow=EPApp.showTab;EPApp.showTab=function(name){const r=originalShow.apply(this,arguments);if(name==='hindu')setTimeout(refreshRoundButton,80);return r}}
   function init(){wireAccordion();wireOverrides();refreshRoundButton()}
   document.addEventListener('DOMContentLoaded',init);
-  const observer=new MutationObserver(()=>{wireAccordion();if(!document.getElementById('hinduView')?.classList.contains('hidden'))refreshRoundButton()});
-  document.addEventListener('DOMContentLoaded',()=>{const list=document.getElementById('hinduList');if(list)observer.observe(list,{childList:true,subtree:false})});
 })();
 </script>
