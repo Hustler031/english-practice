@@ -1,0 +1,76 @@
+<script>
+const EPSaved=(()=>{
+  let loading=false,captureContext={};
+  const $=id=>document.getElementById(id);
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+
+  function ensureShell(){
+    if(!$('savedView')){
+      const section=document.createElement('section');section.id='savedView';section.className='app-page content hidden';
+      section.innerHTML='<div class="subhead"><button class="btn ghost" onclick="EPApp.showTab(\'revision\')">← Back</button><div><h2>My Saved</h2><p class="muted">Your deliberately starred questions and personally captured words.</p></div></div><div id="savedHub" class="list"><div class="empty card">Loading saved items…</div></div>';
+      $('main').appendChild(section);
+    }
+    if(!$('wordCaptureSheet')){
+      const wrap=document.createElement('div');wrap.id='wordCaptureSheet';wrap.className='sheet-backdrop hidden';wrap.onclick=e=>{if(e.target===wrap)closeCapture()};
+      wrap.innerHTML='<div class="sheet saved-word-sheet" onclick="event.stopPropagation()"><h3>📝 Add Word</h3><p class="muted">Paste a word you encountered in the question, option or explanation. You can review its meaning and context later in My Saved.</p><label>Word</label><input id="captureWord" class="saved-input" autocomplete="off" placeholder="e.g. obviate"><label>Meaning / note <span class="muted">(optional)</span></label><textarea id="captureMeaning" class="saved-input" rows="3" placeholder="Add it now if you know it, or review later"></textarea><div id="captureOrigin" class="capture-origin muted"></div><div class="saved-sheet-actions"><button class="btn ghost" onclick="EPSaved.closeCapture()">Cancel</button><button class="btn primary" onclick="EPSaved.saveCapture()">Save Word</button></div></div>';
+      document.body.appendChild(wrap);
+    }
+    if(!$('savedUiStyles')){
+      const st=document.createElement('style');st.id='savedUiStyles';st.textContent='.saved-section{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px}.saved-section-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.saved-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.saved-actions .btn{font-size:12px;min-height:36px;padding:7px 9px}.saved-word-list{display:grid;gap:9px;margin-top:10px}.saved-word{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}.saved-word summary{cursor:pointer;list-style:none;padding:13px;display:flex;align-items:center;justify-content:space-between;gap:10px}.saved-word summary::-webkit-details-marker{display:none}.saved-word-body{border-top:1px solid var(--line);padding:12px;display:grid;gap:8px}.saved-input{width:100%;border:1px solid var(--line);border-radius:11px;background:var(--bg);color:var(--text);padding:10px 11px;outline:none}.saved-input:focus{border-color:var(--primary)}.saved-word-body label,.saved-word-sheet label{font-size:12px;font-weight:800}.saved-word-status{font-size:11px;border-radius:999px;padding:4px 8px;background:var(--primary2);white-space:nowrap}.saved-word-status.added{background:var(--okbg);color:var(--ok)}.saved-sheet-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.capture-origin{font-size:11px;margin-top:8px;line-height:1.4}.quiz-tools{grid-template-columns:repeat(4,minmax(0,1fr))!important}.quiz-tools .btn{font-size:12px!important}@media(min-width:700px){.quiz-tools{grid-template-columns:repeat(4,140px)!important;justify-content:center}}';document.head.appendChild(st);
+    }
+  }
+
+  async function openSaved(){
+    ensureShell();document.querySelectorAll('.app-page').forEach(v=>v.classList.add('hidden'));$('quizView')?.classList.add('hidden');document.body.classList.remove('quiz-active');$('savedView').classList.remove('hidden');$('bottomNav')?.classList.add('hidden');window.scrollTo({top:0,behavior:'smooth'});await loadSaved();
+  }
+
+  async function loadSaved(){
+    if(loading)return;loading=true;const hubEl=$('savedHub');hubEl.innerHTML='<div class="empty card">Loading saved items…</div>';
+    try{
+      const [hub,words]=await Promise.all([EPApp.call('getMySavedHub'),EPApp.call('getMyWords')]);
+      const starButtons=`<div class="saved-actions"><button class="btn soft mini" ${hub.starred?'':'disabled'} onclick="EPSaved.startStarred('all',0)">Practice All</button><button class="btn soft mini" ${hub.starredWeak?'':'disabled'} onclick="EPSaved.startStarred('weak',0)">Weak${hub.starredWeak?` (${hub.starredWeak})`:''}</button>${[10,20,50,100].map(n=>`<button class="btn soft mini" ${hub.starred?'':'disabled'} onclick="EPSaved.startStarred('random',${n})">Random ${n}</button>`).join('')}</div>`;
+      const wordHtml=words.length?`<div class="saved-word-list">${words.map(w=>wordCard(w)).join('')}</div>`:'<div class="muted" style="margin-top:10px">No words saved yet. Use 📝 Add Word while practising.</div>';
+      hubEl.innerHTML=`<section class="saved-section"><div class="saved-section-head"><div><b>⭐ Starred Questions</b><div class="muted">${Number(hub.starred||0)} currently starred${hub.starredWeak?` · ${hub.starredWeak} weak`:''}</div></div></div>${starButtons}</section><section class="saved-section"><div class="saved-section-head"><div><b>📌 My Words</b><div class="muted">${Number(hub.words||0)} captured · ${Number(hub.wordsAdded||0)} added to practice</div></div></div>${wordHtml}</section>`;
+    }catch(e){hubEl.innerHTML=`<div class="empty card">${esc(e.message)}</div>`}finally{loading=false}
+  }
+
+  function wordCard(w){
+    const added=!!w.practiceQuestionId||String(w.status||'').toLowerCase()==='added';
+    return `<details class="saved-word"><summary><div><b>${esc(w.word)}</b><div class="muted" style="font-size:11px">${esc(w.module||w.source||'Saved during practice')}${w.created?` · ${esc(w.created)}`:''}</div></div><span class="saved-word-status ${added?'added':''}">${added?'✓ In Practice':'Review'}</span></summary><div class="saved-word-body"><label>Word</label><input id="mw_word_${esc(w.id)}" class="saved-input" value="${esc(w.word)}"><label>Meaning / explanation</label><textarea id="mw_meaning_${esc(w.id)}" class="saved-input" rows="3" placeholder="Add the meaning before sending it to practice">${esc(w.meaning)}</textarea><label>Context / your note</label><textarea id="mw_context_${esc(w.id)}" class="saved-input" rows="3" placeholder="Why or where you encountered it">${esc(w.context)}</textarea>${w.questionId?`<div class="muted" style="font-size:11px">From question: ${esc(w.questionId)}</div>`:''}<div class="saved-actions"><button class="btn ghost mini" onclick="EPSaved.saveReview('${esc(w.id)}')">Save Review</button><button class="btn ${added?'state-ok':'primary'} mini" ${added?'disabled':''} onclick="EPSaved.addToPractice('${esc(w.id)}')">${added?'✓ Added to Practice':'✓ Add to Practice'}</button></div></div></details>`;
+  }
+
+  async function startStarred(kind,count){
+    try{
+      const qs=await EPApp.call('getStarredPracticeBatch',kind,count||0);if(!qs.length){EPApp.toast(kind==='weak'?'No weak starred questions yet.':'No starred questions available.');return}
+      document.body.classList.add('quiz-active');$('bottomNav')?.classList.add('hidden');EPQuiz.start(qs,{mode:'savedStarred',title:'Starred Questions',batchId:kind,returnTab:'saved'});
+    }catch(e){EPApp.toast('Could not load starred questions: '+e.message)}
+  }
+
+  function reviewPayload(id){return{id,word:$('mw_word_'+id)?.value||'',meaning:$('mw_meaning_'+id)?.value||'',context:$('mw_context_'+id)?.value||''}}
+  async function saveReview(id){try{await EPApp.call('updateMyWord',reviewPayload(id));EPApp.toast('Review saved')}catch(e){EPApp.toast(e.message)}}
+  async function addToPractice(id){
+    try{await EPApp.call('updateMyWord',reviewPayload(id));const r=await EPApp.call('promoteMyWordToPractice',id);EPApp.toast(r&&r.linked?'Linked to existing vocabulary':'Added to New Practice');await loadSaved()}catch(e){EPApp.toast(e.message)}
+  }
+
+  function openCapture(){
+    ensureShell();captureContext={questionId:String($('qId')?.textContent||'').trim(),module:String($('quizMode')?.textContent||'').trim(),context:String($('qText')?.textContent||'').trim(),source:String($('qCategory')?.textContent||'').trim()};
+    $('captureWord').value='';$('captureMeaning').value='';$('captureOrigin').textContent=captureContext.questionId?`Captured from ${captureContext.module||'practice'} · ${captureContext.questionId}`:'Captured during practice';$('wordCaptureSheet').classList.remove('hidden');setTimeout(()=>$('captureWord')?.focus(),80);
+  }
+  function closeCapture(){$('wordCaptureSheet')?.classList.add('hidden')}
+  function saveCapture(){
+    const word=String($('captureWord')?.value||'').trim();if(!word){EPApp.toast('Enter a word first.');return}
+    const payload={word,meaning:String($('captureMeaning')?.value||'').trim(),context:captureContext.context||'',questionId:captureContext.questionId||'',module:captureContext.module||'',source:captureContext.source||''};
+    closeCapture();EPApp.call('captureMyWord',payload).catch(e=>EPApp.toast('Could not save word: '+e.message));
+  }
+
+  function init(){
+    ensureShell();if(typeof EPApp!=='undefined'&&!EPApp.__savedUiWired){
+      EPApp.__savedUiWired=true;const originalShow=EPApp.showTab;
+      EPApp.showTab=function(name){if(name==='saved'){openSaved();return}const v=$('savedView');if(v)v.classList.add('hidden');return originalShow.apply(this,arguments)};
+      EPApp.openSaved=openSaved;
+    }
+  }
+  document.addEventListener('DOMContentLoaded',init);
+  return{openSaved,loadSaved,startStarred,saveReview,addToPractice,openCapture,closeCapture,saveCapture};
+})();
+</script>
