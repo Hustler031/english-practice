@@ -19,6 +19,11 @@ function getNewPracticeHub(){
   if(saved.length){
     grouped.HINDU_WORDS={id:'HINDU_WORDS',name:'Hindu Words',total:saved.length,weak:saved.filter(q=>{const st=status[q.id]||{};return ['weak','wrong'].includes(String(st.status||'').toLowerCase())||Number(st.wrong||0)>0}).length,latest:'9999-12-31'};
   }
+  const mySavedIds=new Set(typeof getMySavedWordQuestionIds==='function'?getMySavedWordQuestionIds():[]);
+  const mySaved=all.filter(q=>mySavedIds.has(q.id)&&isActive_(q)&&!(status[q.id]&&status[q.id].mastered));
+  if(mySaved.length){
+    grouped.MY_SAVED_WORDS={id:'MY_SAVED_WORDS',name:'My Saved Words',total:mySaved.length,weak:mySaved.filter(q=>{const st=status[q.id]||{};return ['weak','wrong'].includes(String(st.status||'').toLowerCase())||Number(st.wrong||0)>0}).length,latest:'9999-12-30'};
+  }
   const categories=Object.values(grouped).sort((a,b)=>b.latest.localeCompare(a.latest)||a.name.localeCompare(b.name));
   return {days,categories,total:categories.reduce((n,x)=>n+x.total,0)};
 }
@@ -28,6 +33,9 @@ function getNewPracticeBatch(category,kind,count){
   let pool=[];
   if(wanted==='HINDU_WORDS'){
     const savedIds=new Set(getSavedHinduQuestionIds());
+    pool=all.filter(q=>savedIds.has(q.id)&&isActive_(q)&&!(status[q.id]&&status[q.id].mastered));
+  }else if(wanted==='MY_SAVED_WORDS'){
+    const savedIds=new Set(typeof getMySavedWordQuestionIds==='function'?getMySavedWordQuestionIds():[]);
     pool=all.filter(q=>savedIds.has(q.id)&&isActive_(q)&&!(status[q.id]&&status[q.id].mastered));
   }else{
     const days=Number(config_().NEW_CONTENT_DAYS||7),now=new Date(),cutoff=new Date(now);cutoff.setDate(cutoff.getDate()-Math.max(0,days-1));cutoff.setHours(0,0,0,0);
@@ -59,6 +67,6 @@ function recentContentDate_(q){
 }
 
 function newPracticeCategoryName_(id,topic){
-  const names={VOC:'Vocabulary',IDIOM:'Idioms & Phrases',PHRASAL:'Phrasal Verbs',OWS:'One Word Substitution / Fields of Study',SYN_ANT:'Synonyms & Antonyms',CONFUSED:'Confused Words',SPELLING:'Spelling',GRAMMAR:'Grammar',ERROR:'Error Detection',SENT_IMP:'Sentence Improvement',FILL:'Fill in the Blanks',CLOZE:'Cloze Test',PARA:'Para Jumbles',RC:'Reading Comprehension',HINDU_WORDS:'Hindu Words',NOT_SPECIFIED:'Not Specified / Other'};
+  const names={VOC:'Vocabulary',IDIOM:'Idioms & Phrases',PHRASAL:'Phrasal Verbs',OWS:'One Word Substitution / Fields of Study',SYN_ANT:'Synonyms & Antonyms',CONFUSED:'Confused Words',SPELLING:'Spelling',GRAMMAR:'Grammar',ERROR:'Error Detection',SENT_IMP:'Sentence Improvement',FILL:'Fill in the Blanks',CLOZE:'Cloze Test',PARA:'Para Jumbles',RC:'Reading Comprehension',HINDU_WORDS:'Hindu Words',MY_SAVED_WORDS:'My Saved Words',NOT_SPECIFIED:'Not Specified / Other'};
   return names[id]||String(topic||'Not Specified / Other');
 }
