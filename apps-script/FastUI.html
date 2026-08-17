@@ -1,6 +1,6 @@
 <script>
 const EPFast=window.EPFast=(()=>{
-  const PREFIX='ep-fast-v3:',mem={};
+  const PREFIX='ep-fast-v4:',mem={};
   function get(key){if(Object.prototype.hasOwnProperty.call(mem,key))return mem[key];try{const raw=localStorage.getItem(PREFIX+key);if(!raw)return null;const x=JSON.parse(raw);mem[key]=x.value;return x.value}catch(e){return null}}
   function set(key,value){mem[key]=value;try{localStorage.setItem(PREFIX+key,JSON.stringify({savedAt:Date.now(),value}))}catch(e){}return value}
   function drop(key){delete mem[key];try{localStorage.removeItem(PREFIX+key)}catch(e){}}
@@ -15,111 +15,48 @@ const EPFast=window.EPFast=(()=>{
   }
 
   let loadingTimer=null;
-  function ensureQuizLoader(){
-    let v=document.getElementById('compactQuizLoading');
-    if(!v){
-      v=document.createElement('div');v.id='compactQuizLoading';
-      v.style.cssText='position:fixed;inset:0;z-index:110;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px';
-      v.innerHTML='<div style="text-align:center"><div style="width:40px;height:40px;border:4px solid var(--line);border-top-color:var(--primary);border-radius:50%;margin:auto;animation:epLoadSpin .75s linear infinite"></div><b id="compactQuizLoadingText" style="display:block;margin-top:14px;font-size:17px">Loading Quiz…</b><div class="muted" style="margin-top:7px">Preparing your questions</div></div>';
-      document.body.appendChild(v);
-      if(!document.getElementById('epLoadSpinStyle')){const st=document.createElement('style');st.id='epLoadSpinStyle';st.textContent='@keyframes epLoadSpin{to{transform:rotate(360deg)}}';document.head.appendChild(st)}
-    }
-    return v;
-  }
+  function ensureQuizLoader(){let v=document.getElementById('compactQuizLoading');if(!v){v=document.createElement('div');v.id='compactQuizLoading';v.style.cssText='position:fixed;inset:0;z-index:110;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px';v.innerHTML='<div style="text-align:center"><div style="width:40px;height:40px;border:4px solid var(--line);border-top-color:var(--primary);border-radius:50%;margin:auto;animation:epLoadSpin .75s linear infinite"></div><b id="compactQuizLoadingText" style="display:block;margin-top:14px;font-size:17px">Loading Quiz…</b><div class="muted" style="margin-top:7px">Preparing your questions</div></div>';document.body.appendChild(v);if(!document.getElementById('epLoadSpinStyle')){const st=document.createElement('style');st.id='epLoadSpinStyle';st.textContent='@keyframes epLoadSpin{to{transform:rotate(360deg)}}';document.head.appendChild(st)}}return v}
   function showQuizLoading(label){const v=ensureQuizLoader(),t=document.getElementById('compactQuizLoadingText');if(t)t.textContent=label||'Loading Quiz…';v.classList.remove('hidden');clearTimeout(loadingTimer);loadingTimer=setTimeout(hideQuizLoading,15000)}
   function hideQuizLoading(){clearTimeout(loadingTimer);document.getElementById('compactQuizLoading')?.classList.add('hidden')}
-  function isQuizLaunch(el){
-    if(el&&el.closest&&el.closest('#countButtons'))return true;
-    const code=String(el?.getAttribute?.('onclick')||'');
-    return /(startDirect\s*\(|startHinduQuiz\s*\(|startNewPractice\s*\(|startDemand(?:Managed|Batch)?\s*\(|startSource(?:Managed)?\s*\(|EPTopic\.start\s*\(|EPNew\.start\s*\(|EPSource\.start\s*\(|EPSaved\.startStarred\s*\()/i.test(code);
-  }
-  function launchLabel(el){
-    const txt=String(el?.textContent||'').replace(/\s+/g,' ').trim();
-    if(/day\s*\d+/i.test(txt))return 'Loading '+txt.replace(/·.*$/,'').trim()+'…';
-    if(/hindu/i.test(txt))return 'Loading The Hindu Quiz…';
-    if(/starred/i.test(txt))return 'Loading Starred Questions…';
-    if(el&&el.closest&&el.closest('#countButtons'))return 'Loading Practice…';
-    return 'Loading Quiz…';
-  }
-  function wireQuizLoading(){
-    document.addEventListener('click',e=>{const el=e.target.closest('button,[role="button"],a');if(el&&isQuizLaunch(el)&&!el.disabled)showQuizLoading(launchLabel(el))},true);
-    const q=document.getElementById('quizView');if(q)new MutationObserver(()=>{if(!q.classList.contains('hidden'))hideQuizLoading()}).observe(q,{attributes:true,attributeFilter:['class']});
-    setTimeout(()=>{if(typeof EPApp!=='undefined'&&EPApp.toast&&!EPApp.__quizLoaderToastWired){EPApp.__quizLoaderToastWired=true;const old=EPApp.toast;EPApp.toast=function(){hideQuizLoading();return old.apply(this,arguments)}}},0);
-  }
+  function isQuizLaunch(el){if(el&&el.closest&&el.closest('#countButtons'))return true;const code=String(el?.getAttribute?.('onclick')||'');return /(startDirect\s*\(|startHinduQuiz\s*\(|startNewPractice\s*\(|startDemand(?:Managed|Batch)?\s*\(|startSource(?:Managed)?\s*\(|EPTopic\.start\s*\(|EPNew\.start\s*\(|EPSource\.start\s*\(|EPSaved\.startStarred\s*\()/i.test(code)}
+  function launchLabel(el){const txt=String(el?.textContent||'').replace(/\s+/g,' ').trim();if(/day\s*\d+/i.test(txt))return 'Loading '+txt.replace(/·.*$/,'').trim()+'…';if(/hindu/i.test(txt))return 'Loading The Hindu Quiz…';if(/starred/i.test(txt))return 'Loading Starred Questions…';if(el&&el.closest&&el.closest('#countButtons'))return 'Loading Practice…';return 'Loading Quiz…'}
+  function wireQuizLoading(){document.addEventListener('click',e=>{const el=e.target.closest('button,[role="button"],a');if(el&&isQuizLaunch(el)&&!el.disabled)showQuizLoading(launchLabel(el))},true);const q=document.getElementById('quizView');if(q)new MutationObserver(()=>{if(!q.classList.contains('hidden'))hideQuizLoading()}).observe(q,{attributes:true,attributeFilter:['class']});setTimeout(()=>{if(typeof EPApp!=='undefined'&&EPApp.toast&&!EPApp.__quizLoaderToastWired){EPApp.__quizLoaderToastWired=true;const old=EPApp.toast;EPApp.toast=function(){hideQuizLoading();return old.apply(this,arguments)}}},0)}
 
-  document.addEventListener('DOMContentLoaded',()=>{setTimeout(prefetch,80);setTimeout(wireQuizLoading,0)});
-  return{get,set,drop,fetch,swr,prefetch,showQuizLoading,hideQuizLoading};
-})();
-</script>
-<script>
-(()=>{
-  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[m]));
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   let words=[];
-  function addPolishStyles(){
-    if(document.getElementById('epMasteryPolish'))return;
-    const st=document.createElement('style');st.id='epMasteryPolish';
-    st.textContent=`
-      .mastery-strip{display:grid!important;grid-template-columns:repeat(4,minmax(0,auto))!important;align-items:center!important;justify-content:center!important;column-gap:5px!important;width:100%!important;font-size:14px!important;font-weight:900!important;padding:5px 4px!important;margin:0 0 14px!important;background:transparent!important;border:0!important;overflow:visible!important;color:var(--text)!important}
-      .mastery-strip span{display:block;padding:7px 9px;border-radius:999px;line-height:1;white-space:nowrap;text-align:center;border:1px solid color-mix(in srgb,var(--line) 70%,transparent)}
-      .mastery-strip span:nth-of-type(1){background:color-mix(in srgb,var(--primary) 28%,var(--card));color:color-mix(in srgb,var(--primary) 65%,var(--text))}
-      .mastery-strip span:nth-of-type(2){background:color-mix(in srgb,#4f9cff 25%,var(--card));color:color-mix(in srgb,#4f9cff 65%,var(--text))}
-      .mastery-strip span:nth-of-type(3){background:color-mix(in srgb,var(--ok) 30%,var(--card));color:color-mix(in srgb,var(--ok) 70%,var(--text))}
-      .mastery-strip span:nth-of-type(4){background:color-mix(in srgb,#f5b942 30%,var(--card));color:color-mix(in srgb,#f5b942 72%,var(--text))}
-      .mastery-strip i{display:none!important}
-      .mywords-launch{cursor:pointer}
-      .mywords-launch .row{align-items:center}
-      .mywords-list{display:grid;gap:9px}
-      .mywords-item{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--line);border-radius:14px;background:var(--card);padding:13px 14px;cursor:pointer}
-      .mywords-item b{font-size:16px}
-      .mywords-item small{display:block;color:var(--muted);margin-top:3px}
-      .mywords-chevron{font-size:22px;color:var(--muted)}
-      @media(max-width:420px){.mastery-strip{font-size:13px!important;column-gap:3px!important;padding-left:0!important;padding-right:0!important}.mastery-strip span{padding:6px 7px}.mywords-item b{font-size:15px}}
-      @media(max-width:365px){.mastery-strip{font-size:11.5px!important;column-gap:2px!important}.mastery-strip span{padding:6px 5px}}
-    `;
-    document.head.appendChild(st);
-  }
-  function ensureWordsView(){
-    if(document.getElementById('myWordsListView'))return;
-    const s=document.createElement('section');s.id='myWordsListView';s.className='app-page content hidden';
-    s.innerHTML='<div class="subhead"><button class="btn ghost" onclick="EPMyWordsUX.back()">← Back</button><div><h2>My Words</h2><p class="muted">Tap a word to review the GPT-prepared question and explanation.</p></div></div><div id="myWordsListBody" class="mywords-list"></div>';
-    document.getElementById('main')?.appendChild(s);
-  }
-  function collapseInlineWords(){
-    const hub=document.getElementById('savedHub');if(!hub)return;
-    [...hub.querySelectorAll('.saved-section')].forEach(sec=>{
-      const b=sec.querySelector('b');if(!b||!String(b.textContent).includes('My Words')||sec.dataset.compactWords==='1')return;
-      const meta=sec.querySelector('.muted')?.textContent||'';
-      sec.dataset.compactWords='1';sec.classList.add('mywords-launch');
-      sec.innerHTML=`<div class="row between"><div><b>📌 My Words</b><div class="muted">${esc(meta)}</div></div><span class="mywords-chevron">›</span></div>`;
-      sec.onclick=()=>openWords();
-    });
-  }
-  async function openWords(){
-    ensureWordsView();document.querySelectorAll('.app-page').forEach(v=>v.classList.add('hidden'));document.getElementById('myWordsListView')?.classList.remove('hidden');document.getElementById('bottomNav')?.classList.add('hidden');window.scrollTo({top:0,behavior:'smooth'});
-    const body=document.getElementById('myWordsListBody'),cached=window.EPFast&&EPFast.get('saved:words');
-    if(cached){words=cached;renderWords()}else body.innerHTML='<div class="list-card"><div class="muted">Preparing your words…</div></div>';
-    try{words=await EPApp.call('getMyWords');if(window.EPFast)EPFast.set('saved:words',words);renderWords()}catch(e){if(!cached)body.innerHTML=`<div class="empty card">${esc(e.message||e)}</div>`}
-  }
-  function renderWords(){
-    const body=document.getElementById('myWordsListBody');if(!body)return;
-    body.innerHTML=words.length?words.map(w=>{const added=!!w.practiceQuestionId||String(w.status||'').toLowerCase()==='added',ready=String(w.gptStatus||'').toLowerCase()==='ready';return `<div class="mywords-item" onclick="EPMyWordsUX.review('${esc(w.id)}')"><div><b>${esc(w.word)}</b><small>${added?'✓ In Practice':ready?'Ready to review':'Pending GPT'}</small></div><span class="mywords-chevron">›</span></div>`}).join(''):'<div class="empty card">No saved words yet.</div>';
-  }
-  function review(id){
-    const w=words.find(x=>String(x.id)===String(id));if(!w)return;
-    if(String(w.gptStatus||'').toLowerCase()!=='ready'){EPApp.toast('GPT enrichment is still pending for this word.');return}
-    if(typeof EPSaved!=='undefined'&&EPSaved.reviewWord){EPSaved.reviewWord(id);return}
-    EPApp.toast('Review will be available after refresh.');
-  }
+  function addPolishStyles(){if(document.getElementById('epMasteryPolish'))return;const st=document.createElement('style');st.id='epMasteryPolish';st.textContent=`
+    .mastery-strip{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;align-items:center!important;gap:5px!important;width:100%!important;font-size:15px!important;font-weight:900!important;padding:0!important;margin:0 0 16px!important;background:transparent!important;border:0!important;overflow:visible!important;color:var(--text)!important}
+    .mastery-strip span{display:block;padding:8px 5px;border-radius:999px;line-height:1;white-space:nowrap;text-align:center;border:1px solid var(--line)}
+    .mastery-strip span:nth-of-type(1){background:color-mix(in srgb,var(--primary) 28%,var(--card))}
+    .mastery-strip span:nth-of-type(2){background:color-mix(in srgb,#4f9cff 27%,var(--card))}
+    .mastery-strip span:nth-of-type(3){background:color-mix(in srgb,var(--ok) 30%,var(--card))}
+    .mastery-strip span:nth-of-type(4){background:color-mix(in srgb,#f5b942 30%,var(--card))}
+    .mastery-strip i{display:none!important}
+    .mywords-launch{cursor:pointer}
+    .mywords-launch .row{align-items:center}
+    .mywords-chevron{font-size:24px;color:var(--muted)}
+    .mywords-list{display:grid;gap:9px}
+    .mywords-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;border:1px solid var(--line);border-radius:14px;background:var(--card);padding:12px 13px}
+    .mywords-row b{font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .mywords-row .btn{min-height:36px;padding:7px 10px;font-size:12px}
+    @media(max-width:420px){.mastery-strip{font-size:13.5px!important;gap:3px!important}.mastery-strip span{padding:7px 3px}.mywords-row b{font-size:15px}.mywords-row .btn{padding:6px 8px;font-size:11px}}
+    @media(max-width:360px){.mastery-strip{font-size:12px!important;gap:2px!important}}
+  `;document.head.appendChild(st)}
+  function ensureWordsView(){if(document.getElementById('myWordsListView'))return;const s=document.createElement('section');s.id='myWordsListView';s.className='app-page content hidden';s.innerHTML='<div class="subhead"><button class="btn ghost" onclick="EPMyWordsUX.back()">← Back</button><div><h2>My Words</h2><p class="muted">Saved words ready for review and practice.</p></div></div><div id="myWordsListBody" class="mywords-list"></div>';document.getElementById('main')?.appendChild(s)}
+  function collapseInlineWords(){const hub=document.getElementById('savedHub');if(!hub)return;hub.querySelectorAll('.saved-section').forEach(sec=>{const title=sec.querySelector('b');if(!title||!String(title.textContent).includes('My Words')||sec.dataset.compactWords==='1')return;const meta=sec.querySelector('.muted')?.textContent||'';sec.dataset.compactWords='1';sec.classList.add('mywords-launch');sec.innerHTML=`<div class="row between"><div><b>📌 My Words</b><div class="muted">${esc(meta)}</div></div><span class="mywords-chevron">›</span></div>`;sec.onclick=openWords})}
+  async function openWords(){ensureWordsView();document.querySelectorAll('.app-page').forEach(v=>v.classList.add('hidden'));document.getElementById('myWordsListView')?.classList.remove('hidden');document.getElementById('bottomNav')?.classList.add('hidden');window.scrollTo({top:0,behavior:'smooth'});const body=document.getElementById('myWordsListBody'),cached=get('saved:words');if(cached){words=cached;renderWords()}else body.innerHTML='<div class="list-card"><div class="muted">Preparing your words…</div></div>';try{words=await EPApp.call('getMyWords');set('saved:words',words);renderWords()}catch(e){if(!cached)body.innerHTML=`<div class="empty card">${esc(e.message||e)}</div>`}}
+  function renderWords(){const body=document.getElementById('myWordsListBody');if(!body)return;body.innerHTML=words.length?words.map(w=>{const added=!!w.practiceQuestionId||String(w.status||'').toLowerCase()==='added',ready=String(w.gptStatus||'').toLowerCase()==='ready';return `<div class="mywords-row"><b onclick="EPMyWordsUX.review('${esc(w.id)}')">${esc(w.word)}</b><button class="btn ghost mini" onclick="EPMyWordsUX.review('${esc(w.id)}')">Review</button><button class="btn primary mini" ${(added||!ready)?'disabled':''} onclick="EPMyWordsUX.add('${esc(w.id)}')">${added?'✓ Added':'Add'}</button></div>`}).join(''):'<div class="empty card">No saved words yet.</div>'}
+  function review(id){const w=words.find(x=>String(x.id)===String(id));if(!w)return;if(String(w.gptStatus||'').toLowerCase()!=='ready'){EPApp.toast('GPT enrichment is still pending for this word.');return}if(typeof EPSaved!=='undefined'&&EPSaved.reviewWord)EPSaved.reviewWord(id)}
+  async function add(id){if(typeof EPSaved!=='undefined'&&EPSaved.addToPractice){await EPSaved.addToPractice(id);await openWords()}}
   function back(){document.getElementById('myWordsListView')?.classList.add('hidden');if(typeof EPApp!=='undefined'&&EPApp.openSaved)EPApp.openSaved();else EPApp.showTab('revision')}
-  function init(){
-    addPolishStyles();ensureWordsView();
-    // My Saved is created dynamically after this file initializes. Observe the
-    // whole document so the My Words section is compacted every time SavedUI
-    // renders or refreshes it, matching the other dynamic hub modules.
-    const observer=new MutationObserver(()=>collapseInlineWords());
-    observer.observe(document.body,{childList:true,subtree:true});
-    collapseInlineWords();
-  }
-  window.EPMyWordsUX={open:openWords,review,back};document.addEventListener('DOMContentLoaded',init);
+  function metricHtml(p){const f=v=>Number(v||0).toFixed(Number(v||0)%1?1:0);return `<div class="mastery-strip"><span>Coverage ${f(p.percent)}%</span><span>✓ ${f(p.correctPercent)}%</span><span>🟢 ${f(p.confidentPercent)}%</span><span>? ${f(p.doubtPercent)}%</span></div>`}
+  function renderSavedStrip(p){const view=document.getElementById('savedView');if(!view||!p)return;let strip=view.querySelector(':scope > .mastery-strip');const html=metricHtml(p);if(strip)strip.outerHTML=html;else view.insertAdjacentHTML('afterbegin',html)}
+  async function ensureSavedStrip(){const view=document.getElementById('savedView');if(!view||view.classList.contains('hidden'))return;const cached=get('progress');if(cached?.modules?.saved)renderSavedStrip(cached.modules.saved);try{const p=await EPApp.call('getEncounterProgress');set('progress',p);if(p?.modules?.saved)renderSavedStrip(p.modules.saved)}catch(e){}}
+  function polishDynamicUi(){collapseInlineWords();ensureSavedStrip()}
+  function init(){addPolishStyles();ensureWordsView();const observer=new MutationObserver(()=>{clearTimeout(observer._t);observer._t=setTimeout(polishDynamicUi,0)});observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});polishDynamicUi()}
+
+  document.addEventListener('DOMContentLoaded',()=>{setTimeout(prefetch,80);setTimeout(wireQuizLoading,0);init()});
+  window.EPMyWordsUX={open:openWords,review,add,back};
+  return{get,set,drop,fetch,swr,prefetch,showQuizLoading,hideQuizLoading};
 })();
 </script>
