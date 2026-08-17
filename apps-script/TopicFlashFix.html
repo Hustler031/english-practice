@@ -1,0 +1,28 @@
+<script>
+(()=>{
+  function compactTopicEntry(){
+    const grid=document.getElementById('topicGrid');
+    if(!grid)return;
+    const alreadyCompact=grid.querySelector('.list-card[onclick*="EPTopic.open"]');
+    if(alreadyCompact)return;
+    const hasLegacyCards=grid.querySelector('.feature-card');
+    if(!hasLegacyCards)return;
+    grid.className='list';
+    grid.innerHTML='<div class="list-card" onclick="EPTopic.open()"><div class="row between"><div><b>🎯 Topic Practice</b><div class="muted">Choose a topic, mode and number of questions</div></div><span>›</span></div></div>';
+    const h=grid.previousElementSibling;
+    if(h&&h.classList.contains('section-title'))h.style.display='none';
+  }
+  function init(){
+    compactTopicEntry();
+    const grid=document.getElementById('topicGrid');
+    if(!grid)return;
+    let queued=false;
+    new MutationObserver(()=>{
+      if(queued)return;
+      queued=true;
+      queueMicrotask(()=>{queued=false;compactTopicEntry()});
+    }).observe(grid,{childList:true});
+  }
+  document.addEventListener('DOMContentLoaded',init);
+})();
+</script>
