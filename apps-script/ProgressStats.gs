@@ -1,4 +1,4 @@
-function getEncounterProgress(){
+function computeEncounterProgress_(){
   const all=allQuestions_().filter(q=>isActive_(q));
   const qMap=Object.fromEntries(all.map(q=>[q.id,q]));
   const facts=progressFacts_(qMap);
@@ -97,11 +97,15 @@ function progressCategoryName_(id,topic){
 const EP_PROGRESS_SNAPSHOT_KEY='EP_PROGRESS_SNAPSHOT_V1';
 const EP_PROGRESS_TRIGGER_READY_KEY='EP_PROGRESS_TRIGGER_READY_V1';
 
+// Public UI API: always return the precomputed snapshot. Existing frontend
+// callers keep working, but no longer trigger the expensive spreadsheet scan.
+function getEncounterProgress(){return getProgressSnapshotServer();}
+
 function refreshProgressSnapshot(){
   const lock=LockService.getScriptLock();
   lock.waitLock(20000);
   try{
-    const p=getEncounterProgress();
+    const p=computeEncounterProgress_();
     p.snapshotGeneratedAt=new Date().toISOString();
     PropertiesService.getScriptProperties().setProperty(EP_PROGRESS_SNAPSHOT_KEY,JSON.stringify(p));
     return p;
@@ -117,8 +121,7 @@ function getProgressSnapshotServer(){
   if(raw){
     try{return JSON.parse(raw)}catch(e){props.deleteProperty(EP_PROGRESS_SNAPSHOT_KEY)}
   }
-  // This heavy calculation happens only once system-wide if no snapshot exists.
-  // After that, the hourly trigger refreshes it and every browser only reads it.
+  // One system-wide seed only. After that the hourly trigger owns calculation.
   return refreshProgressSnapshot();
 }
 
