@@ -6,12 +6,64 @@ const EPFast=window.EPFast=(()=>{
   function drop(key){delete mem[key];try{localStorage.removeItem(PREFIX+key)}catch(e){}}
   async function fetch(key,fn,...args){const value=await EPApp.call(fn,...args);return set(key,value)}
   async function swr(key,fn,args,render,onError){const cached=get(key);if(cached!=null)try{render(cached,true)}catch(e){}try{const fresh=await fetch(key,fn,...(args||[]));render(fresh,false);return fresh}catch(e){if(cached==null&&onError)onError(e);return cached}}
-  function prefetch(){
-    if(typeof EPApp==='undefined'||!EPApp.call)return;
-    const priority=[['saved:hub','getMySavedHub'],['saved:words','getMyWords'],['new:hub','getNewPracticeHub'],['source:hub','getSourceHub'],['topic:hub','getTopicPracticeHub'],['demand:hub','getDemandBatches'],['demand:stats','getDemandHubStats']];
-    priority.forEach(([k,fn],i)=>setTimeout(()=>fetch(k,fn).catch(()=>{}),40+i*55));
-    const secondary=[['saved:starred','getStarredQuestionList'],['progress','getEncounterProgress'],['hindu:today','getHinduToday'],['hindu:progress','getHinduPracticeProgress']];
-    secondary.forEach(([k,fn],i)=>setTimeout(()=>fetch(k,fn).catch(()=>{}),650+i*120));
+
+  // Keep background warming deliberately serial. Apps Script has per-user
+  // concurrent-execution limits; the old fan-out could launch 10+ executions
+  // together during refresh and trigger "too many scripts running".
+  let prefetchRunning=false;
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+  async function prefetch(){
+    if(prefetchRunning||typeof EPApp==='undefined'||!EPApp.call)return;
+    prefetchRunning=true;
+    const jobs=[
+      ['saved:hub','getMySavedHub'],['saved:words','getMyWords'],
+      ['new:hub','getNewPracticeHub'],['source:hub','getSourceHub'],
+      ['topic:hub','getTopicPracticeHub'],['demand:hub','getDemandBatches'],
+      ['demand:stats','getDemandHubStats'],['hindu:today','getHinduToday'],
+      ['hindu:progress','getHinduPracticeProgress'],['saved:starred','getStarredQuestionList'],
+      ['progress','getEncounterProgress']
+    ];
+    try{
+      for(const [key,fn] of jobs){
+        // Existing local data is already useful for instant rendering. Do not
+        // refetch every hub on every page refresh; each screen refreshes itself
+        // when the user actually opens it.
+        if(get(key)==null){try{await fetch(key,fn)}catch(e){}await sleep(180)}
+      }
+    }finally{prefetchRunning=false}
+  }
+
+  // Restore the visible dashboard immediately from the last successful render.
+  // The normal getBootstrapV2 call still runs and silently replaces this data.
+  function restoreHomeSnapshot(){
+    const s=get('home:snapshot');if(!s)return;
+    const title=document.querySelector('#homeView .hero h2');
+    const progress=document.getElementById('dailyProgress'),bar=document.getElementById('dailyBar'),note=document.getElementById('dailyNote');
+    const hindu=document.getElementById('hinduCount'),recall=document.getElementById('recallCount'),mastered=document.getElementById('masteredCount');
+    if(title&&s.title)title.textContent=s.title;
+    if(progress&&s.progress)progress.textContent=s.progress;
+    if(bar&&s.barWidth)bar.style.width=s.barWidth;
+    if(note&&s.note!=null)note.textContent=s.note;
+    if(hindu&&s.hindu!=null)hindu.textContent=s.hindu;
+    if(recall&&s.recall!=null)recall.textContent=s.recall;
+    if(mastered&&s.mastered!=null)mastered.textContent=s.mastered;
+  }
+  let snapshotTimer=null;
+  function saveHomeSnapshot(){
+    clearTimeout(snapshotTimer);snapshotTimer=setTimeout(()=>{
+      const title=document.querySelector('#homeView .hero h2'),progress=document.getElementById('dailyProgress');
+      if(!title||!/^Day\s+\d+/i.test(String(title.textContent||''))||!/^\s*\d+\s*\/\s*\d+/.test(String(progress?.textContent||'')))return;
+      set('home:snapshot',{
+        title:title.textContent,progress:progress.textContent,barWidth:document.getElementById('dailyBar')?.style.width||'',
+        note:document.getElementById('dailyNote')?.textContent||'',hindu:document.getElementById('hinduCount')?.textContent||'',
+        recall:document.getElementById('recallCount')?.textContent||'',mastered:document.getElementById('masteredCount')?.textContent||''
+      });
+    },180)
+  }
+  function wireHomeSnapshot(){
+    restoreHomeSnapshot();
+    const home=document.getElementById('homeView');if(home)new MutationObserver(saveHomeSnapshot).observe(home,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['style']});
+    setTimeout(saveHomeSnapshot,1800)
   }
 
   let loadingTimer=null;
@@ -53,12 +105,19 @@ const EPFast=window.EPFast=(()=>{
   function back(){document.getElementById('myWordsListView')?.classList.add('hidden');if(typeof EPApp!=='undefined'&&EPApp.openSaved)EPApp.openSaved();else EPApp.showTab('revision')}
   function metricHtml(p){const f=v=>Number(v||0).toFixed(Number(v||0)%1?1:0);return `<div class="mastery-strip"><span>Coverage ${f(p.percent)}%</span><span>✓ ${f(p.correctPercent)}%</span><span>🟢 ${f(p.confidentPercent)}%</span><span>? ${f(p.doubtPercent)}%</span></div>`}
   function renderSavedStrip(p){const view=document.getElementById('savedView');if(!view||!p)return;let strip=view.querySelector(':scope > .mastery-strip');const html=metricHtml(p);if(strip)strip.outerHTML=html;else view.insertAdjacentHTML('afterbegin',html)}
-  async function ensureSavedStrip(){const view=document.getElementById('savedView');if(!view||view.classList.contains('hidden'))return;const cached=get('progress');if(cached?.modules?.saved)renderSavedStrip(cached.modules.saved);try{const p=await EPApp.call('getEncounterProgress');set('progress',p);if(p?.modules?.saved)renderSavedStrip(p.modules.saved)}catch(e){}}
+  function ensureSavedStrip(){const view=document.getElementById('savedView');if(!view||view.classList.contains('hidden'))return;const cached=get('progress');if(cached?.modules?.saved)renderSavedStrip(cached.modules.saved);else if(window.EPPerformanceUI?.ensure)window.EPPerformanceUI.ensure()}
   function wireOptimisticPromotion(){if(typeof EPSaved==='undefined'||!EPSaved.addToPractice||EPSaved.__optimisticPromotionWired)return;EPSaved.__optimisticPromotionWired=true;const original=EPSaved.addToPractice.bind(EPSaved);EPSaved.addToPractice=function(id){const btn=[...document.querySelectorAll('button')].find(b=>String(b.getAttribute('onclick')||'').includes(`EPSaved.addToPractice('${id}')`));const oldHtml=btn?.innerHTML;if(btn){btn.disabled=true;btn.classList.add('word-add-optimistic');btn.innerHTML='✓ Added to Practice'}const result=Promise.resolve(original(id));result.catch(()=>{if(btn){btn.disabled=false;btn.classList.remove('word-add-optimistic');btn.innerHTML=oldHtml||'Add to Practice'}});return result}}
-  function polishDynamicUi(){collapseInlineWords();ensureSavedStrip();wireOptimisticPromotion()}
-  function init(){addPolishStyles();ensureWordsView();const observer=new MutationObserver(()=>{clearTimeout(observer._t);observer._t=setTimeout(polishDynamicUi,0)});observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});polishDynamicUi()}
+  function polishDynamicUi(){collapseInlineWords();wireOptimisticPromotion()}
+  function init(){
+    addPolishStyles();ensureWordsView();wireHomeSnapshot();
+    // Only watch inserted UI nodes. Watching every class mutation previously
+    // retriggered performance fetches and could create an Apps Script request storm.
+    const observer=new MutationObserver(()=>{clearTimeout(observer._t);observer._t=setTimeout(polishDynamicUi,30)});
+    observer.observe(document.body,{childList:true,subtree:true});
+    polishDynamicUi();setTimeout(ensureSavedStrip,500);
+  }
 
-  document.addEventListener('DOMContentLoaded',()=>{setTimeout(prefetch,80);setTimeout(wireQuizLoading,0);init()});
+  document.addEventListener('DOMContentLoaded',()=>{init();setTimeout(wireQuizLoading,0);setTimeout(prefetch,1500)});
   window.EPMyWordsUX={open:openWords,review,add,back};
   return{get,set,drop,fetch,swr,prefetch,showQuizLoading,hideQuizLoading};
 })();
