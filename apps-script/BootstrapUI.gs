@@ -10,8 +10,8 @@ function getEnglishUiBootstrap(){
   safe('demandStats',()=>getDemandHubStats());
   safe('hinduToday',()=>getHinduToday());
   safe('hinduProgress',()=>getHinduPracticeProgress());
-  // Heavy progress calculations and full starred-item rows are intentionally
-  // excluded from the normal UI warmup. They have their own long-lived caches
-  // and are fetched only when actually needed.
+  // Lightweight read of the precomputed hourly snapshot. The expensive
+  // calculation runs in the time trigger, not in the user's page load.
+  safe('progressSnapshot',()=>getProgressSnapshotServer());
   return out;
 }
