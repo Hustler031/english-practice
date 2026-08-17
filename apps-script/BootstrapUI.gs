@@ -10,7 +10,8 @@ function getEnglishUiBootstrap(){
   safe('demandStats',()=>getDemandHubStats());
   safe('hinduToday',()=>getHinduToday());
   safe('hinduProgress',()=>getHinduPracticeProgress());
-  safe('starredList',()=>getStarredQuestionList());
-  safe('progress',()=>getEncounterProgress());
+  // Heavy progress calculations and full starred-item rows are intentionally
+  // excluded from the normal UI warmup. They have their own long-lived caches
+  // and are fetched only when actually needed.
   return out;
 }
