@@ -98,8 +98,6 @@ const EP_PROGRESS_SNAPSHOT_KEY='EP_PROGRESS_SNAPSHOT_V1';
 const EP_PROGRESS_TRIGGER_READY_KEY='EP_PROGRESS_TRIGGER_READY_V1';
 const EP_PROGRESS_SEED_READY_KEY='EP_PROGRESS_SEED_READY_V1';
 
-// Public UI API: return only a prepared snapshot. The expensive spreadsheet
-// scan is never performed inside a browser request.
 function getEncounterProgress(){return getProgressSnapshotServer();}
 
 function refreshProgressSnapshot(){
@@ -131,15 +129,14 @@ function getProgressSnapshotServer(){
 function ensureProgressSnapshotSeed_(){
   const props=PropertiesService.getScriptProperties();
   if(props.getProperty(EP_PROGRESS_SEED_READY_KEY)==='1')return;
-  const exists=ScriptApp.getProjectTriggers().some(t=>t.getHandlerFunction()==='refreshProgressSnapshot');
-  if(!exists)ScriptApp.newTrigger('refreshProgressSnapshot').timeBased().after(1000).create();
+  ScriptApp.newTrigger('refreshProgressSnapshot').timeBased().after(1000).create();
   props.setProperty(EP_PROGRESS_SEED_READY_KEY,'1');
 }
 
 function ensureProgressSnapshotTrigger_(){
   const props=PropertiesService.getScriptProperties();
   if(props.getProperty(EP_PROGRESS_TRIGGER_READY_KEY)==='1')return;
-  const hourly=ScriptApp.getProjectTriggers().some(t=>t.getHandlerFunction()==='refreshProgressSnapshot');
-  if(!hourly)ScriptApp.newTrigger('refreshProgressSnapshot').timeBased().everyHours(1).create();
+  const exists=ScriptApp.getProjectTriggers().some(t=>t.getHandlerFunction()==='refreshProgressSnapshot');
+  if(!exists)ScriptApp.newTrigger('refreshProgressSnapshot').timeBased().everyHours(1).create();
   props.setProperty(EP_PROGRESS_TRIGGER_READY_KEY,'1');
 }
