@@ -23,7 +23,7 @@ need(code,"spreadsheetId: '1IgUGQZu6sp1STBCX6gyI5pHayLGVpmYYrkKGYdwkjak'",'Live 
 ['function getBootstrapV2(','function getDailyBatchV2(','syncDailyCompletionsFromPerformanceV2_','pendingFromPrevious',"const DAILY_V2_HISTORY='Daily_History'"].forEach(x=>need(daily,x,x));
 ['function getDemandBatches(','function getDemandPracticeBatch(','function submitHinduAnswer(','function getHinduPracticeProgress('].forEach(x=>need(demand,x,x));
 ['function getNewPracticeHub(','function getNewPracticeBatch(','function getNewPracticeItems(','MY_SAVED_WORDS'].forEach(x=>need(np,x,x));
-['function getNewPracticeHubLive(','function getNewPracticeBatchLive(','newPracticeNewWordOrder_','newWords','starred'].forEach(x=>need(npl,x,x));
+['function getNewPracticeHubLive(','function getNewPracticeBatchLive(','function newPracticePermanentPool_','function newPracticeType_','SPELL','Spelling Mistakes','function newPracticeSource_','newPracticeNewWordOrder_'].forEach(x=>need(npl,x,x));
 ['function getSourceHub(','function getSourcePracticeBatch(','function getSourceItems(','THE_HINDU'].forEach(x=>need(source,x,x));
 ['function getTopicPracticeHub(','function getTopicPracticeBatch(','function getTopicPracticeItems(','started','newCount'].forEach(x=>need(topic,x,x));
 ['function addHinduToVocab(','function getSavedHinduQuestionIds(','captureHinduInMyWords_'].forEach(x=>need(hindu,x,x));
@@ -35,7 +35,7 @@ need(dash,'function getTodayActivityCount(','Today activity API');
 ["EPApp.call('submitAnswer'",'function next()','function pause()'].forEach(x=>need(quiz,x,x));
 ['window.EPFast','prefetch','source:hub','topic:hub','saved:hub'].forEach(x=>need(fast,x,x));
 ['Topic Practice','Started','New','Random','View All'].forEach(x=>need(tui,x,x));
-['All New Practice','View All','Practice All','Practice New Words','Weak','Random','Starred','getNewPracticeHubLive','getNewPracticeBatchLive'].forEach(x=>need(nui,x,x));
+['All New Practice','Practice by type','View All','Practice All','Practice New','Weak','Random','Starred','All Sources','getNewPracticeHubLive','getNewPracticeBatchLive'].forEach(x=>need(nui,x,x));
 need(dui,'[10,20,50,100]','Demand random sizes 10/20/50/100');
 ['View All','Practice All','Weak','Random','kind===\'hindu\''].forEach(x=>need(sui,x,x));
 ['Practice Again · Round','hindu:today'].forEach(x=>need(hui,x,x));
