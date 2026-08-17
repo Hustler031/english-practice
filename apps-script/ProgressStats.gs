@@ -93,3 +93,39 @@ function progressCategoryName_(id,topic){
   const names={VOC:'Vocabulary',IDIOM:'Idioms & Phrases',PHRASAL:'Phrasal Verbs',OWS:'One Word Substitution / Fields of Study',SYN_ANT:'Synonyms & Antonyms',CONFUSED:'Confused Words',SPELLING:'Spelling',GRAMMAR:'Grammar',ERROR:'Error Detection',SENT_IMP:'Sentence Improvement',FILL:'Fill in the Blanks',CLOZE:'Cloze Test',PARA:'Para Jumbles',RC:'Reading Comprehension',MISC:'Other'};
   return names[id]||String(topic||id||'Other');
 }
+
+const EP_PROGRESS_SNAPSHOT_KEY='EP_PROGRESS_SNAPSHOT_V1';
+const EP_PROGRESS_TRIGGER_READY_KEY='EP_PROGRESS_TRIGGER_READY_V1';
+
+function refreshProgressSnapshot(){
+  const lock=LockService.getScriptLock();
+  lock.waitLock(20000);
+  try{
+    const p=getEncounterProgress();
+    p.snapshotGeneratedAt=new Date().toISOString();
+    PropertiesService.getScriptProperties().setProperty(EP_PROGRESS_SNAPSHOT_KEY,JSON.stringify(p));
+    return p;
+  }finally{
+    lock.releaseLock();
+  }
+}
+
+function getProgressSnapshotServer(){
+  ensureProgressSnapshotTrigger_();
+  const props=PropertiesService.getScriptProperties();
+  const raw=props.getProperty(EP_PROGRESS_SNAPSHOT_KEY);
+  if(raw){
+    try{return JSON.parse(raw)}catch(e){props.deleteProperty(EP_PROGRESS_SNAPSHOT_KEY)}
+  }
+  // This heavy calculation happens only once system-wide if no snapshot exists.
+  // After that, the hourly trigger refreshes it and every browser only reads it.
+  return refreshProgressSnapshot();
+}
+
+function ensureProgressSnapshotTrigger_(){
+  const props=PropertiesService.getScriptProperties();
+  if(props.getProperty(EP_PROGRESS_TRIGGER_READY_KEY)==='1')return;
+  const exists=ScriptApp.getProjectTriggers().some(t=>t.getHandlerFunction()==='refreshProgressSnapshot');
+  if(!exists)ScriptApp.newTrigger('refreshProgressSnapshot').timeBased().everyHours(1).create();
+  props.setProperty(EP_PROGRESS_TRIGGER_READY_KEY,'1');
+}
