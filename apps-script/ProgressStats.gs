@@ -1,7 +1,44 @@
 function getEncounterProgress(){
   const all=allQuestions_().filter(q=>isActive_(q));
   const qMap=Object.fromEntries(all.map(q=>[q.id,q]));
-  const status=statusMap_(),firstSeen={},attemptState={},seen=new Set(),todaySeen=new Set();
+  const facts=progressFacts_(qMap);
+  const names={};
+  table_(EP.sheets.categories).forEach(r=>{const id=String(r.Category_ID||'').trim();if(id)names[id]=String(r.Category_Name||id)});
+
+  const grouped={};
+  all.forEach(q=>{
+    const id=canonicalCategory_(q.topic),name=names[id]||progressCategoryName_(id,q.topic);
+    if(!grouped[id])grouped[id]={id,name,ids:[]};
+    grouped[id].ids.push(q.id);
+  });
+  const categories=Object.values(grouped).map(g=>Object.assign({id:g.id,name:g.name},progressMetric_(g.ids,facts))).filter(g=>g.total>0).sort((a,b)=>b.total-a.total||a.name.localeCompare(b.name));
+  const overall=progressMetric_(all.map(q=>q.id),facts);
+
+  const safePool=fn=>{try{return typeof fn==='function'?(fn()||[]):[]}catch(e){return[]}};
+  const newPool=safePool(()=>newPracticePool_('ALL'));
+  const demandPool=safePool(()=>demandQuestionPool_('__ALL__').map(x=>x.q));
+  const sourcePool=all.filter(q=>{try{return !!sourceKey_(q)}catch(e){return false}});
+  const hinduPool=safePool(()=>{
+    const today=todayKey_();
+    return table_(EP.sheets.hindu).filter(r=>truthy_(r.Active)&&dateKey_(r.Date)===today).map(r=>qMap[resolveHinduQuestionId_(String(r.Hindu_ID||'').trim())]).filter(Boolean);
+  });
+  const savedPool=all.filter(q=>facts.marked.has(q.id));
+
+  const modules={
+    practice:progressMetric_(all.map(q=>q.id),facts),
+    new:progressMetric_(newPool.map(q=>q.id),facts),
+    demanded:progressMetric_(demandPool.map(q=>q.id),facts),
+    hindu:progressMetric_(hinduPool.map(q=>q.id),facts),
+    sources:progressMetric_(sourcePool.map(q=>q.id),facts),
+    saved:progressMetric_(savedPool.map(q=>q.id),facts)
+  };
+
+  const today=todayKey_();
+  return Object.assign({date:today,todayActivity:facts.todaySeen.size,todayNew:facts.todayNew.size,categories,modules},overall);
+}
+
+function progressFacts_(qMap){
+  const firstSeen={},attemptState={},seen=new Set(),todaySeen=new Set(),todayNew=new Set(),marked=currentMarkedIds_();
   const perf=sheet_(EP.sheets.performance);
   if(perf.getLastRow()>1){
     const values=perf.getDataRange().getValues(),header=values[0].map(x=>String(x||'').trim().toLowerCase());
@@ -23,33 +60,31 @@ function getEncounterProgress(){
   const qualified=new Set(),confident=new Set();
   Object.keys(attemptState).forEach(id=>{
     const a=attemptState[id];
-    // First-encounter correct qualifies immediately. If first encounter was wrong,
-    // the question qualifies only after a current streak of 3 consecutive correct answers.
     if(a.lastCorrect&&(a.firstCorrect||a.streak>=3)){
       qualified.add(id);
-      const st=status[id]||{};
-      if(!truthy_(st.marked))confident.add(id);
+      if(!marked.has(id))confident.add(id);
     }
   });
-  const today=todayKey_(),todayNew=new Set();
+  const today=todayKey_();
   Object.keys(firstSeen).forEach(id=>{if(Utilities.formatDate(firstSeen[id],Session.getScriptTimeZone(),'yyyy-MM-dd')===today)todayNew.add(id)});
-  const names={};
-  table_(EP.sheets.categories).forEach(r=>{const id=String(r.Category_ID||'').trim();if(id)names[id]=String(r.Category_Name||id)});
-  const grouped={};
-  all.forEach(q=>{
-    const id=canonicalCategory_(q.topic),name=names[id]||progressCategoryName_(id,q.topic);
-    if(!grouped[id])grouped[id]={id,name,total:0,encountered:0,left:0,percent:0,correct:0,correctPercent:0,confident:0,confidentPercent:0,doubt:0,doubtPercent:0};
-    const g=grouped[id];g.total++;
-    if(seen.has(q.id)){g.encountered++;if(qualified.has(q.id))g.correct++;if(confident.has(q.id))g.confident++;}
-  });
-  Object.values(grouped).forEach(g=>{
-    g.left=Math.max(0,g.total-g.encountered);g.percent=roundPct_(g.encountered,g.total);
-    g.correctPercent=roundPct_(g.correct,g.encountered);g.confidentPercent=roundPct_(g.confident,g.encountered);
-    g.doubt=Math.max(0,g.correct-g.confident);g.doubtPercent=roundPct_(g.doubt,g.encountered);
-  });
-  const categories=Object.values(grouped).filter(g=>g.total>0).sort((a,b)=>b.total-a.total||a.name.localeCompare(b.name));
-  const total=all.length,encountered=seen.size,correct=qualified.size,confidentCount=confident.size,doubt=Math.max(0,correct-confidentCount);
-  return {date:today,total,encountered,left:Math.max(0,total-encountered),percent:roundPct_(encountered,total),correct,correctPercent:roundPct_(correct,encountered),confident:confidentCount,confidentPercent:roundPct_(confidentCount,encountered),doubt,doubtPercent:roundPct_(doubt,encountered),todayActivity:todaySeen.size,todayNew:todayNew.size,categories};
+  return {seen,qualified,confident,marked,todaySeen,todayNew};
+}
+
+function currentMarkedIds_(){
+  const out=new Set(),s=sheet_(EP.sheets.status);if(s.getLastRow()<2)return out;
+  const vals=s.getDataRange().getValues(),h=vals[0].map(x=>String(x||'').trim().toLowerCase());
+  let qi=h.findIndex(x=>x==='question_id'||x==='question id'||x==='questionid'),mi=h.findIndex(x=>x==='last_marked'||x==='marked'||x==='is_marked');
+  if(qi<0)qi=0;if(mi<0)mi=10;
+  vals.slice(1).forEach(r=>{const id=String(r[qi]||'').trim();if(id&&truthy_(r[mi]))out.add(id)});
+  return out;
+}
+
+function progressMetric_(ids,facts){
+  const unique=[...new Set((ids||[]).map(x=>String(x||'').trim()).filter(Boolean))],total=unique.length;
+  let encountered=0,correct=0,confident=0;
+  unique.forEach(id=>{if(facts.seen.has(id))encountered++;if(facts.qualified.has(id))correct++;if(facts.confident.has(id))confident++});
+  const doubt=Math.max(0,correct-confident);
+  return {total,encountered,left:Math.max(0,total-encountered),percent:roundPct_(encountered,total),correct,correctPercent:roundPct_(correct,encountered),confident,confidentPercent:roundPct_(confident,encountered),doubt,doubtPercent:roundPct_(doubt,encountered)};
 }
 
 function roundPct_(n,d){return d?Math.round(Number(n||0)*1000/Number(d))/10:0;}
