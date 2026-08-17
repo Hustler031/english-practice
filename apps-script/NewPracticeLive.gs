@@ -1,10 +1,10 @@
 function newPracticeType_(q){
-  const cat=String(canonicalCategory_(q.topic)||'').toUpperCase(),raw=[q.topic,q.subtopic,q.questionType,q.sourceFile,q.sourceId,q.explanation,q.tip].map(x=>String(x||'').toLowerCase()).join(' ');
-  if(/spelling|misspelt|misspelled|correctly spelt|incorrectly spelt/.test(raw))return'SPELL';
-  if(cat==='PHRASAL'||cat==='PV'||/phrasal verb/.test(raw))return'PHRASAL';
-  if(cat==='IDIOM'||(/idiom|phrase/.test(raw)&&!/phrasal/.test(raw)))return'IDIOM';
-  if(cat==='OWS'||/one word substitution|one-word substitution/.test(raw))return'OWS';
-  if(cat==='VOC'||/vocab|vocabulary/.test(raw))return'VOC';
+  const cat=String(canonicalCategory_(q.topic)||'').toUpperCase(),meta=[q.topic,q.subtopic,q.questionType,q.sourceFile,q.sourceId].map(x=>String(x||'').toLowerCase()).join(' '),detail=[q.explanation,q.tip].map(x=>String(x||'').toLowerCase()).join(' ');
+  if(/spelling|misspelt|misspelled|correctly spelt|incorrectly spelt/.test(meta)||/part of speech:\s*spelling/.test(detail))return'SPELL';
+  if(cat==='PHRASAL'||cat==='PV'||/phrasal verb/.test(meta)||/part of speech:\s*phrasal verb/.test(detail))return'PHRASAL';
+  if(cat==='IDIOM'||/idiom/.test(meta)||/part of speech:\s*(idiom|phrase)/.test(detail))return'IDIOM';
+  if(cat==='OWS'||/one word substitution|one-word substitution/.test(meta)||/part of speech:\s*(ows|one word substitution)/.test(detail))return'OWS';
+  if(cat==='VOC'||/vocab|vocabulary/.test(meta))return'VOC';
   return cat&&cat!=='MISC'?cat:'OTHER';
 }
 function newPracticeTypeName_(id){return({VOC:'Vocabulary',IDIOM:'Idioms & Phrases',PHRASAL:'Phrasal Verbs',OWS:'One Word Substitution',SPELL:'Spelling Mistakes',OTHER:'Other'})[id]||newPracticeCategoryName_(id,id)}
