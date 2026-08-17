@@ -53,18 +53,18 @@ const EPFast=window.EPFast=(()=>{
 </script>
 <script>
 (()=>{
-  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[m]));
   let words=[];
   function addPolishStyles(){
     if(document.getElementById('epMasteryPolish'))return;
     const st=document.createElement('style');st.id='epMasteryPolish';
     st.textContent=`
-      .mastery-strip{font-size:13px!important;font-weight:900!important;gap:5px!important;padding:6px!important;background:transparent!important;border:0!important;overflow:visible!important;justify-content:flex-start!important}
-      .mastery-strip span{padding:6px 9px;border-radius:999px;line-height:1;white-space:nowrap}
-      .mastery-strip span:nth-of-type(1){background:color-mix(in srgb,var(--primary) 16%,var(--card));color:var(--text)}
-      .mastery-strip span:nth-of-type(2){background:color-mix(in srgb,var(--ok) 16%,var(--card));color:var(--text)}
-      .mastery-strip span:nth-of-type(3){background:color-mix(in srgb,var(--ok) 24%,var(--card));color:var(--text)}
-      .mastery-strip span:nth-of-type(4){background:color-mix(in srgb,#f5b942 22%,var(--card));color:var(--text)}
+      .mastery-strip{display:grid!important;grid-template-columns:repeat(4,minmax(0,auto))!important;align-items:center!important;justify-content:center!important;column-gap:5px!important;width:100%!important;font-size:14px!important;font-weight:900!important;padding:5px 4px!important;margin:0 0 14px!important;background:transparent!important;border:0!important;overflow:visible!important;color:var(--text)!important}
+      .mastery-strip span{display:block;padding:7px 9px;border-radius:999px;line-height:1;white-space:nowrap;text-align:center;border:1px solid color-mix(in srgb,var(--line) 70%,transparent)}
+      .mastery-strip span:nth-of-type(1){background:color-mix(in srgb,var(--primary) 28%,var(--card));color:color-mix(in srgb,var(--primary) 65%,var(--text))}
+      .mastery-strip span:nth-of-type(2){background:color-mix(in srgb,#4f9cff 25%,var(--card));color:color-mix(in srgb,#4f9cff 65%,var(--text))}
+      .mastery-strip span:nth-of-type(3){background:color-mix(in srgb,var(--ok) 30%,var(--card));color:color-mix(in srgb,var(--ok) 70%,var(--text))}
+      .mastery-strip span:nth-of-type(4){background:color-mix(in srgb,#f5b942 30%,var(--card));color:color-mix(in srgb,#f5b942 72%,var(--text))}
       .mastery-strip i{display:none!important}
       .mywords-launch{cursor:pointer}
       .mywords-launch .row{align-items:center}
@@ -73,7 +73,8 @@ const EPFast=window.EPFast=(()=>{
       .mywords-item b{font-size:16px}
       .mywords-item small{display:block;color:var(--muted);margin-top:3px}
       .mywords-chevron{font-size:22px;color:var(--muted)}
-      @media(max-width:420px){.mastery-strip{font-size:12px!important;gap:4px!important}.mastery-strip span{padding:6px 7px}.mywords-item b{font-size:15px}}
+      @media(max-width:420px){.mastery-strip{font-size:13px!important;column-gap:3px!important;padding-left:0!important;padding-right:0!important}.mastery-strip span{padding:6px 7px}.mywords-item b{font-size:15px}}
+      @media(max-width:365px){.mastery-strip{font-size:11.5px!important;column-gap:2px!important}.mastery-strip span{padding:6px 5px}}
     `;
     document.head.appendChild(st);
   }
@@ -110,7 +111,15 @@ const EPFast=window.EPFast=(()=>{
     EPApp.toast('Review will be available after refresh.');
   }
   function back(){document.getElementById('myWordsListView')?.classList.add('hidden');if(typeof EPApp!=='undefined'&&EPApp.openSaved)EPApp.openSaved();else EPApp.showTab('revision')}
-  function init(){addPolishStyles();ensureWordsView();const hub=document.getElementById('savedHub');if(hub)new MutationObserver(collapseInlineWords).observe(hub,{childList:true,subtree:false});setTimeout(collapseInlineWords,0)}
+  function init(){
+    addPolishStyles();ensureWordsView();
+    // My Saved is created dynamically after this file initializes. Observe the
+    // whole document so the My Words section is compacted every time SavedUI
+    // renders or refreshes it, matching the other dynamic hub modules.
+    const observer=new MutationObserver(()=>collapseInlineWords());
+    observer.observe(document.body,{childList:true,subtree:true});
+    collapseInlineWords();
+  }
   window.EPMyWordsUX={open:openWords,review,back};document.addEventListener('DOMContentLoaded',init);
 })();
 </script>
