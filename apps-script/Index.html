@@ -13,7 +13,7 @@
     <section id="homeView" class="app-page content grid">
       <div class="card hero"><div class="hero-top"><h2>Loading daily plan…</h2><span id="todayDoneBadge" class="today-done hidden">✓ 0 today</span></div><p>Finish your daily revision first, then use focused practice.</p><div class="daily-line"><span>Today's Goal</span><strong id="dailyProgress">— / 120</strong></div><div class="progressbar"><div id="dailyBar"></div></div><div id="dailyNote" class="hero-note"></div><div class="daily-controls"><button id="dailyStartBtn" class="btn primary" onclick="EPApp.startDirect('daily')">Loading daily plan…</button><button id="dailyResumeBtn" class="btn primary hidden" onclick="EPQuiz.resumeDaily()">Resume Daily Practice</button></div></div>
       <div id="resumeCard" class="card hidden"><div class="row between"><div><b>Resume paused extra practice</b><div id="resumeText" class="muted"></div></div><button class="btn soft" onclick="EPQuiz.resumeOther()">Resume</button></div></div>
-      <h3 class="section-title">Quick Start</h3>
+      <div class="row between" style="align-items:center"><h3 class="section-title" style="margin:0">Quick Start</h3><button class="btn soft mini" onclick="EPMyWordsUX.quickAdd()">＋ Add Word</button></div>
       <div class="grid">
         <button class="btn ghost quick-btn accent-card" onclick="EPApp.openHindu()"><span>📰</span><span><b>The Hindu – Today</b><small id="hinduCount">Loading…</small></span></button>
         <button class="btn ghost quick-btn" onclick="EPApp.openNewPractice()"><span>✨</span><span><b>New Practice</b><small>Recently added content by category</small></span></button>
@@ -52,5 +52,6 @@
 <?!= include('DemandUI'); ?>
 <?!= include('DashboardUI'); ?>
 <?!= include('SavedUI'); ?>
+<?!= include('MyWordsFinalUI'); ?>
 </body>
 </html>
