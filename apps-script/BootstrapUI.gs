@@ -3,7 +3,7 @@ function getEnglishUiBootstrap(){
   const safe=(key,fn)=>{try{out[key]=fn()}catch(e){out[key]=null;out.errors=out.errors||{};out.errors[key]=String(e&&e.message||e)}};
   safe('savedHub',()=>getMySavedHub());
   safe('savedWords',()=>getMyWords());
-  safe('newHub',()=>getNewPracticeHub());
+  safe('newHub',()=>getNewPracticeHubLive());
   safe('sourceHub',()=>getSourceHub());
   safe('topicHub',()=>getTopicPracticeHub());
   safe('demandHub',()=>getDemandBatches());
