@@ -13,7 +13,47 @@ const EPFast=window.EPFast=(()=>{
     const secondary=[['saved:starred','getStarredQuestionList'],['progress','getEncounterProgress'],['hindu:today','getHinduToday'],['hindu:progress','getHinduPracticeProgress']];
     secondary.forEach(([k,fn],i)=>setTimeout(()=>fetch(k,fn).catch(()=>{}),650+i*120));
   }
-  document.addEventListener('DOMContentLoaded',()=>setTimeout(prefetch,80));
-  return{get,set,drop,fetch,swr,prefetch};
+
+  // Unified quiz-launch UX. The capture-phase listener runs before each module's
+  // click handler, so the user gets immediate feedback even when Apps Script
+  // needs several seconds to prepare a batch.
+  let loadingTimer=null;
+  function ensureQuizLoader(){
+    let v=document.getElementById('compactQuizLoading');
+    if(!v){
+      v=document.createElement('div');v.id='compactQuizLoading';
+      v.style.cssText='position:fixed;inset:0;z-index:110;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px';
+      v.innerHTML='<div style="text-align:center"><div style="width:40px;height:40px;border:4px solid var(--line);border-top-color:var(--primary);border-radius:50%;margin:auto;animation:epLoadSpin .75s linear infinite"></div><b id="compactQuizLoadingText" style="display:block;margin-top:14px;font-size:17px">Loading Quiz…</b><div class="muted" style="margin-top:7px">Preparing your questions</div></div>';
+      document.body.appendChild(v);
+      if(!document.getElementById('epLoadSpinStyle')){const st=document.createElement('style');st.id='epLoadSpinStyle';st.textContent='@keyframes epLoadSpin{to{transform:rotate(360deg)}}';document.head.appendChild(st)}
+    }
+    return v;
+  }
+  function showQuizLoading(label){
+    const v=ensureQuizLoader(),t=document.getElementById('compactQuizLoadingText');
+    if(t)t.textContent=label||'Loading Quiz…';v.classList.remove('hidden');
+    clearTimeout(loadingTimer);loadingTimer=setTimeout(hideQuizLoading,15000);
+  }
+  function hideQuizLoading(){clearTimeout(loadingTimer);document.getElementById('compactQuizLoading')?.classList.add('hidden')}
+  function isQuizLaunch(el){
+    const code=String(el?.getAttribute?.('onclick')||'');
+    return /(startDirect\s*\(|startHinduQuiz\s*\(|startNewPractice\s*\(|startDemand(?:Managed|Batch)?\s*\(|startSource(?:Managed)?\s*\(|EPTopic\.start\s*\(|EPNew\.start\s*\(|EPSource\.start\s*\(|EPSaved\.startStarred\s*\()/i.test(code);
+  }
+  function launchLabel(el){
+    const txt=String(el?.textContent||'').replace(/\s+/g,' ').trim();
+    if(/day\s*\d+/i.test(txt))return 'Loading '+txt.replace(/·.*$/,'').trim()+'…';
+    if(/hindu/i.test(txt))return 'Loading The Hindu Quiz…';
+    if(/starred/i.test(txt))return 'Loading Starred Questions…';
+    return 'Loading Quiz…';
+  }
+  function wireQuizLoading(){
+    document.addEventListener('click',e=>{const el=e.target.closest('button,[role="button"],a');if(el&&isQuizLaunch(el)&&!el.disabled)showQuizLoading(launchLabel(el))},true);
+    const q=document.getElementById('quizView');if(q)new MutationObserver(()=>{if(!q.classList.contains('hidden'))hideQuizLoading()}).observe(q,{attributes:true,attributeFilter:['class']});
+    // Any error/empty-state toast means a quiz did not open, so remove the loader.
+    setTimeout(()=>{if(typeof EPApp!=='undefined'&&EPApp.toast&&!EPApp.__quizLoaderToastWired){EPApp.__quizLoaderToastWired=true;const old=EPApp.toast;EPApp.toast=function(){hideQuizLoading();return old.apply(this,arguments)}}},0);
+  }
+
+  document.addEventListener('DOMContentLoaded',()=>{setTimeout(prefetch,80);setTimeout(wireQuizLoading,0)});
+  return{get,set,drop,fetch,swr,prefetch,showQuizLoading,hideQuizLoading};
 })();
 </script>
