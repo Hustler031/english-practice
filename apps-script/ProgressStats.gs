@@ -96,9 +96,10 @@ function progressCategoryName_(id,topic){
 
 const EP_PROGRESS_SNAPSHOT_KEY='EP_PROGRESS_SNAPSHOT_V1';
 const EP_PROGRESS_TRIGGER_READY_KEY='EP_PROGRESS_TRIGGER_READY_V1';
+const EP_PROGRESS_SEED_READY_KEY='EP_PROGRESS_SEED_READY_V1';
 
-// Public UI API: always return the precomputed snapshot. Existing frontend
-// callers keep working, but no longer trigger the expensive spreadsheet scan.
+// Public UI API: return only a prepared snapshot. The expensive spreadsheet
+// scan is never performed inside a browser request.
 function getEncounterProgress(){return getProgressSnapshotServer();}
 
 function refreshProgressSnapshot(){
@@ -107,7 +108,9 @@ function refreshProgressSnapshot(){
   try{
     const p=computeEncounterProgress_();
     p.snapshotGeneratedAt=new Date().toISOString();
-    PropertiesService.getScriptProperties().setProperty(EP_PROGRESS_SNAPSHOT_KEY,JSON.stringify(p));
+    const props=PropertiesService.getScriptProperties();
+    props.setProperty(EP_PROGRESS_SNAPSHOT_KEY,JSON.stringify(p));
+    props.deleteProperty(EP_PROGRESS_SEED_READY_KEY);
     return p;
   }finally{
     lock.releaseLock();
@@ -121,14 +124,22 @@ function getProgressSnapshotServer(){
   if(raw){
     try{return JSON.parse(raw)}catch(e){props.deleteProperty(EP_PROGRESS_SNAPSHOT_KEY)}
   }
-  // One system-wide seed only. After that the hourly trigger owns calculation.
-  return refreshProgressSnapshot();
+  ensureProgressSnapshotSeed_();
+  return {pending:true,snapshotGeneratedAt:null};
+}
+
+function ensureProgressSnapshotSeed_(){
+  const props=PropertiesService.getScriptProperties();
+  if(props.getProperty(EP_PROGRESS_SEED_READY_KEY)==='1')return;
+  const exists=ScriptApp.getProjectTriggers().some(t=>t.getHandlerFunction()==='refreshProgressSnapshot');
+  if(!exists)ScriptApp.newTrigger('refreshProgressSnapshot').timeBased().after(1000).create();
+  props.setProperty(EP_PROGRESS_SEED_READY_KEY,'1');
 }
 
 function ensureProgressSnapshotTrigger_(){
   const props=PropertiesService.getScriptProperties();
   if(props.getProperty(EP_PROGRESS_TRIGGER_READY_KEY)==='1')return;
-  const exists=ScriptApp.getProjectTriggers().some(t=>t.getHandlerFunction()==='refreshProgressSnapshot');
-  if(!exists)ScriptApp.newTrigger('refreshProgressSnapshot').timeBased().everyHours(1).create();
+  const hourly=ScriptApp.getProjectTriggers().some(t=>t.getHandlerFunction()==='refreshProgressSnapshot');
+  if(!hourly)ScriptApp.newTrigger('refreshProgressSnapshot').timeBased().everyHours(1).create();
   props.setProperty(EP_PROGRESS_TRIGGER_READY_KEY,'1');
 }
