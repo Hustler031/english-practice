@@ -7,30 +7,28 @@ const EPFast=window.EPFast=(()=>{
   async function fetch(key,fn,...args){const value=await EPApp.call(fn,...args);return set(key,value)}
   async function swr(key,fn,args,render,onError){const cached=get(key);if(cached!=null)try{render(cached,true)}catch(e){}try{const fresh=await fetch(key,fn,...(args||[]));render(fresh,false);return fresh}catch(e){if(cached==null&&onError)onError(e);return cached}}
 
-  // Keep background warming deliberately serial. Apps Script has per-user
-  // concurrent-execution limits; the old fan-out could launch 10+ executions
-  // together during refresh and trigger "too many scripts running".
+  // One consolidated background bootstrap replaces the old fan-out of many
+  // Apps Script executions. Cached UI still renders instantly; this one call
+  // refreshes every lightweight hub in the background.
   let prefetchRunning=false;
-  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+  function hydrateUiBootstrap(b){
+    if(!b||typeof b!=='object')return;
+    const map={
+      'saved:hub':'savedHub','saved:words':'savedWords','new:hub':'newHub',
+      'source:hub':'sourceHub','topic:hub':'topicHub','demand:hub':'demandHub',
+      'demand:stats':'demandStats','hindu:today':'hinduToday',
+      'hindu:progress':'hinduProgress','saved:starred':'starredList','progress':'progress'
+    };
+    Object.entries(map).forEach(([cacheKey,field])=>{if(b[field]!=null)set(cacheKey,b[field])});
+    set('ui:bootstrap:at',b.generatedAt||new Date().toISOString());
+  }
   async function prefetch(){
     if(prefetchRunning||typeof EPApp==='undefined'||!EPApp.call)return;
     prefetchRunning=true;
-    const jobs=[
-      ['saved:hub','getMySavedHub'],['saved:words','getMyWords'],
-      ['new:hub','getNewPracticeHub'],['source:hub','getSourceHub'],
-      ['topic:hub','getTopicPracticeHub'],['demand:hub','getDemandBatches'],
-      ['demand:stats','getDemandHubStats'],['hindu:today','getHinduToday'],
-      ['hindu:progress','getHinduPracticeProgress'],['saved:starred','getStarredQuestionList'],
-      ['progress','getEncounterProgress']
-    ];
     try{
-      for(const [key,fn] of jobs){
-        // Existing local data is already useful for instant rendering. Do not
-        // refetch every hub on every page refresh; each screen refreshes itself
-        // when the user actually opens it.
-        if(get(key)==null){try{await fetch(key,fn)}catch(e){}await sleep(180)}
-      }
-    }finally{prefetchRunning=false}
+      const b=await EPApp.call('getEnglishUiBootstrap');
+      hydrateUiBootstrap(b);
+    }catch(e){}finally{prefetchRunning=false}
   }
 
   // Restore the visible dashboard immediately from the last successful render.
@@ -110,8 +108,6 @@ const EPFast=window.EPFast=(()=>{
   function polishDynamicUi(){collapseInlineWords();wireOptimisticPromotion()}
   function init(){
     addPolishStyles();ensureWordsView();wireHomeSnapshot();
-    // Only watch inserted UI nodes. Watching every class mutation previously
-    // retriggered performance fetches and could create an Apps Script request storm.
     const observer=new MutationObserver(()=>{clearTimeout(observer._t);observer._t=setTimeout(polishDynamicUi,30)});
     observer.observe(document.body,{childList:true,subtree:true});
     polishDynamicUi();setTimeout(ensureSavedStrip,500);
