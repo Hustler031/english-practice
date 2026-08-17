@@ -2,6 +2,7 @@ function computeEncounterProgress_(){
   const all=allQuestions_().filter(q=>isActive_(q));
   const qMap=Object.fromEntries(all.map(q=>[q.id,q]));
   const facts=progressFacts_(qMap);
+  const status=statusMap_();
   const names={};
   table_(EP.sheets.categories).forEach(r=>{const id=String(r.Category_ID||'').trim();if(id)names[id]=String(r.Category_Name||id)});
 
@@ -34,7 +35,9 @@ function computeEncounterProgress_(){
   };
 
   const today=todayKey_();
-  return Object.assign({date:today,todayActivity:facts.todaySeen.size,todayNew:facts.todayNew.size,categories,modules},overall);
+  const masteredCount=Object.keys(status).filter(id=>status[id]&&status[id].mastered).length;
+  const overview={encountered:overall.encountered,total:overall.total,todayNew:facts.todayNew.size,starred:facts.marked.size,mastered:masteredCount};
+  return Object.assign({date:today,todayActivity:facts.todaySeen.size,todayNew:facts.todayNew.size,starredCount:facts.marked.size,masteredCount,categories,modules,overview},overall);
 }
 
 function progressFacts_(qMap){
