@@ -13,7 +13,7 @@ const EPApp=(()=>{
     const t=$('practiceLoadingText');if(t)t.textContent=label||'Loading practice…';v.classList.remove('hidden');
   }
   function hidePracticeLoading(){const v=$('practiceLoading');if(v)v.classList.add('hidden')}
-  async function load(){initTheme();showTab('home');try{boot=await gas('getBootstrapV2');renderBootstrap();renderTopics();refreshResumeCard();gas('warmPracticeCache').catch(()=>{})}catch(e){toast('Could not load dashboard: '+e.message)}}
+  async function load(){initTheme();showTab('home');try{boot=await gas('getBootstrapV2');renderBootstrap();renderTopics();refreshResumeCard()}catch(e){toast('Could not load dashboard: '+e.message)}}
   function renderBootstrap(){
     const s=boot.stats,target=boot.dailyTarget||120,done=s.dailyCompleted||0,total=s.dailyTotal||0,di=boot.dailyInfo||{};
     const heroTitle=document.querySelector('#homeView .hero h2');
