@@ -29,7 +29,15 @@ function upsertHinduVocab_(id,changes){
   return {ok:true,hinduId:raw,questionId:vals[1],marked:!!vals[3],inVocab:!!vals[4]};
 }
 function setHinduMarked(id,marked){const r=upsertHinduVocab_(id,{marked:!!marked});if(r.questionId)setMarked(r.questionId,!!marked);return r;}
-function addHinduToVocab(id){return upsertHinduVocab_(id,{added:true});}
+function captureHinduInMyWords_(id){
+  if(typeof captureMyWord!=='function')return null;const raw=hinduRawId_(id),rows=table_(EP.sheets.hindu),h=rows.find(r=>String(r.Hindu_ID||'').trim()===raw);if(!h||!String(h.Word||'').trim())return null;
+  const qid=resolveHinduQuestionId_(raw),saved=captureMyWord({word:String(h.Word||'').trim(),context:String(h.Usage_Note||h.Example_Sentence||'').trim(),questionId:qid,module:'The Hindu',source:'The Hindu'});
+  if(saved&&saved.id&&typeof setMyWordGPTEnrichment==='function'){
+    try{setMyWordGPTEnrichment({id:saved.id,meaning:String(h.Meaning||'').trim(),partOfSpeech:String(h.Part_of_Speech||'').trim(),synonyms:String(h.Synonyms||'').trim(),antonyms:String(h.Antonyms||'').trim(),example:String(h.Example_Sentence||'').trim(),explanation:[String(h.Meaning||'').trim(),String(h.Usage_Note||'').trim(),String(h.Tip||'').trim()].filter(Boolean).join('\n'),source:'The Hindu',gptStatus:'Ready'})}catch(e){}
+  }
+  return saved;
+}
+function addHinduToVocab(id){const r=upsertHinduVocab_(id,{added:true});try{captureHinduInMyWords_(id)}catch(e){}return r;}
 function getSavedHinduQuestionIds(){
   const s=ensureHinduVocabSheet_(); if(s.getLastRow()<2)return[];
   return s.getRange(2,1,s.getLastRow()-1,6).getValues().filter(r=>truthy_(r[4])&&truthy_(r[5])&&String(r[1]||'').trim()).map(r=>String(r[1]).trim());
