@@ -14,9 +14,6 @@ const EPFast=window.EPFast=(()=>{
     secondary.forEach(([k,fn],i)=>setTimeout(()=>fetch(k,fn).catch(()=>{}),650+i*120));
   }
 
-  // Unified quiz-launch UX. The capture-phase listener runs before each module's
-  // click handler, so the user gets immediate feedback even when Apps Script
-  // needs several seconds to prepare a batch.
   let loadingTimer=null;
   function ensureQuizLoader(){
     let v=document.getElementById('compactQuizLoading');
@@ -29,13 +26,10 @@ const EPFast=window.EPFast=(()=>{
     }
     return v;
   }
-  function showQuizLoading(label){
-    const v=ensureQuizLoader(),t=document.getElementById('compactQuizLoadingText');
-    if(t)t.textContent=label||'Loading Quiz…';v.classList.remove('hidden');
-    clearTimeout(loadingTimer);loadingTimer=setTimeout(hideQuizLoading,15000);
-  }
+  function showQuizLoading(label){const v=ensureQuizLoader(),t=document.getElementById('compactQuizLoadingText');if(t)t.textContent=label||'Loading Quiz…';v.classList.remove('hidden');clearTimeout(loadingTimer);loadingTimer=setTimeout(hideQuizLoading,15000)}
   function hideQuizLoading(){clearTimeout(loadingTimer);document.getElementById('compactQuizLoading')?.classList.add('hidden')}
   function isQuizLaunch(el){
+    if(el&&el.closest&&el.closest('#countButtons'))return true;
     const code=String(el?.getAttribute?.('onclick')||'');
     return /(startDirect\s*\(|startHinduQuiz\s*\(|startNewPractice\s*\(|startDemand(?:Managed|Batch)?\s*\(|startSource(?:Managed)?\s*\(|EPTopic\.start\s*\(|EPNew\.start\s*\(|EPSource\.start\s*\(|EPSaved\.startStarred\s*\()/i.test(code);
   }
@@ -44,12 +38,12 @@ const EPFast=window.EPFast=(()=>{
     if(/day\s*\d+/i.test(txt))return 'Loading '+txt.replace(/·.*$/,'').trim()+'…';
     if(/hindu/i.test(txt))return 'Loading The Hindu Quiz…';
     if(/starred/i.test(txt))return 'Loading Starred Questions…';
+    if(el&&el.closest&&el.closest('#countButtons'))return 'Loading Practice…';
     return 'Loading Quiz…';
   }
   function wireQuizLoading(){
     document.addEventListener('click',e=>{const el=e.target.closest('button,[role="button"],a');if(el&&isQuizLaunch(el)&&!el.disabled)showQuizLoading(launchLabel(el))},true);
     const q=document.getElementById('quizView');if(q)new MutationObserver(()=>{if(!q.classList.contains('hidden'))hideQuizLoading()}).observe(q,{attributes:true,attributeFilter:['class']});
-    // Any error/empty-state toast means a quiz did not open, so remove the loader.
     setTimeout(()=>{if(typeof EPApp!=='undefined'&&EPApp.toast&&!EPApp.__quizLoaderToastWired){EPApp.__quizLoaderToastWired=true;const old=EPApp.toast;EPApp.toast=function(){hideQuizLoading();return old.apply(this,arguments)}}},0);
   }
 
