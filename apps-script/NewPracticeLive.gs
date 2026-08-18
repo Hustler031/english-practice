@@ -17,6 +17,7 @@ function newPracticeSource_(q,hinduIds,myIds){
   return src||sub||'Other';
 }
 function newPracticePermanentPool_(){
+  if(typeof reconcileReadyMyWordsFast_==='function'){try{reconcileReadyMyWordsFast_(false)}catch(e){}}
   const all=allQuestionsRaw_(),status=statusMap_(),hinduIds=new Set(typeof getSavedHinduQuestionIds==='function'?getSavedHinduQuestionIds():[]),myMeta=typeof getMyWordPracticeMeta_==='function'?getMyWordPracticeMeta_():{ids:typeof getMySavedWordQuestionIds==='function'?getMySavedWordQuestionIds():[],typeMap:{}},myIds=new Set(myMeta.ids||[]),explicitTypes=myMeta.typeMap||{},out=[],seen=new Set();
   all.forEach(q=>{if(!isActive_(q)||(status[q.id]&&status[q.id].mastered))return;const added=recentContentDate_(q),include=!!added||hinduIds.has(q.id)||myIds.has(q.id);if(include&&!seen.has(q.id)){seen.add(q.id);q.__npType=explicitTypes[q.id]&&typeof myWordTypeToNewPractice_==='function'?myWordTypeToNewPractice_(explicitTypes[q.id]):newPracticeType_(q);q.__npSource=newPracticeSource_(q,hinduIds,myIds);out.push(q)}});return out;
 }
