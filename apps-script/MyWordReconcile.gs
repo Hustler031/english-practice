@@ -50,7 +50,11 @@ function reconcileReadyMyWordsFast_(force){
       append.push(qh.map(k=>Object.prototype.hasOwnProperty.call(obj,k)?obj[k]:''));updates.push({row:r._row,qid});const q={id:qid,topic:obj.Topic,word:obj.Word,active:true};byCatWord.set(key,q);byId.set(qid,q);promoted++;
     });
     if(append.length)qs.getRange(qs.getLastRow()+1,1,append.length,qh.length).setValues(append);
-    if(updates.length){const cUpdated=myWordCol_(s,'Updated_At'),cStatus=myWordCol_(s,'Status'),cQid=myWordCol_(s,'Practice_Question_ID'),now=new Date();updates.forEach(u=>{s.getRange(u.row,cUpdated).setValue(now);s.getRange(u.row,cStatus).setValue('Added');s.getRange(u.row,cQid).setValue(u.qid)})}
+    if(updates.length){
+      const cUpdated=myWordCol_(s,'Updated_At'),cStatus=myWordCol_(s,'Status'),cQid=myWordCol_(s,'Practice_Question_ID');
+      if(cStatus===cUpdated+1&&cQid===cUpdated+2){const block=s.getRange(2,cUpdated,last-1,3),data=block.getValues(),now=new Date();updates.forEach(u=>{const i=u.row-2;data[i][0]=now;data[i][1]='Added';data[i][2]=u.qid});block.setValues(data)}
+      else{const now=new Date();updates.forEach(u=>{s.getRange(u.row,cUpdated).setValue(now);s.getRange(u.row,cStatus).setValue('Added');s.getRange(u.row,cQid).setValue(u.qid)})}
+    }
     if(append.length){SpreadsheetApp.flush();clearQuestionCache_()}
     cache.put(MYWORD_RECONCILE_GATE,'1',MYWORD_RECONCILE_SECONDS);
     return{ok:true,checked:rows.length,candidates:candidates.length,promoted,relinked,failed:failures.length,failures,remaining:failures.length};
