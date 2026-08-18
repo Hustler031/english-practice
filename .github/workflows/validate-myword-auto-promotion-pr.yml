@@ -1,0 +1,34 @@
+name: Validate Saved Word Auto Promotion PR
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps-script/**'
+      - '.github/scripts/validate-english.cjs'
+      - '.github/workflows/validate-myword-auto-promotion-pr.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validate full English app contracts
+        run: node .github/scripts/validate-english.cjs
+      - name: Validate background-promotion performance guards
+        shell: bash
+        run: |
+          set -e
+          grep -F "everyMinutes(1)" apps-script/MyWordReconcile.gs
+          grep -F "hasReadyMyWordsNeedingPromotion_" apps-script/MyWordReconcile.gs
+          grep -F "no-ready-backlog" apps-script/MyWordReconcile.gs
+          grep -F "LockService.getScriptLock()" apps-script/MyWordReconcile.gs
+          grep -F "block.setValues(data)" apps-script/MyWordReconcile.gs
+          grep -F "reconcileReadyMyWordsFast_(false)" apps-script/NewPracticeLive.gs
