@@ -1,0 +1,34 @@
+name: Validate My Word Reconciliation PR
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps-script/**'
+      - '.github/scripts/validate-english.cjs'
+      - '.github/workflows/validate-myword-reconcile-pr.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validate full English app contracts
+        run: node .github/scripts/validate-english.cjs
+      - name: Validate reconciliation performance guards
+        shell: bash
+        run: |
+          set -e
+          grep -F "LockService.getScriptLock()" apps-script/MyWordReconcile.gs
+          grep -F "MYWORD_RECONCILE_SECONDS=45" apps-script/MyWordReconcile.gs
+          grep -F "block.setValues(data)" apps-script/MyWordReconcile.gs
+          grep -F "reconcileReadyMyWordsFast_(false)" apps-script/NewPracticeLive.gs
+          grep -F "Practice_Question_ID" apps-script/MyWordReconcile.gs
+          grep -F "GPT_Status" apps-script/MyWordReconcile.gs
