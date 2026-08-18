@@ -23,7 +23,7 @@ need(code,"spreadsheetId: '1IgUGQZu6sp1STBCX6gyI5pHayLGVpmYYrkKGYdwkjak'",'Live 
 ['function getBootstrapV2(','function getDailyBatchV2(','syncDailyCompletionsFromPerformanceV2_','pendingFromPrevious',"const DAILY_V2_HISTORY='Daily_History'"].forEach(x=>need(daily,x,x));
 ['function getDemandBatches(','function getDemandPracticeBatch(','function submitHinduAnswer(','function getHinduPracticeProgress('].forEach(x=>need(demand,x,x));
 ['function getNewPracticeHub(','function getNewPracticeBatch(','function getNewPracticeItems(','MY_SAVED_WORDS'].forEach(x=>need(np,x,x));
-['function getNewPracticeHubLive(','function getNewPracticeBatchLive(','function newPracticePermanentPool_','function newPracticeType_','SPELL','Spelling Mistakes','function newPracticeSource_','newPracticeNewWordOrder_','getMyWordPracticeTypeMap_'].forEach(x=>need(npl,x,x));
+['function getNewPracticeHubLive(','function getNewPracticeBatchLive(','function newPracticePermanentPool_','function newPracticeType_','SPELL','Spelling Mistakes','function newPracticeSource_','newPracticeNewWordOrder_','getMyWordPracticeMeta_'].forEach(x=>need(npl,x,x));
 ['function getSourceHub(','function getSourcePracticeBatch(','function getSourceItems(','THE_HINDU'].forEach(x=>need(source,x,x));
 ['function getTopicPracticeHub(','function getTopicPracticeBatch(','function getTopicPracticeItems(','started','newCount'].forEach(x=>need(topic,x,x));
 ['function addHinduToVocab(','function getSavedHinduQuestionIds(','captureHinduInMyWords_'].forEach(x=>need(hindu,x,x));
@@ -31,7 +31,7 @@ need(dash,'function getTodayActivityCount(','Today activity API');
 ['function getEncounterProgress(','todayNew','categories'].forEach(x=>need(progress,x,x));
 ['function captureMyWord(','Pending GPT','function setMyWordGPTEnrichment(','promoteMyWordToPractice(id)','function getPendingMyWords(','function getStarredQuestionList(','function promoteMyWordToPractice(','My_Words'].forEach(x=>need(saved,x,x));
 ['function getStarredRevisionHub(','function getStarredRevisionGroup(','function getStarredRevisionItems(','function getStarredRevisionBatch(','function logStarredRevisionFromUi(','Starred_Revision_Log',"label:'Days '","label:'Month '"].forEach(x=>need(starred,x,x));
-['function captureMyWordTyped(','My_Word_Types','Spelling Mistakes','One Word Substitution','Phrasal Verbs','Idioms & Phrases','function getMyWordPracticeTypeMap_','function myWordTypeToNewPractice_'].forEach(x=>need(typed,x,x));
+['function captureMyWordTyped(','My_Word_Types','Spelling Mistakes','One Word Substitution','Phrasal Verbs','Idioms & Phrases','function getMyWordPracticeMeta_','function getMyWordPracticeTypeMap_','function myWordTypeToNewPractice_'].forEach(x=>need(typed,x,x));
 ['function getStarredRevisionQuestionDetail(','readOnly:true'].forEach(x=>need(srdetail,x,x));
 ['id="homeView"','id="dailyStartBtn"','id="todayDoneBadge"',"include('FastUI')","include('TopicUI')","include('NewPracticeUI')","include('SavedUI')","include('MyWordsFinalUI')","include('StarredRevisionUI')","include('AddWordTypeUI')","include('StarredViewDetailUI')",'EPMyWordsUX.quickAdd()','EPStarredRevision.open()','Starred Revision','Loading daily plan…','onclick="EPApp.openSaved()"','onclick="EPSaved.openCapture()"'].forEach(x=>need(index,x,x));
 ['getBootstrapV2','getDailyBatchV2','Complete Previous Target','Fresh-first:'].forEach(x=>need(app,x,x));
