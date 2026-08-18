@@ -1,0 +1,17 @@
+<script>
+(()=>{
+  if(typeof EPQuiz==='undefined'||EPQuiz.__starredRevisionWrapped)return;
+  const original=EPQuiz.toggleMark;
+  EPQuiz.toggleMark=function(){
+    const id=String(document.getElementById('qId')?.textContent||'').trim();
+    original.apply(EPQuiz,arguments);
+    const expected=!!document.getElementById('markBtn')?.classList.contains('state-marked');
+    if(id)setTimeout(()=>{
+      const current=!!document.getElementById('markBtn')?.classList.contains('state-marked');
+      if(current!==expected)return;
+      if(typeof EPApp!=='undefined'&&EPApp.call)EPApp.call('logStarredRevisionFromUi',id,expected).catch(()=>{});
+    },900);
+  };
+  EPQuiz.__starredRevisionWrapped=true;
+})();
+</script>
