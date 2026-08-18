@@ -30,7 +30,7 @@ need(code,"spreadsheetId: '1IgUGQZu6sp1STBCX6gyI5pHayLGVpmYYrkKGYdwkjak'",'Live 
 need(dash,'function getTodayActivityCount(','Today activity API');
 ['function getEncounterProgress(','todayNew','categories'].forEach(x=>need(progress,x,x));
 ['function captureMyWord(','Pending GPT','function setMyWordGPTEnrichment(','promoteMyWordToPractice(id)','function getPendingMyWords(','function getStarredQuestionList(','function promoteMyWordToPractice(','My_Words'].forEach(x=>need(saved,x,x));
-['function getStarredRevisionHub(','function getStarredRevisionGroup(','function getStarredRevisionItems(','function getStarredRevisionBatch(','function logStarredRevisionFromUi(','Starred_Revision_Log','Days '+"'"+'','Month '+"'"+''].forEach(x=>need(starred,x,x));
+['function getStarredRevisionHub(','function getStarredRevisionGroup(','function getStarredRevisionItems(','function getStarredRevisionBatch(','function logStarredRevisionFromUi(','Starred_Revision_Log',"label:'Days '","label:'Month '"].forEach(x=>need(starred,x,x));
 ['id="homeView"','id="dailyStartBtn"','id="todayDoneBadge"',"include('FastUI')","include('TopicUI')","include('NewPracticeUI')","include('SavedUI')","include('MyWordsFinalUI')","include('StarredRevisionUI')",'EPMyWordsUX.quickAdd()','EPStarredRevision.open()','Starred Revision','Loading daily plan…','onclick="EPApp.openSaved()"','onclick="EPSaved.openCapture()"'].forEach(x=>need(index,x,x));
 ['getBootstrapV2','getDailyBatchV2','Complete Previous Target','Fresh-first:'].forEach(x=>need(app,x,x));
 ["EPApp.call('submitAnswer'",'function next()','function pause()'].forEach(x=>need(quiz,x,x));
