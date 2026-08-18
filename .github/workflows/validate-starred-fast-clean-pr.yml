@@ -1,0 +1,36 @@
+name: Validate Starred Fast Clean PR
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps-script/StarredRevisionUI.html'
+      - '.github/workflows/validate-starred-fast-clean-pr.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validate full frontend and backend contracts
+        run: node .github/scripts/validate-english.cjs
+      - name: Validate Starred Revision fast/cache and collapsed UI contract
+        shell: bash
+        run: |
+          set -e
+          f='apps-script/StarredRevisionUI.html'
+          grep -F "CACHE_KEY='starred:hub'" "$f"
+          grep -F "EPFast.get(CACHE_KEY)" "$f"
+          grep -F "EPFast.set(CACHE_KEY,fresh)" "$f"
+          grep -F "setTimeout(prefetch,2200)" "$f"
+          grep -F "sr-group-panel hidden" "$f"
+          grep -F "function toggleDay(" "$f"
+          grep -F "EPStarredRevision.toggleGroup" "$f"
+          grep -F "refreshSilent(true)" "$f"
