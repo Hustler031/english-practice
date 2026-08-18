@@ -1,5 +1,33 @@
 const MYWORD_RECONCILE_GATE='EP_MYWORD_RECONCILE_GATE_V2';
 const MYWORD_RECONCILE_SECONDS=45;
+const MYWORD_RECONCILE_TRIGGER_PROP='EP_MYWORD_RECONCILE_TRIGGER_V1';
+const MYWORD_RECONCILE_TRIGGER_FN='reconcileReadyMyWordsTrigger_';
+
+function ensureMyWordReconcileTrigger_(){
+  const props=PropertiesService.getScriptProperties();
+  if(props.getProperty(MYWORD_RECONCILE_TRIGGER_PROP)==='1')return true;
+  try{
+    const exists=ScriptApp.getProjectTriggers().some(t=>t.getHandlerFunction()===MYWORD_RECONCILE_TRIGGER_FN);
+    if(!exists)ScriptApp.newTrigger(MYWORD_RECONCILE_TRIGGER_FN).timeBased().everyMinutes(1).create();
+    props.setProperty(MYWORD_RECONCILE_TRIGGER_PROP,'1');
+    return true;
+  }catch(e){return false}
+}
+
+function hasReadyMyWordsNeedingPromotion_(){
+  const s=myWordsSheet_(),last=s.getLastRow();if(last<2)return false;
+  const width=s.getLastColumn(),h=s.getRange(1,1,1,width).getValues()[0].map(x=>String(x||'').trim()),iActive=h.indexOf('Active'),iGPT=h.indexOf('GPT_Status'),iMeaning=h.indexOf('Meaning'),iQid=h.indexOf('Practice_Question_ID');
+  if([iActive,iGPT,iMeaning,iQid].some(i=>i<0))return false;
+  const maxI=Math.max(iActive,iGPT,iMeaning,iQid),vals=s.getRange(2,1,last-1,maxI+1).getValues();
+  return vals.some(r=>truthy_(r[iActive])&&String(r[iGPT]||'').trim().toLowerCase()==='ready'&&String(r[iMeaning]||'').trim()&&!String(r[iQid]||'').trim());
+}
+
+function reconcileReadyMyWordsTrigger_(){
+  try{
+    if(!hasReadyMyWordsNeedingPromotion_())return{ok:true,skipped:true,reason:'no-ready-backlog'};
+    return reconcileReadyMyWordsFast_(true);
+  }catch(e){return{ok:false,error:String(e&&e.message||e)}}
+}
 
 function inferMyWordTypeForReconcile_(row,explicit){
   if(explicit)return normalizeMyWordType_(explicit);
@@ -30,6 +58,7 @@ function myWordQuestionValues_(row,type,qid){
 }
 
 function reconcileReadyMyWordsFast_(force){
+  ensureMyWordReconcileTrigger_();
   const cache=CacheService.getScriptCache();
   if(!force&&cache.get(MYWORD_RECONCILE_GATE))return{ok:true,skipped:true};
   const lock=LockService.getScriptLock();if(!lock.tryLock(120))return{ok:true,busy:true};
