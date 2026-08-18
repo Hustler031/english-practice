@@ -35,6 +35,7 @@
         <button class="btn ghost quick-btn accent-card" onclick="EPApp.openHindu()"><span>📰</span><span><b>The Hindu – Today</b><small id="hinduCount">Loading…</small></span></button>
         <button class="btn ghost quick-btn" onclick="EPApp.openNewPractice()"><span>✨</span><span><b>New Practice</b><small>Recently added content by category</small></span></button>
         <button class="btn ghost quick-btn" onclick="EPApp.pickCount('random')"><span>🎲</span><span><b>Random Practice</b><small>Any active non-mastered question</small></span></button>
+        <button class="btn ghost quick-btn" onclick="EPStarredRevision.open()"><span>⭐</span><span><b>Starred Revision</b><small>Day-wise focus · 10-day blocks · 30-day months</small></span></button>
         <button class="btn ghost quick-btn" onclick="EPApp.pickCount('recall')"><span>↻</span><span><b>Recall Check</b><small id="recallCount">Seen-before content</small></span></button>
       </div>
     </section>
@@ -70,5 +71,6 @@
 <?!= include('DashboardUI'); ?>
 <?!= include('SavedUI'); ?>
 <?!= include('MyWordsFinalUI'); ?>
+<?!= include('StarredRevisionUI'); ?>
 </body>
 </html>
