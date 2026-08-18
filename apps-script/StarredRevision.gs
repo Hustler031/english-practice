@@ -1,15 +1,16 @@
 const STARRED_REVISION_LOG='Starred_Revision_Log';
+const STARRED_REVISION_SEEDED='STARRED_REVISION_SEEDED_V1';
 
 function starredRevisionLogSheet_(){
   const ss=ss_();let s=ss.getSheetByName(STARRED_REVISION_LOG);
   if(!s){s=ss.insertSheet(STARRED_REVISION_LOG);s.getRange(1,1,1,5).setValues([['Question_ID','Event_At','Starred_Date','Day_No','Action']]);s.setFrozenRows(1);}
   return s;
 }
-function logStarredRevisionEvent_(questionId,marked){
-  const id=String(questionId||'').trim();if(!id)return;
-  const now=new Date(),date=todayKey_(),day=typeof dailyDayNoV2_==='function'?dailyDayNoV2_(date):1;
+function logStarredRevisionEventAt_(questionId,marked,when){
+  const id=String(questionId||'').trim();if(!id)return;const now=when instanceof Date?when:new Date(),date=dateKey_(now)||todayKey_(),day=typeof dailyDayNoV2_==='function'?dailyDayNoV2_(date):1;
   starredRevisionLogSheet_().appendRow([id,now,date,day,marked?'STAR':'UNSTAR']);
 }
+function logStarredRevisionEvent_(questionId,marked){logStarredRevisionEventAt_(questionId,marked,new Date());}
 function logStarredRevisionFromUi(questionId,marked){
   let id=String(questionId||'').trim();if(!id)return {ok:false};
   if(/^HINDU_/.test(id)&&typeof resolveHinduQuestionId_==='function')id=resolveHinduQuestionId_(id)||id;
@@ -27,16 +28,28 @@ function starredRevisionLegacyDates_(){
   vals.slice(1).forEach(r=>{if(!truthy_(r[mi]))return;const id=String(r[qi]||'').trim(),d=r[ti] instanceof Date?r[ti]:new Date(r[ti]);if(!id||isNaN(d))return;if(!out[id]||d<out[id])out[id]=d;});
   return out;
 }
+function ensureStarredRevisionSeed_(){
+  const props=PropertiesService.getScriptProperties();if(props.getProperty(STARRED_REVISION_SEEDED)==='1')return;
+  const lock=LockService.getScriptLock();if(!lock.tryLock(5000))return;
+  try{
+    if(props.getProperty(STARRED_REVISION_SEEDED)==='1')return;
+    const s=starredRevisionLogSheet_(),existing=new Set();if(s.getLastRow()>1)s.getRange(2,1,s.getLastRow()-1,1).getValues().forEach(r=>existing.add(String(r[0]||'').trim()));
+    const legacy=starredRevisionLegacyDates_(),status=statusMap_(),rows=[];
+    Object.keys(status).forEach(id=>{const st=status[id]||{},wasStarred=Object.prototype.hasOwnProperty.call(legacy,id)||isStarredStatus_(st);if(!wasStarred||existing.has(id))return;const d=legacy[id]||new Date(),date=dateKey_(d)||todayKey_(),day=typeof dailyDayNoV2_==='function'?dailyDayNoV2_(date):1;rows.push([id,d,date,day,'STAR']);});
+    if(rows.length)s.getRange(s.getLastRow()+1,1,rows.length,5).setValues(rows);
+    props.setProperty(STARRED_REVISION_SEEDED,'1');
+  }finally{lock.releaseLock();}
+}
 function starredRevisionIndex_(){
+  ensureStarredRevisionSeed_();
   const status=statusMap_(),all=allQuestions_(),qmap=Object.fromEntries(all.map(q=>[q.id,q])),events={},s=starredRevisionLogSheet_();
   if(s.getLastRow()>1)s.getRange(2,1,s.getLastRow()-1,5).getValues().forEach(r=>{const id=String(r[0]||'').trim();if(!id)return;const d=r[1] instanceof Date?r[1]:new Date(r[1]);if(!events[id]||(!isNaN(d)&&d>=events[id].eventAt))events[id]={eventAt:isNaN(d)?new Date(0):d,date:dateKey_(r[2])||dateKey_(d),day:Number(r[3]||0),action:String(r[4]||'').toUpperCase()};});
-  const legacy=starredRevisionLegacyDates_(),rows=[];
+  const rows=[];
   Object.keys(qmap).forEach(id=>{
-    const st=status[id]||{},ev=events[id],legacyDate=legacy[id],currentlyStarred=isStarredStatus_(st),mastered=!!st.mastered;
-    const ever=!!ev||!!legacyDate||currentlyStarred;if(!ever)return;
+    const st=status[id]||{},ev=events[id],currentlyStarred=isStarredStatus_(st),mastered=!!st.mastered;
+    const ever=!!ev||currentlyStarred;if(!ever)return;
     const active=ev?ev.action!=='UNSTAR':currentlyStarred;if(!active&&!mastered)return;
-    let d=ev&&ev.date?ev.date:(legacyDate?dateKey_(legacyDate):todayKey_()),day=ev&&ev.day?ev.day:(typeof dailyDayNoV2_==='function'?dailyDayNoV2_(d):1);
-    if(!day||day<1)day=1;
+    let d=ev&&ev.date?ev.date:todayKey_(),day=ev&&ev.day?ev.day:(typeof dailyDayNoV2_==='function'?dailyDayNoV2_(d):1);if(!day||day<1)day=1;
     const q=qmap[id];rows.push({id,day,date:d,starred:active,mastered,weak:isWeakStatus_(st),attempts:Number(st.attempts||0),word:q.word||'',question:q.question||'',topic:q.topic||'',source:q.sourceFile||q.sourceId||''});
   });
   return rows;
