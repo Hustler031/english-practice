@@ -9,10 +9,11 @@ function newPracticeType_(q){
 }
 function newPracticeTypeName_(id){return({VOC:'Vocabulary',IDIOM:'Idioms & Phrases',PHRASAL:'Phrasal Verbs',OWS:'One Word Substitution',SPELL:'Spelling Mistakes',OTHER:'Other'})[id]||newPracticeCategoryName_(id,id)}
 function newPracticeSource_(q,hinduIds,myIds){
-  if(myIds&&myIds.has(q.id))return'My Saved Words';if(hinduIds&&hinduIds.has(q.id))return'The Hindu';
-  const sub=String(q.subtopic||''),src=String(q.sourceFile||q.sourceId||'');
-  if(/english\s*madhyam/i.test(sub)||/english\s*madhyam/i.test(src))return'English Madhyam';
-  if(/handwritten/i.test(src)||/handwritten/i.test(sub))return'Handwritten Notes';
+  if(myIds&&myIds.has(q.id))return'My Saved Words';
+  const sub=String(q.subtopic||''),src=String(q.sourceFile||q.sourceId||''),both=(sub+' '+src).trim();
+  if((hinduIds&&hinduIds.has(q.id))||/\bthe\s+hindu\b/i.test(both)||/hindu\s+daily/i.test(both))return'The Hindu';
+  if(/english\s*madhyam/i.test(both))return'English Madhyam';
+  if(/handwritten/i.test(both))return'Handwritten Notes';
   return src||sub||'Other';
 }
 function newPracticePermanentPool_(){
