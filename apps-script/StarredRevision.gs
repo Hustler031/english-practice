@@ -6,8 +6,13 @@ function starredRevisionLogSheet_(){
   if(!s){s=ss.insertSheet(STARRED_REVISION_LOG);s.getRange(1,1,1,5).setValues([['Question_ID','Event_At','Starred_Date','Day_No','Action']]);s.setFrozenRows(1);}
   return s;
 }
+function starredRevisionActiveDate_(){
+  try{const rows=table_(EP.sheets.daily).filter(r=>String(r.Question_ID||'').trim());if(rows.length){const k=dateKey_(rows[0].Quiz_Date);if(k)return k;}}catch(e){}
+  return todayKey_();
+}
+function starredRevisionActiveDay_(){const d=starredRevisionActiveDate_();return typeof dailyDayNoV2_==='function'?dailyDayNoV2_(d):1;}
 function logStarredRevisionEventAt_(questionId,marked,when){
-  const id=String(questionId||'').trim();if(!id)return;const now=when instanceof Date?when:new Date(),date=dateKey_(now)||todayKey_(),day=typeof dailyDayNoV2_==='function'?dailyDayNoV2_(date):1;
+  const id=String(questionId||'').trim();if(!id)return;const now=when instanceof Date?when:new Date(),date=starredRevisionActiveDate_(),day=starredRevisionActiveDay_();
   starredRevisionLogSheet_().appendRow([id,now,date,day,marked?'STAR':'UNSTAR']);
 }
 function logStarredRevisionEvent_(questionId,marked){logStarredRevisionEventAt_(questionId,marked,new Date());}
@@ -35,7 +40,7 @@ function ensureStarredRevisionSeed_(){
     if(props.getProperty(STARRED_REVISION_SEEDED)==='1')return;
     const s=starredRevisionLogSheet_(),existing=new Set();if(s.getLastRow()>1)s.getRange(2,1,s.getLastRow()-1,1).getValues().forEach(r=>existing.add(String(r[0]||'').trim()));
     const legacy=starredRevisionLegacyDates_(),status=statusMap_(),rows=[];
-    Object.keys(status).forEach(id=>{const st=status[id]||{},wasStarred=Object.prototype.hasOwnProperty.call(legacy,id)||isStarredStatus_(st);if(!wasStarred||existing.has(id))return;const d=legacy[id]||new Date(),date=dateKey_(d)||todayKey_(),day=typeof dailyDayNoV2_==='function'?dailyDayNoV2_(date):1;rows.push([id,d,date,day,'STAR']);});
+    Object.keys(status).forEach(id=>{const st=status[id]||{},wasStarred=Object.prototype.hasOwnProperty.call(legacy,id)||isStarredStatus_(st);if(!wasStarred||existing.has(id))return;const d=legacy[id]||new Date(),date=legacy[id]?(dateKey_(d)||todayKey_()):starredRevisionActiveDate_(),day=legacy[id]&&typeof dailyDayNoV2_==='function'?dailyDayNoV2_(date):starredRevisionActiveDay_();rows.push([id,d,date,day,'STAR']);});
     if(rows.length)s.getRange(s.getLastRow()+1,1,rows.length,5).setValues(rows);
     props.setProperty(STARRED_REVISION_SEEDED,'1');
   }finally{lock.releaseLock();}
@@ -49,7 +54,7 @@ function starredRevisionIndex_(){
     const st=status[id]||{},ev=events[id],currentlyStarred=isStarredStatus_(st),mastered=!!st.mastered;
     const ever=!!ev||currentlyStarred;if(!ever)return;
     const active=ev?ev.action!=='UNSTAR':currentlyStarred;if(!active&&!mastered)return;
-    let d=ev&&ev.date?ev.date:todayKey_(),day=ev&&ev.day?ev.day:(typeof dailyDayNoV2_==='function'?dailyDayNoV2_(d):1);if(!day||day<1)day=1;
+    let d=ev&&ev.date?ev.date:starredRevisionActiveDate_(),day=ev&&ev.day?ev.day:starredRevisionActiveDay_();if(!day||day<1)day=1;
     const q=qmap[id];rows.push({id,day,date:d,starred:active,mastered,weak:isWeakStatus_(st),attempts:Number(st.attempts||0),word:q.word||'',question:q.question||'',topic:q.topic||'',source:q.sourceFile||q.sourceId||''});
   });
   return rows;
@@ -64,7 +69,7 @@ function starredRevisionHierarchy_(rows,currentDay){
   for(let month=currentMonth-1;month>=1;month--){const start=(month-1)*30+1,end=month*30,part=rows.filter(x=>x.day>=start&&x.day<=end),st=starredRevisionStats_(part);if(st.starred)groups.push({type:'month',label:'Month '+month+' · Days '+start+'–'+end,fromDay:start,toDay:end,stats:st,expanded:false});}
   return groups;
 }
-function getStarredRevisionHub(){const rows=starredRevisionIndex_(),currentDay=typeof dailyDayNoV2_==='function'?dailyDayNoV2_(todayKey_()):1;return {currentDay,stats:starredRevisionStats_(rows),groups:starredRevisionHierarchy_(rows,currentDay)};}
+function getStarredRevisionHub(){const rows=starredRevisionIndex_(),currentDay=starredRevisionActiveDay_();return {currentDay,stats:starredRevisionStats_(rows),groups:starredRevisionHierarchy_(rows,currentDay)};}
 function getStarredRevisionGroup(fromDay,toDay){const rows=starredRevisionIndex_().filter(x=>x.day>=Number(fromDay)&&x.day<=Number(toDay)),days=[];for(let d=Number(toDay);d>=Number(fromDay);d--){const part=rows.filter(x=>x.day===d),st=starredRevisionStats_(part);if(st.starred)days.push({label:'Day '+d,fromDay:d,toDay:d,stats:st});}return {stats:starredRevisionStats_(rows),days};}
 function getStarredRevisionItems(scope,kind){const sc=starredRevisionScope_(scope),mode=String(kind||'all').toLowerCase();return starredRevisionIndex_().filter(x=>x.day>=sc.fromDay&&x.day<=sc.toDay).filter(x=>mode==='mastered'?x.mastered:true).sort((a,b)=>b.day-a.day||String(a.word||a.id).localeCompare(String(b.word||b.id)));}
 function getStarredRevisionBatch(scope,kind,count){
