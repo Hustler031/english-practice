@@ -10,6 +10,12 @@ function logStarredRevisionEvent_(questionId,marked){
   const now=new Date(),date=todayKey_(),day=typeof dailyDayNoV2_==='function'?dailyDayNoV2_(date):1;
   starredRevisionLogSheet_().appendRow([id,now,date,day,marked?'STAR':'UNSTAR']);
 }
+function logStarredRevisionFromUi(questionId,marked){
+  let id=String(questionId||'').trim();if(!id)return {ok:false};
+  if(/^HINDU_/.test(id)&&typeof resolveHinduQuestionId_==='function')id=resolveHinduQuestionId_(id)||id;
+  if(!/^HINDU_/.test(id))logStarredRevisionEvent_(id,!!marked);
+  return {ok:true,questionId:id,marked:!!marked};
+}
 function setMarkedAndLog(questionId,marked){const r=setMarked(questionId,marked);try{logStarredRevisionEvent_(questionId,!!marked)}catch(e){}return r;}
 function setHinduMarkedAndLog(id,marked){const r=setHinduMarked(id,marked);try{if(r&&r.questionId)logStarredRevisionEvent_(r.questionId,!!marked)}catch(e){}return r;}
 
@@ -27,8 +33,8 @@ function starredRevisionIndex_(){
   const legacy=starredRevisionLegacyDates_(),rows=[];
   Object.keys(qmap).forEach(id=>{
     const st=status[id]||{},ev=events[id],legacyDate=legacy[id],currentlyStarred=isStarredStatus_(st),mastered=!!st.mastered;
-    let ever=!!ev||!!legacyDate||currentlyStarred;if(!ever)return;
-    let active=ev?ev.action!=='UNSTAR':currentlyStarred;if(!active&&!mastered)return;
+    const ever=!!ev||!!legacyDate||currentlyStarred;if(!ever)return;
+    const active=ev?ev.action!=='UNSTAR':currentlyStarred;if(!active&&!mastered)return;
     let d=ev&&ev.date?ev.date:(legacyDate?dateKey_(legacyDate):todayKey_()),day=ev&&ev.day?ev.day:(typeof dailyDayNoV2_==='function'?dailyDayNoV2_(d):1);
     if(!day||day<1)day=1;
     const q=qmap[id];rows.push({id,day,date:d,starred:active,mastered,weak:isWeakStatus_(st),attempts:Number(st.attempts||0),word:q.word||'',question:q.question||'',topic:q.topic||'',source:q.sourceFile||q.sourceId||''});
