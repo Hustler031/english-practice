@@ -1,0 +1,41 @@
+name: Validate My Word Routing and Spinner PR
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps-script/**'
+      - '.github/scripts/validate-english.cjs'
+      - '.github/workflows/validate-myword-routing-spinner-pr.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validate full frontend and backend contracts
+        run: node .github/scripts/validate-english.cjs
+      - name: Validate saved-word destination routing
+        shell: bash
+        run: |
+          set -e
+          grep -F "function getMyWordCaptureType_(" apps-script/MyWordTypes.gs
+          grep -F "function myWordPracticeSpec_(" apps-script/MyWordTypes.gs
+          grep -F "Topic:spec.topic" apps-script/Saved.gs
+          grep -F "Question_Type:spec.questionType" apps-script/Saved.gs
+          grep -F "canonicalCategory_(q.topic)===targetCategory" apps-script/Saved.gs
+          grep -F "refreshSilent(true)" apps-script/NewPracticeUI.html
+      - name: Validate loader spinner animation
+        shell: bash
+        run: |
+          set -e
+          grep -F "function ensureSpin()" apps-script/StarredRevisionUI.html
+          grep -F "@keyframes epLoadSpin" apps-script/StarredRevisionUI.html
+          grep -F "showLoad(){ensureSpin();" apps-script/StarredRevisionUI.html
