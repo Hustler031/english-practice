@@ -1,10 +1,21 @@
 const STARRED_REVISION_LOG='Starred_Revision_Log';
 const STARRED_REVISION_SEEDED='STARRED_REVISION_SEEDED_V1';
+const STARRED_REVISION_DIFFICULT='Starred_Revision_Difficult';
 
 function starredRevisionLogSheet_(){
   const ss=ss_();let s=ss.getSheetByName(STARRED_REVISION_LOG);
   if(!s){s=ss.insertSheet(STARRED_REVISION_LOG);s.getRange(1,1,1,5).setValues([['Question_ID','Event_At','Starred_Date','Day_No','Action']]);s.setFrozenRows(1);}
   return s;
+}
+function starredRevisionDifficultSheet_(){
+  const ss=ss_();let s=ss.getSheetByName(STARRED_REVISION_DIFFICULT);
+  if(!s){s=ss.insertSheet(STARRED_REVISION_DIFFICULT);s.getRange(1,1,1,3).setValues([['Question_ID','Difficult','Updated_At']]);s.setFrozenRows(1);}
+  return s;
+}
+function starredRevisionDifficultMap_(){
+  const out={},s=starredRevisionDifficultSheet_();
+  if(s.getLastRow()>1)s.getRange(2,1,s.getLastRow()-1,2).getValues().forEach(r=>{const id=String(r[0]||'').trim();if(id)out[id]=truthy_(r[1]);});
+  return out;
 }
 function starredRevisionActiveDate_(){
   try{const rows=table_(EP.sheets.daily).filter(r=>String(r.Question_ID||'').trim());if(rows.length){const k=dateKey_(rows[0].Quiz_Date);if(k)return k;}}catch(e){}
@@ -47,7 +58,7 @@ function ensureStarredRevisionSeed_(){
 }
 function starredRevisionIndex_(){
   ensureStarredRevisionSeed_();
-  const status=statusMap_(),all=allQuestions_(),qmap=Object.fromEntries(all.map(q=>[q.id,q])),events={},s=starredRevisionLogSheet_();
+  const status=statusMap_(),all=allQuestions_(),qmap=Object.fromEntries(all.map(q=>[q.id,q])),difficult=starredRevisionDifficultMap_(),events={},s=starredRevisionLogSheet_();
   if(s.getLastRow()>1)s.getRange(2,1,s.getLastRow()-1,5).getValues().forEach(r=>{const id=String(r[0]||'').trim();if(!id)return;const d=r[1] instanceof Date?r[1]:new Date(r[1]);if(!events[id]||(!isNaN(d)&&d>=events[id].eventAt))events[id]={eventAt:isNaN(d)?new Date(0):d,date:dateKey_(r[2])||dateKey_(d),day:Number(r[3]||0),action:String(r[4]||'').toUpperCase()};});
   const rows=[];
   Object.keys(qmap).forEach(id=>{
@@ -55,12 +66,20 @@ function starredRevisionIndex_(){
     const ever=!!ev||currentlyStarred;if(!ever)return;
     const active=ev?ev.action!=='UNSTAR':currentlyStarred;if(!active&&!mastered)return;
     let d=ev&&ev.date?ev.date:starredRevisionActiveDate_(),day=ev&&ev.day?ev.day:starredRevisionActiveDay_();if(!day||day<1)day=1;
-    const q=qmap[id];rows.push({id,day,date:d,starred:active,mastered,weak:isWeakStatus_(st),attempts:Number(st.attempts||0),word:q.word||'',question:q.question||'',topic:q.topic||'',source:q.sourceFile||q.sourceId||''});
+    const q=qmap[id];rows.push({id,day,date:d,starred:active,mastered,difficult:!!difficult[id],weak:isWeakStatus_(st),attempts:Number(st.attempts||0),word:q.word||'',question:q.question||'',topic:q.topic||'',source:q.sourceFile||q.sourceId||''});
   });
   return rows;
 }
+function setStarredRevisionDifficult(questionId,difficult){
+  const id=String(questionId||'').trim();if(!id)return {ok:false};
+  const item=starredRevisionIndex_().find(x=>x.id===id);
+  if(!item||!item.starred||item.mastered)return {ok:false,reason:'not-active-starred'};
+  const s=starredRevisionDifficultSheet_(),row=findRow_(s,1,id),now=new Date(),value=!!difficult;
+  if(row>1)s.getRange(row,2,1,2).setValues([[value,now]]);else s.appendRow([id,value,now]);
+  return {ok:true,questionId:id,difficult:value};
+}
 function starredRevisionScope_(scope){scope=scope||{};const from=Math.max(1,Number(scope.fromDay||1)),to=Math.max(from,Number(scope.toDay||999999));return {fromDay:from,toDay:to};}
-function starredRevisionStats_(rows){const mastered=rows.filter(x=>x.mastered).length,focus=rows.filter(x=>x.starred&&!x.mastered).length;return {starred:rows.length,mastered,focus};}
+function starredRevisionStats_(rows){const mastered=rows.filter(x=>x.mastered).length,focus=rows.filter(x=>x.starred&&!x.mastered).length,difficult=rows.filter(x=>x.starred&&!x.mastered&&x.difficult).length;return {starred:rows.length,mastered,focus,difficult};}
 function starredRevisionHierarchy_(rows,currentDay){
   const groups=[],currentMonth=Math.floor((currentDay-1)/30)+1,currentMonthStart=(currentMonth-1)*30+1,currentBlockStart=Math.floor((currentDay-1)/10)*10+1;
   const dayStats=d=>starredRevisionStats_(rows.filter(x=>x.day===d));
@@ -71,13 +90,14 @@ function starredRevisionHierarchy_(rows,currentDay){
 }
 function getStarredRevisionHub(){const rows=starredRevisionIndex_(),currentDay=starredRevisionActiveDay_();return {currentDay,stats:starredRevisionStats_(rows),groups:starredRevisionHierarchy_(rows,currentDay)};}
 function getStarredRevisionGroup(fromDay,toDay){const rows=starredRevisionIndex_().filter(x=>x.day>=Number(fromDay)&&x.day<=Number(toDay)),days=[];for(let d=Number(toDay);d>=Number(fromDay);d--){const part=rows.filter(x=>x.day===d),st=starredRevisionStats_(part);if(st.starred)days.push({label:'Day '+d,fromDay:d,toDay:d,stats:st});}return {stats:starredRevisionStats_(rows),days};}
-function getStarredRevisionItems(scope,kind){const sc=starredRevisionScope_(scope),mode=String(kind||'all').toLowerCase();return starredRevisionIndex_().filter(x=>x.day>=sc.fromDay&&x.day<=sc.toDay).filter(x=>mode==='mastered'?x.mastered:true).sort((a,b)=>b.day-a.day||String(a.word||a.id).localeCompare(String(b.word||b.id)));}
+function getStarredRevisionItems(scope,kind){const sc=starredRevisionScope_(scope),mode=String(kind||'all').toLowerCase();return starredRevisionIndex_().filter(x=>x.day>=sc.fromDay&&x.day<=sc.toDay).filter(x=>mode==='mastered'?x.mastered:mode==='difficult'?x.starred&&!x.mastered&&x.difficult:true).sort((a,b)=>b.day-a.day||String(a.word||a.id).localeCompare(String(b.word||b.id)));}
 function getStarredRevisionBatch(scope,kind,count){
-  const sc=starredRevisionScope_(scope),mode=String(kind||'all').toLowerCase(),status=statusMap_(),byId=Object.fromEntries(starredRevisionIndex_().map(x=>[x.id,x]));
+  const sc=starredRevisionScope_(scope),mode=String(kind||'all').toLowerCase(),status=statusMap_(),index=starredRevisionIndex_(),byId=Object.fromEntries(index.map(x=>[x.id,x]));
   let pool=allQuestions_().filter(q=>{const x=byId[q.id];if(!x||x.day<sc.fromDay||x.day>sc.toDay)return false;if(mode==='mastered')return x.mastered;return x.starred&&!x.mastered&&isActive_(q);});
   if(mode==='weak')pool=pool.filter(q=>isWeakStatus_(status[q.id]||{}));
-  if(mode==='new')pool.sort((a,b)=>(byId[b.id]?.day||0)-(byId[a.id]?.day||0)||Number((status[a.id]||{}).attempts||0)-Number((status[b.id]||{}).attempts||0));
+  if(mode==='difficult')pool=pool.filter(q=>!!byId[q.id]?.difficult);
+  if(mode==='new'||mode==='difficult')pool.sort((a,b)=>(byId[b.id]?.day||0)-(byId[a.id]?.day||0)||Number((status[a.id]||{}).attempts||0)-Number((status[b.id]||{}).attempts||0));
   if(mode==='random'||mode==='weak')shuffle_(pool);
-  const n=Math.max(1,Math.min(100,Number(count||10)));if(['random','weak','new'].includes(mode))pool=pool.slice(0,n);
-  return pool.map(serveQuestion_);
+  const n=Math.max(1,Math.min(100,Number(count||10)));if(['random','weak','new','difficult'].includes(mode))pool=pool.slice(0,n);
+  return pool.map(q=>{const served=serveQuestion_(q);served.difficult=!!byId[q.id]?.difficult;return served;});
 }
