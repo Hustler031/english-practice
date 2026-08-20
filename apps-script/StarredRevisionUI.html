@@ -74,6 +74,7 @@ const EPStarredRevision=(()=>{
   EPQuiz.toggleMark=function(){
     const id=String(document.getElementById('qId')?.textContent||'').trim();
     originalToggleMark.apply(EPQuiz,arguments);
+    EPStarredRevision.syncDifficultButton();
     const expected=!!document.getElementById('markBtn')?.classList.contains('state-marked');
     if(id)setTimeout(()=>{
       const current=!!document.getElementById('markBtn')?.classList.contains('state-marked');
