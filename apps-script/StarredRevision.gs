@@ -96,8 +96,9 @@ function getStarredRevisionBatch(scope,kind,count){
   let pool=allQuestions_().filter(q=>{const x=byId[q.id];if(!x||x.day<sc.fromDay||x.day>sc.toDay)return false;if(mode==='mastered')return x.mastered;return x.starred&&!x.mastered&&isActive_(q);});
   if(mode==='weak')pool=pool.filter(q=>isWeakStatus_(status[q.id]||{}));
   if(mode==='difficult')pool=pool.filter(q=>!!byId[q.id]?.difficult);
-  if(mode==='new'||mode==='difficult')pool.sort((a,b)=>(byId[b.id]?.day||0)-(byId[a.id]?.day||0)||Number((status[a.id]||{}).attempts||0)-Number((status[b.id]||{}).attempts||0));
-  if(mode==='random'||mode==='weak')shuffle_(pool);
-  const n=Math.max(1,Math.min(100,Number(count||10)));if(['random','weak','new','difficult'].includes(mode))pool=pool.slice(0,n);
+  if(['all','weak','new','difficult','random'].includes(mode))shuffle_(pool);
+  if(mode!=='all'&&mode!=='difficult'){
+    const n=Math.max(1,Math.min(100,Number(count||10)));if(['random','weak','new'].includes(mode))pool=pool.slice(0,n);
+  }
   return pool.map(q=>{const served=serveQuestion_(q);served.difficult=!!byId[q.id]?.difficult;return served;});
 }
