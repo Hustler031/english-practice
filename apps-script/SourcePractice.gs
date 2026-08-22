@@ -49,14 +49,14 @@ function getSourceItems(sourceKey){
 
 function getSourcePracticeBatch(sourceKey,mode,count){
   const key=String(sourceKey||''),kind=String(mode||'all').toLowerCase(),requested=Math.max(1,Math.min(100,Number(count||20)));
-  const all=allQuestions_(),status=statusMap_();
+  const all=allQuestions_(),status=statusMap_(),stars=currentStarredMapV2_(),diff=centralDifficultMapV2_();
   let pool=all.filter(q=>isActive_(q)&&!(status[q.id]&&status[q.id].mastered)&&sourceAddedDate_(q)&&sourceQuestionMatches_(q,key));
   const descriptor=pool.length?sourceDescriptor_(pool[0]):null;
   if(kind==='weak'){pool=pool.filter(q=>sourceWeak_(status[q.id]||{}));shuffle_(pool);if(Number(count||0)>0)pool=pool.slice(0,requested);}
   else if(kind==='random'){
     const now=Date.now(),buckets=[[],[],[],[],[]];
-    pool.forEach(q=>{const st=status[q.id]||{},added=sourceAddedDate_(q),days=added?(now-added.getTime())/86400000:999;if(sourceWeak_(st))buckets[0].push(q);else if(days<=7)buckets[1].push(q);else if(st.marked||String(st.status||'').toLowerCase()==='marked')buckets[2].push(q);else if(Number(st.attempts||0)>0)buckets[3].push(q);else buckets[4].push(q);});
+    pool.forEach(q=>{const st=status[q.id]||{},added=sourceAddedDate_(q),days=added?(now-added.getTime())/86400000:999;if(sourceWeak_(st))buckets[0].push(q);else if(days<=7)buckets[1].push(q);else if(stars[q.id])buckets[2].push(q);else if(Number(st.attempts||0)>0)buckets[3].push(q);else buckets[4].push(q);});
     buckets.forEach(shuffle_);pool=buckets.flat().slice(0,requested);
   }
-  const served=pool.map(serveQuestion_);served.forEach(x=>{if(descriptor)x.source=descriptor.name;});return served;
+  const served=serveQuestionsCentralV3_(pool,{stars,diff});served.forEach(x=>{if(descriptor)x.source=descriptor.name;});return served;
 }

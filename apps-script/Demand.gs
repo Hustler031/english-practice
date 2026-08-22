@@ -55,7 +55,7 @@ function getDemandHubStats(){
 }
 
 function getDemandPracticeBatch(batchId,mode,count){
-  const id=String(batchId||'__ALL__').trim()||'__ALL__',kind=String(mode||'all').toLowerCase(),requested=Math.max(1,Math.min(100,Number(count||20))),status=statusMap_();
+  const id=String(batchId||'__ALL__').trim()||'__ALL__',kind=String(mode||'all').toLowerCase(),requested=Math.max(1,Math.min(100,Number(count||20))),status=statusMap_(),stars=currentStarredMapV2_(),diff=centralDifficultMapV2_();
   let pool=demandQuestionPool_(id);
   if(kind==='weak'){
     pool=pool.filter(x=>demandWeakOrStarted_(status[x.q.id]||{}));shuffle_(pool);
@@ -66,13 +66,13 @@ function getDemandPracticeBatch(batchId,mode,count){
       const weak=['weak','wrong'].includes(String(st.status||'').toLowerCase())||Number(st.wrong||0)>0;
       if(weak)buckets[0].push(x);
       else if(days<=7)buckets[1].push(x);
-      else if(st.marked||String(st.status||'').toLowerCase()==='marked')buckets[2].push(x);
+      else if(stars[q.id])buckets[2].push(x);
       else if(Number(st.attempts||0)>0)buckets[3].push(x);
       else buckets[4].push(x);
     });
     buckets.forEach(shuffle_);pool=buckets.flat().slice(0,requested);
   }
-  return pool.map(x=>serveQuestion_(x.q));
+  return serveQuestionsCentralV3_(pool.map(x=>x.q),{stars,diff});
 }
 
 function getDemandBatch(batchId){
@@ -105,7 +105,7 @@ function archiveDemandBatch(batchId){
 // Hindu practice is intentionally repeatable. Completion marks the first pass,
 // but never removes today's words from subsequent practice rounds.
 function getHinduQuizSynced(){
-  return getHinduQuiz();
+  return typeof getHinduQuizV2==='function'?getHinduQuizV2():getHinduQuiz();
 }
 
 function submitHinduAnswer(payload){
