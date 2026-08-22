@@ -1,10 +1,11 @@
 const fs=require('fs'),path=require('path'),vm=require('vm');
 const root=path.resolve(process.cwd(),'apps-script'),read=n=>fs.readFileSync(path.join(root,n),'utf8');
 const fail=m=>{console.error(`❌ ${m}`);process.exitCode=1},ok=m=>console.log(`✅ ${m}`),need=(t,n,l)=>t.includes(n)?ok(l):fail(`${l} — missing: ${n}`);
-for(const f of ['NavigationPolishUI.html','Index.html','SaveReliabilityUI.html','StarredOriginStable.gs'])if(!fs.existsSync(path.join(root,f)))fail(`Missing ${f}`);
+for(const f of ['NavigationPolishUI.html','RefreshStartupGuardUI.html','Index.html','SaveReliabilityUI.html','StarredOriginStable.gs'])if(!fs.existsSync(path.join(root,f)))fail(`Missing ${f}`);
 if(process.exitCode)process.exit(process.exitCode);
-const nav=read('NavigationPolishUI.html'),index=read('Index.html');
+const nav=read('NavigationPolishUI.html'),guard=read('RefreshStartupGuardUI.html'),index=read('Index.html');
 try{new vm.Script(nav.replace(/<\/?script[^>]*>/gi,''),{filename:'NavigationPolishUI.html'});ok('Navigation polish syntax')}catch(e){fail(`NavigationPolishUI syntax: ${e.message}`)}
+try{new vm.Script(guard.replace(/<\/?script[^>]*>/gi,''),{filename:'RefreshStartupGuardUI.html'});ok('Refresh startup guard syntax')}catch(e){fail(`RefreshStartupGuardUI syntax: ${e.message}`)}
 [
   ["homeHinduQuick",'Home keeps The Hindu quick access'],
   ["homeStarredQuick",'Home keeps Starred quick access'],
@@ -26,9 +27,19 @@ try{new vm.Script(nav.replace(/<\/?script[^>]*>/gi,''),{filename:'NavigationPoli
   [".progressbar{background:var(--line)!important}",'Progress track follows theme variables'],
   ["html[data-theme=\"dark\"] .hero",'Daily hero has dark-mode polish']
 ].forEach(([n,l])=>need(nav,n,l));
+[
+  ["home:snapshot",'Refresh guard checks the existing cached Home snapshot'],
+  ["Could not load dashboard:",'Refresh guard targets only the dashboard bootstrap error toast'],
+  ["cachedHomeReady()",'Refresh guard suppresses only when a valid cached dashboard is present'],
+  ["refreshDashboard()",'Transient bootstrap failure gets one silent dashboard retry'],
+  ["__cachedBootstrapGuard",'Refresh guard installs only once']
+].forEach(([n,l])=>need(guard,n,l));
 if(nav.includes('EPApp.call(')||nav.includes('google.script.run'))fail('UI polish must not add server/data calls');else ok('UI polish adds no server/data calls');
-if(nav.includes('submitAnswer')||nav.includes('Attempt_ID')||nav.includes('performanceFacts'))fail('UI polish must not touch answer/performance architecture');else ok('UI polish does not touch answer/performance architecture');
+if(nav.includes('submitAnswer')||nav.includes('Attempt_ID')||nav.includes('performanceFacts')||guard.includes('submitAnswer')||guard.includes('Attempt_ID'))fail('UI refresh/polish must not touch answer/performance architecture');else ok('UI refresh/polish does not touch answer/performance architecture');
+if(guard.includes('google.script.run')||guard.includes('EPApp.call('))fail('Refresh guard must not create a parallel data endpoint');else ok('Refresh guard reuses the existing dashboard refresh path only');
 need(index,"<?!= include('NavigationPolishUI'); ?>",'Index loads navigation polish');
+need(index,"<?!= include('RefreshStartupGuardUI'); ?>",'Index loads refresh startup guard');
 if(index.indexOf("include('NavigationPolishUI')")>index.indexOf("include('SaveReliabilityUI')"))ok('Navigation polish loads after save/cache compatibility layers');else fail('Navigation polish must load after SaveReliabilityUI');
+if(index.indexOf("include('RefreshStartupGuardUI')")>index.indexOf("include('NavigationPolishUI')"))ok('Refresh guard loads last, before DOMContentLoaded bootstrap');else fail('Refresh startup guard must load after NavigationPolishUI');
 if(process.exitCode){console.error('\nUI polish validation failed. Deployment must not proceed.');process.exit(process.exitCode)}
-console.log('\n✅ UI navigation polish contracts passed.');
+console.log('\n✅ UI navigation and refresh-startup contracts passed.');
