@@ -8,17 +8,17 @@
     document.getElementById('starredMasteredMini')?.classList.add('hidden');
     const master=document.getElementById('masteredBtn');if(master)master.classList.toggle('hidden',title==='The Hindu – Today');
   }
-  function applyAdaptiveNote(b){const d=b&&b.dailyInfo,n=document.getElementById('dailyNote');if(!n||!d||!d.adaptive)return;n.textContent=`Adaptive mix: ${Number(d.persistentWeakCount||0)} persistent weak · ${Number(d.weakCount||0)} weak · ${Number(d.fragileCount||0)} fragile · ${Number(d.dueCount||0)} due · ${Number(d.freshCount||0)} controlled new.`}
-  function wireRoutes(){
-    if(typeof EPApp==='undefined'||EPApp.__learningRouteCompat)return;EPApp.__learningRouteCompat=true;
-    EPApp.startHinduQuiz=async function(){
-      EPQuiz.replaceSavedFor('hindu');
-      try{const qs=await EPApp.call('getHinduQuizV2');if(!qs.length){EPApp.toast('Today’s Hindu-word batch is not available.');return}document.body.classList.add('quiz-active');document.getElementById('bottomNav')?.classList.add('hidden');EPQuiz.start(qs,{mode:'hindu',returnTab:'hindu',serverSynced:true})}catch(e){EPApp.toast(e.message||String(e))}
+  function wireCentralFlags(){
+    if(typeof EPApp==='undefined'||!EPApp.call||EPApp.__centralFlagsV3)return;
+    EPApp.__centralFlagsV3=true;const raw=EPApp.call.bind(EPApp);
+    EPApp.call=function(fn,...args){
+      if(fn==='setMarked')return raw('setMarkedCentralV3',...args);
+      if(fn==='setHinduMarked')return raw('setHinduMarkedCentralV3',...args);
+      return raw(fn,...args);
     };
-    setTimeout(()=>EPApp.call('getBootstrapV3').then(b=>{window.EPLearningBootstrap=b;applyAdaptiveNote(b)}).catch(()=>{}),250);
   }
   document.addEventListener('DOMContentLoaded',()=>{
-    wireRoutes();
+    wireCentralFlags();
     ['qId','quizMode','explanation'].forEach(id=>{const el=document.getElementById(id);if(el)new MutationObserver(()=>setTimeout(normalize,0)).observe(el,{childList:true,subtree:true,attributes:id==='explanation',attributeFilter:id==='explanation'?['class']:undefined})});
     setTimeout(normalize,600);
   });
