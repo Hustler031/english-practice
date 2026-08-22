@@ -29,7 +29,11 @@ try{new vm.Script(ui.replace(/<\/?script[^>]*>/gi,''),{filename:'DailySelectionW
   ["primary reason is frozen",'UI explains frozen selection semantics'],
   ["Today's Mix",'Daily hero shows the requested Today mix'],
   ["Active Batch Mix",'Carry-forward batches are labelled accurately'],
-  ["ep:daily-selection-mix:v1",'Daily hero mix is cached client-side'],
+  ["ep:daily-selection-mix:v2",'Daily hero mix uses the repaired cache version'],
+  ["localStorage.removeItem('ep:daily-selection-mix:v1')",'Old empty-prone mix cache is retired'],
+  ["!x.chips.length||Number(x.total||0)<=0",'Empty mix cache is never treated as ready'],
+  ["mixHydrationAttempts<3",'Mix hydration retries transient bootstrap misses'],
+  ["bootstrapPrimePromise=null",'A failed mix hydration cannot permanently block later retries'],
   ["ep-quiz-daily-v5",'Question reason can be read from the persisted Daily session'],
   ["Persistent Weak",'Persistent Weak has a visible reason label'],
   ["controlled fresh exposure",'Controlled New reason is explained'],
@@ -39,9 +43,11 @@ try{new vm.Script(ui.replace(/<\/?script[^>]*>/gi,''),{filename:'DailySelectionW
   ["bootstrapPrimePromise",'Bootstrap hydration is deduplicated'],
   ["window.EPApp.call('getBootstrapV2')",'Cache-miss hydration reuses the existing bootstrap endpoint']
 ].forEach(([n,l])=>need(ui,n,l));
+['🔴','🔥','🟠','⏰','⭐','⚡','🆕','🔄','📌'].forEach(x=>ui.includes(x)?fail(`Daily selection UI should be text-only; found ${x}`):ok(`Daily selection UI omits ${x}`));
+need(ui,"b.textContent=`${r.label} ⓘ`",'Right-side reason keeps only the functional info indicator');
 if(ui.includes('google.script.run'))fail('Daily selection UI must not create a direct Google Apps Script transport');else ok('Daily selection UI does not create a parallel transport');
 const extraCalls=ui.replace("window.EPApp.call('getBootstrapV2')",'');
-if(extraCalls.includes('EPApp.call('))fail('Daily selection UI may only make the one cache-miss bootstrap hydration call');else ok('Daily selection UI adds only the guarded cache-miss bootstrap hydration');
+if(extraCalls.includes('EPApp.call('))fail('Daily selection UI may only make the one guarded bootstrap hydration call');else ok('Daily selection UI adds only the guarded bootstrap hydration');
 if(ui.includes('submitAnswer')||ui.includes('Attempt_ID')||ui.includes('nextBtn.disabled'))fail('Daily selection UI must not touch saving/Next architecture');else ok('Daily selection UI does not touch saving or Next');
 if(daily.includes('DAILY_TARGET=')||daily.includes('target=120;'))fail('Selection transparency must not replace the existing configurable Daily target');else ok('Existing configurable Daily target remains authoritative');
 need(index,"<?!= include('DailySelectionWhyUI'); ?>",'Index loads Daily selection transparency UI');
