@@ -7,6 +7,7 @@ on:
       - 'apps-script/**'
       - '.github/scripts/validate-english.cjs'
       - '.github/scripts/validate-learning.cjs'
+      - '.github/scripts/validate-reliability.cjs'
       - '.github/workflows/deploy-english-apps-script.yml'
   workflow_dispatch:
 
@@ -36,6 +37,9 @@ jobs:
 
       - name: Validate final learning-system contracts
         run: node .github/scripts/validate-learning.cjs
+
+      - name: Validate answer-save reliability contracts
+        run: node .github/scripts/validate-reliability.cjs
 
       - name: Verify required deployment secrets
         env:
