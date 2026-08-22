@@ -1,9 +1,10 @@
 <script>
 (()=>{
-  let last=null,loading=false;
+  let last=null,loading=false,progressLoading=false;
   function apply(b){last=b||last;const di=last&&last.dailyInfo,n=document.getElementById('dailyNote');if(!n||!di||!di.adaptive||di.pendingFromPrevious)return;n.textContent=`Adaptive mix: ${Number(di.persistentWeakCount||0)} persistent weak · ${Number(di.weakCount||0)} weak · ${Number(di.fragileCount||0)} fragile · ${Number(di.dueCount||0)} due · ${Number(di.freshCount||0)} controlled new.`}
   async function refresh(){if(loading||typeof EPApp==='undefined'||!EPApp.call)return;loading=true;try{const b=await EPApp.call('getBootstrapV3');apply(b)}catch(e){}finally{loading=false}}
-  function init(){setTimeout(refresh,250);const n=document.getElementById('dailyNote');if(n)new MutationObserver(()=>{if(last)setTimeout(()=>apply(last),0)}).observe(n,{childList:true,characterData:true,subtree:true});if(typeof EPApp!=='undefined'&&!EPApp.__adaptiveDailyNoteWired){EPApp.__adaptiveDailyNoteWired=true;const old=EPApp.refreshDashboard;if(typeof old==='function')EPApp.refreshDashboard=async function(){const r=await old.apply(this,arguments);setTimeout(refresh,0);return r}}}
+  async function refreshProgress(){if(progressLoading||typeof EPApp==='undefined'||!EPApp.call)return;progressLoading=true;try{const p=await EPApp.call('getLearningProgressSnapshot');if(p&&Number(p.schemaVersion||0)>=2){if(window.EPFast)EPFast.set('progress',p);try{localStorage.setItem('ep-progress-snapshot-v1',JSON.stringify(p));localStorage.setItem('ep-progress-refresh-ts-v1',String(Date.now()))}catch(e){}if(window.EPPerformanceUI?.load)EPPerformanceUI.load()}}catch(e){}finally{progressLoading=false}}
+  function init(){setTimeout(refresh,250);setTimeout(refreshProgress,450);const n=document.getElementById('dailyNote');if(n)new MutationObserver(()=>{if(last)setTimeout(()=>apply(last),0)}).observe(n,{childList:true,characterData:true,subtree:true});if(typeof EPApp!=='undefined'&&!EPApp.__adaptiveDailyNoteWired){EPApp.__adaptiveDailyNoteWired=true;const old=EPApp.refreshDashboard;if(typeof old==='function')EPApp.refreshDashboard=async function(){const r=await old.apply(this,arguments);setTimeout(refresh,0);setTimeout(refreshProgress,100);return r}}}
   document.addEventListener('DOMContentLoaded',init);
 })();
 </script>
