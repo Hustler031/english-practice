@@ -32,7 +32,7 @@ try{new vm.Script(ui.replace(/<\/?script[^>]*>/gi,''),{filename:'DailySelectionW
   ["ep:daily-selection-mix:v1",'Daily hero mix is cached client-side'],
   ["ep-quiz-daily-v5",'Question reason is read from the existing persisted Daily session'],
   ["Persistent Weak",'Persistent Weak has a visible reason label'],
-  ["Controlled fresh exposure",'Controlled New reason is explained']
+  ["controlled fresh exposure",'Controlled New reason is explained']
 ].forEach(([n,l])=>need(ui,n,l));
 if(ui.includes('google.script.run')||ui.includes('EPApp.call('))fail('Daily selection UI must not add any server request');else ok('Daily selection UI adds no server request');
 if(ui.includes('submitAnswer')||ui.includes('Attempt_ID')||ui.includes('nextBtn.disabled'))fail('Daily selection UI must not touch saving/Next architecture');else ok('Daily selection UI does not touch saving or Next');
