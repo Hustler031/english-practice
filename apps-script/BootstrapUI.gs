@@ -10,8 +10,6 @@ function getEnglishUiBootstrap(){
   safe('demandStats',()=>getDemandHubStats());
   safe('hinduToday',()=>getHinduToday());
   safe('hinduProgress',()=>getHinduPracticeProgress());
-  // Lightweight read of the precomputed hourly snapshot. The expensive
-  // calculation runs in the time trigger, not in the user's page load.
-  safe('progressSnapshot',()=>getProgressSnapshotServer());
+  safe('progressSnapshot',()=>getLearningProgressSnapshot());
   return out;
 }
