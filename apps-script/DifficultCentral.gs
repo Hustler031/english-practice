@@ -8,3 +8,7 @@ function setQuestionDifficult(questionId,difficult){
 }
 function getCentralDifficultMap(){return starredRevisionDifficultMap_();}
 function isQuestionDifficult_(questionId,map){map=map||starredRevisionDifficultMap_();return !!map[String(questionId||'').trim()];}
+function getCentralDifficultBatch(){
+  const diff=starredRevisionDifficultMap_(),status=statusMap_(),pool=allQuestions_().filter(q=>isActive_(q)&&!!diff[q.id]&&!(status[q.id]&&status[q.id].mastered));shuffle_(pool);return pool.map(q=>{const s=serveQuestion_(q);s.difficult=true;return s});
+}
+function getCentralDifficultCount(){const diff=starredRevisionDifficultMap_(),status=statusMap_();return allQuestions_().filter(q=>isActive_(q)&&!!diff[q.id]&&!(status[q.id]&&status[q.id].mastered)).length;}
