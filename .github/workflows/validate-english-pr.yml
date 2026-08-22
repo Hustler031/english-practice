@@ -1,0 +1,32 @@
+name: Validate English Pull Request
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps-script/**'
+      - '.github/scripts/validate-english.cjs'
+      - '.github/scripts/validate-learning.cjs'
+      - '.github/scripts/validate-reliability.cjs'
+      - '.github/workflows/validate-english-pr.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validate English application contracts
+        run: node .github/scripts/validate-english.cjs
+      - name: Validate final learning-system contracts
+        run: node .github/scripts/validate-learning.cjs
+      - name: Validate answer-save reliability contracts
+        run: node .github/scripts/validate-reliability.cjs
