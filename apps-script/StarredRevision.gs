@@ -58,13 +58,13 @@ function ensureStarredRevisionSeed_(){
 }
 function starredRevisionIndex_(){
   ensureStarredRevisionSeed_();
-  const status=statusMap_(),all=allQuestions_(),qmap=Object.fromEntries(all.map(q=>[q.id,q])),difficult=starredRevisionDifficultMap_(),events={},s=starredRevisionLogSheet_();
+  const status=statusMap_(),centralStars=currentStarredMapV2_(),all=allQuestions_(),qmap=Object.fromEntries(all.map(q=>[q.id,q])),difficult=starredRevisionDifficultMap_(),events={},s=starredRevisionLogSheet_();
   if(s.getLastRow()>1)s.getRange(2,1,s.getLastRow()-1,5).getValues().forEach(r=>{const id=String(r[0]||'').trim();if(!id)return;const d=r[1] instanceof Date?r[1]:new Date(r[1]);if(!events[id]||(!isNaN(d)&&d>=events[id].eventAt))events[id]={eventAt:isNaN(d)?new Date(0):d,date:dateKey_(r[2])||dateKey_(d),day:Number(r[3]||0),action:String(r[4]||'').toUpperCase()};});
   const rows=[];
   Object.keys(qmap).forEach(id=>{
-    const st=status[id]||{},ev=events[id],currentlyStarred=isStarredStatus_(st),mastered=!!st.mastered;
+    const st=status[id]||{},ev=events[id],currentlyStarred=!!centralStars[id],mastered=!!st.mastered;
     const ever=!!ev||currentlyStarred;if(!ever)return;
-    const active=ev?ev.action!=='UNSTAR':currentlyStarred;if(!active&&!mastered)return;
+    const active=currentlyStarred;if(!active&&!mastered)return;
     let d=ev&&ev.date?ev.date:starredRevisionActiveDate_(),day=ev&&ev.day?ev.day:starredRevisionActiveDay_();if(!day||day<1)day=1;
     const q=qmap[id];rows.push({id,day,date:d,starred:active,mastered,difficult:!!difficult[id],weak:isWeakStatus_(st),attempts:Number(st.attempts||0),word:q.word||'',question:q.question||'',topic:q.topic||'',source:q.sourceFile||q.sourceId||''});
   });
