@@ -22,6 +22,7 @@
     const bh=readSnap(BANK_KEY);if(bank&&bh)quickStatus(bank,`${Number(bh.coverage||0).toFixed(0)}% exposed`);
     const mh=readSnap(SAVED_KEY);if(saved&&mh?.stats)quickStatus(saved,`${Number(mh.stats.focus ?? mh.stats.saved ?? 0)} active`);
   }
+  function decorateStarredStats(){const summary=$('starredRevisionBody')?.querySelector('.sr-summary .sr-stats'),hub=window.EPFast?.get?.('starred:hub');if(!summary||!hub?.stats)return;let chip=summary.querySelector('[data-ui-difficult-count]');if(!chip){chip=document.createElement('span');chip.dataset.uiDifficultCount='1';summary.appendChild(chip)}const html=`<b>${Number(hub.stats.difficult||0)}</b> Difficult`;if(chip.innerHTML!==html)chip.innerHTML=html}
   function organizeHome(){
     const home=$('homeView');if(!home)return;const head=[...home.querySelectorAll('.row.between')].find(x=>String(x.textContent||'').includes('Quick Start')),grid=head?.nextElementSibling;if(!head||!grid)return;
     const addMini=head.querySelector('button');if(addMini)addMini.remove();
@@ -74,7 +75,7 @@
   function openWords(origin){wordsOrigin=origin||'revision';window.EPMyWordsUX?.open?.()}
   function openHindu(origin){hinduOrigin=origin||'home';EPApp.openHindu();setTimeout(()=>{const b=$('hinduView')?.querySelector('.subhead button');if(b)b.onclick=()=>EPApp.showTab(hinduOrigin==='library'?'library':'home')},0)}
   function openSources(origin){sourceOrigin=origin||'practice';EPApp.openSources();setTimeout(()=>{const b=$('sourcesView')?.querySelector('.subhead button');if(b)b.onclick=()=>EPApp.showTab(sourceOrigin==='library'?'library':'practice')},0)}
-  function organizeAll(){ensureStyles();organizeHome();organizePractice();organizeRevision();organizeLibrary();fixBackButtons();wrapBacks();updateQuickStatuses()}
+  function organizeAll(){ensureStyles();organizeHome();organizePractice();organizeRevision();organizeLibrary();fixBackButtons();wrapBacks();updateQuickStatuses();decorateStarredStats()}
   function schedule(){clearTimeout(organizeTimer);organizeTimer=setTimeout(organizeAll,80)}
   function init(){organizeAll();setTimeout(organizeAll,180);const mo=new MutationObserver(schedule);mo.observe(document.body,{childList:true,subtree:true});const h=$('homeView');if(h)new MutationObserver(()=>{if(!h.classList.contains('hidden'))setTimeout(updateQuickStatuses,0)}).observe(h,{attributes:true,attributeFilter:['class']});const hc=$('hinduCount');if(hc)new MutationObserver(updateQuickStatuses).observe(hc,{childList:true,subtree:true,characterData:true})}
   document.addEventListener('DOMContentLoaded',()=>setTimeout(init,120));
