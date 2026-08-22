@@ -50,8 +50,9 @@ need(hcompat,"a.module==='hindu'",'Hindu progress uses central module attempts')
 ['attemptIdFor(','submitHinduAnswerV2','getHinduQuizV2','setCentralDifficult',"'bankCoverage'","'mySavedRevision'","'hindu'",'weakConcepts'].forEach(x=>need(ui,x,`Learning UI integration ${x}`));
 ['ep:bankCoverage:hub:v3','ep:mySavedRevision:hub:v3','stopImmediatePropagation','markLearningCachesDirty','openSavedFolds','localDateKey','bankCoverageQuick'].forEach(x=>need(cacheux,x,`Cache-first UX contract ${x}`));
 if(cacheux.includes('finally(()=>{setTimeout(refreshBank')||cacheux.includes('finally(()=>{setTimeout(refreshSaved'))fail('Answer submission must not force immediate hub recalculation');else ok('Answer submission only dirties learning caches');
-need(layout,"title==='Starred Revision'",'Starred-only compact Mastered layout preserved');
-need(layout,"title==='The Hindu – Today'",'Hindu legacy Mastered toolbar remains hidden');
+need(layout,"master.classList.add('hidden')",'Difficult-enabled quizzes reuse compact Mastered placement');
+need(layout,'learning-difficult-row','Difficult-enabled quiz tools stay in one adaptive row');
+need(layout,"title==='The Hindu – Today'",'Hindu legacy Mastered toolbar remains hidden when Difficult is absent');
 need(layout,'setMarkedCentralV3','all-module Starred routing uses central synchronizer');
 need(index,"include('FinalLearningUI')",'Final learning UI included');
 need(index,"include('BankCoverageUX')",'Bank Coverage category UX included');
