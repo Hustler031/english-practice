@@ -1,6 +1,6 @@
 <script>
 (()=>{
-  const OUTBOX_KEY='ep-answer-outbox-v3',BANK_DIRTY='ep:bankCoverage:dirty:v1',SAVED_DIRTY='ep:mySavedRevision:dirty:v1';
+  const OUTBOX_KEY='ep-answer-outbox-v3',BANK_DIRTY='ep:bankCoverage:dirty:v1',SAVED_DIRTY='ep:mySavedRevision:dirty:v1',STAR_ORIGIN_CACHE='ep:starred-origin-ui:v4';
   let running=false,wakeTimer=0,currentQ='',activeMs=0,visibleAt=0;
   const $=id=>document.getElementById(id);
   const direct=(fn,...args)=>new Promise((resolve,reject)=>google.script.run.withSuccessHandler(resolve).withFailureHandler(err=>reject(new Error(err&&err.message||err||'Save failed')))[fn](...args));
@@ -32,13 +32,14 @@
     }finally{running=false}
   }
   function wire(){
-    if(typeof EPApp==='undefined'||!EPApp.call||EPApp.__saveReliabilityV3)return;EPApp.__saveReliabilityV3=true;const raw=EPApp.call.bind(EPApp),centralReads={getMySavedHub:'getMySavedHubCentralV3',getStarredQuestionList:'getStarredQuestionListCentralV3',getStarredPracticeBatch:'getStarredPracticeBatchCentralV3'};
+    if(typeof EPApp==='undefined'||!EPApp.call||EPApp.__saveReliabilityV3)return;EPApp.__saveReliabilityV3=true;const raw=EPApp.call.bind(EPApp),centralReads={getMySavedHub:'getMySavedHubCentralV3',getStarredQuestionList:'getStarredQuestionListCentralV3',getStarredPracticeBatch:'getStarredPracticeBatchCentralV3',getStarredRevisionHub:'getStarredRevisionHubStableV4',getStarredRevisionGroup:'getStarredRevisionGroupStableV4',getStarredRevisionItems:'getStarredRevisionItemsStableV4',getStarredRevisionBatch:'getStarredRevisionBatchStableV4'};
     EPApp.call=function(fn,...args){
       if(fn==='logStarredRevisionFromUi')return Promise.resolve({ok:true,skippedLegacyDuplicate:true});
       if(['submitAnswer','submitAnswerV2','submitHinduAnswer','submitHinduAnswerV2'].includes(fn)){const queued=enqueue(fn,args[0]);if(queued)return queued;return raw(fn,...args)}
       if(centralReads[fn])return raw(centralReads[fn],...args);
       return raw(fn,...args);
     };
+    try{if(localStorage.getItem(STAR_ORIGIN_CACHE)!=='1'){localStorage.setItem(STAR_ORIGIN_CACHE,'1');if(window.EPFast&&EPFast.drop)EPFast.drop('starred:hub')}}catch(e){}
     const q=$('qId');if(q)new MutationObserver(()=>resetTimer()).observe(q,{childList:true,subtree:true});document.addEventListener('visibilitychange',()=>{if(document.hidden)stopTimer();else{visibleAt=Date.now();flushSoon(0)}});window.addEventListener('online',()=>flushSoon(0));setInterval(()=>{if(readQueue().length)flushSoon(0)},30000);resetTimer();flushSoon(0);setTimeout(()=>direct('repairPendingLearningDerivationsV3',5).catch(()=>{}),2500);
   }
   document.addEventListener('DOMContentLoaded',()=>setTimeout(wire,20));
