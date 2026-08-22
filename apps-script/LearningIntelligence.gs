@@ -61,6 +61,7 @@ function learningFacts_(){
 }
 
 function pct1_(n,d){return d?Math.round(Number(n||0)*1000/Number(d))/10:0;}
+function isLowPressureHindu_(q){const t=[q&&q.topic,q&&q.sourceId,q&&q.sourceFile].map(x=>String(x||'').toLowerCase()).join(' ');return t.includes('hindu')||/^HV\d/i.test(String(q&&q.id||''));}
 function getLearningAnalytics(){
   const f=learningFacts_(),eligible=bankEligibleQuestions_(f.all),exposed=eligible.filter(q=>(f.timeline.byId[q.id]||[]).length>0).length;
   const states=Object.values(f.byQuestion),conceptWeak=new Set();
@@ -70,12 +71,12 @@ function getLearningAnalytics(){
     bankEligible:eligible.length,bankExposed:exposed,bankExposedPercent:pct1_(exposed,eligible.length),
     firstAttemptAccuracy:pct1_(f.totals.firstCorrect,f.totals.firstAttempts),afterReviewAccuracy:pct1_(f.totals.afterReviewCorrect,f.totals.afterReviewAttempts),retentionAccuracy:pct1_(f.totals.retentionCorrect,f.totals.retentionAttempts),
     weakConcepts:conceptWeak.size,weak:states.filter(x=>x.state==='WEAK').length,persistentWeak:states.filter(x=>x.state==='PERSISTENT_WEAK').length,fragile:states.filter(x=>x.state==='FRAGILE').length,strong:states.filter(x=>x.state==='STRONG').length,mastered:states.filter(x=>x.state==='MASTERED').length,
-    categories:Object.values(f.topicAgg).map(g=>Object.assign({},g,{coveragePercent:pct1_(g.exposed,g.total),firstAttemptAccuracy:pct1_(g.firstCorrect,g.firstAttempts),retentionAccuracy:pct1_(g.retentionCorrect,g.retentionAttempts)})).sort((a,b)=>b.total-a.total||a.topic.localeCompare(b.topic))
+    categories:Object.values(f.topicAgg).filter(g=>!/hindu/i.test(g.topic)).map(g=>Object.assign({},g,{coveragePercent:pct1_(g.exposed,g.total),firstAttemptAccuracy:pct1_(g.firstCorrect,g.firstAttempts),retentionAccuracy:pct1_(g.retentionCorrect,g.retentionAttempts)})).sort((a,b)=>b.total-a.total||a.topic.localeCompare(b.topic))
   };
 }
 
 function bankEligibleQuestions_(all){
-  return (all||allQuestions_()).filter(q=>isActive_(q)&&String(q.topic||'').trim()&&canonicalCategory_(q.topic)!=='HINDU_VOCAB'&&String(q.sourceId||'')!=='MY_SAVED_WORDS');
+  return (all||allQuestions_()).filter(q=>isActive_(q)&&String(q.topic||'').trim()&&!isLowPressureHindu_(q)&&String(q.sourceId||'')!=='MY_SAVED_WORDS');
 }
 function bankCoverageLogSheet_(){
   const ss=ss_();let s=ss.getSheetByName(EP_BANK_LOG);if(!s){s=ss.insertSheet(EP_BANK_LOG);s.getRange(1,1,1,4).setValues([['Serve_Date','Topic','Question_ID','Served_At']]);s.setFrozenRows(1);}return s;
@@ -106,11 +107,11 @@ function getBankCoverageBatch(topic){
 
 function categoryWeakWeight_(topic,f){const g=f.topicAgg[String(topic||'')]||{};const exposed=Math.max(1,Number(g.exposed||0));return (Number(g.persistentWeak||0)*3+Number(g.weak||0)*2+Number(g.fragile||0))/exposed;}
 function selectAdaptiveDaily_(questions,status,limit){
-  const f=learningFacts_(),now=new Date(),rank={PERSISTENT_WEAK:500,WEAK:400,FRAGILE:300,LEARNING:100,STRONG:60,MASTERED:-1000,UNSEEN:120};
+  const f=learningFacts_(),now=new Date(),rank={PERSISTENT_WEAK:500,WEAK:400,FRAGILE:300,LEARNING:100,STRONG:60,MASTERED:-1000,UNSEEN:120},marked=typeof currentMarkedIds_==='function'?currentMarkedIds_():new Set(),diff=typeof starredRevisionDifficultMap_==='function'?starredRevisionDifficultMap_():{};
   const rows=[];
-  questions.forEach(q=>{const lf=f.byQuestion[q.id]||{state:'UNSEEN'},st=status[q.id]||{};if(st.mastered)return;let reason='Controlled New',base=rank[lf.state]??80;
+  questions.forEach(q=>{const lf=f.byQuestion[q.id]||{state:'UNSEEN'},st=status[q.id]||{};if(st.mastered)return;const manual=marked.has(q.id)||!!diff[q.id];if(isLowPressureHindu_(q)&&!manual&&!['PERSISTENT_WEAK','WEAK','FRAGILE'].includes(lf.state))return;let reason='Controlled New',base=rank[lf.state]??80;
     if(lf.state==='PERSISTENT_WEAK')reason='Persistent Weak';else if(lf.state==='WEAK')reason='Weak';else if(lf.state==='FRAGILE')reason='Fragile';else if(st.nextReview&&new Date(st.nextReview)<=now){reason='Due Spaced Revision';base=Math.max(base,220);}else if(lf.state!=='UNSEEN')reason='Learning Review';
-    const score=base+categoryWeakWeight_(q.topic,f)*40+Math.random()*10+(st.marked?12:0);rows.push({q,priority:Math.round(score),reason});
+    const score=base+categoryWeakWeight_(q.topic,f)*40+Math.random()*10+(manual?12:0);rows.push({q,priority:Math.round(score),reason});
   });
   rows.sort((a,b)=>b.priority-a.priority);const out=[],seen=new Set();rows.forEach(x=>{if(out.length<limit&&!seen.has(x.q.id)){seen.add(x.q.id);out.push(x)}});return out;
 }
