@@ -17,8 +17,37 @@
       return raw(fn,...args);
     };
   }
+  function wrapStartLoading(obj,key,label){
+    if(!obj||typeof obj[key]!=='function'||obj[key].__sharedLoading)return;
+    const raw=obj[key];
+    const wrapped=async function(...args){
+      if(typeof EPApp?.showPracticeLoading==='function')EPApp.showPracticeLoading(typeof label==='function'?label(...args):label);
+      try{return await raw.apply(this,args)}finally{if(typeof EPApp?.hidePracticeLoading==='function')EPApp.hidePracticeLoading()}
+    };
+    wrapped.__sharedLoading=true;obj[key]=wrapped;
+  }
+  function wireLearningStartLoaders(){
+    if(typeof EPApp==='undefined'||EPApp.__learningStartLoadersWired)return;
+    EPApp.__learningStartLoadersWired=true;
+    wrapStartLoading(window.EPBankCoverage,'start','Starting Bank Coverage…');
+    wrapStartLoading(window.EPLearningRevision,'start','Starting Difficult Revision…');
+    if(window.EPMySavedRevision){
+      let selected=null;
+      if(typeof EPMySavedRevision.pick==='function'&&!EPMySavedRevision.pick.__sharedLoadingPicker){
+        const rawPick=EPMySavedRevision.pick;
+        const wrappedPick=function(scope,kind){selected={scope,kind};return rawPick.apply(this,arguments)};
+        wrappedPick.__sharedLoadingPicker=true;EPMySavedRevision.pick=wrappedPick;
+      }
+      wrapStartLoading(EPMySavedRevision,'start','Starting My Saved Words…');
+      if(typeof EPMySavedRevision.runCount==='function'&&!EPMySavedRevision.runCount.__sharedLoadingPicker){
+        const wrappedCount=function(n){if(!selected)return;const p=selected;selected=null;EPMySavedRevision.closePicker?.();return EPMySavedRevision.start(p.scope,p.kind,n)};
+        wrappedCount.__sharedLoadingPicker=true;EPMySavedRevision.runCount=wrappedCount;
+      }
+    }
+  }
   document.addEventListener('DOMContentLoaded',()=>{
     wireCentralFlags();
+    wireLearningStartLoaders();
     ['qId','quizMode','explanation'].forEach(id=>{const el=document.getElementById(id);if(el)new MutationObserver(()=>setTimeout(normalize,0)).observe(el,{childList:true,subtree:true,attributes:id==='explanation',attributeFilter:id==='explanation'?['class']:undefined})});
     setTimeout(normalize,600);
   });
