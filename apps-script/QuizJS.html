@@ -5,7 +5,7 @@ const EPQuiz=(()=>{
   const $=id=>document.getElementById(id),letters=['A','B','C','D'];
   function keyForMode(mode){return mode==='daily'?DAILY_KEY:mode==='hindu'?HINDU_KEY:OTHER_KEY}
   function migrateLegacy(){try{if(localStorage.getItem(DAILY_KEY)||localStorage.getItem(HINDU_KEY)||localStorage.getItem(OTHER_KEY))return;const raw=localStorage.getItem(LEGACY_KEY);if(!raw)return;const x=JSON.parse(raw);if(x&&Array.isArray(x.questions)&&x.questions.length)localStorage.setItem(keyForMode(x.meta&&x.meta.mode),raw);localStorage.removeItem(LEGACY_KEY)}catch(e){}}
-  function start(questions,meta){state.questions=questions;state.index=0;state.answers={};state.marked={};state.vocabAdded={};state.meta=meta||{};state.returnTab=state.meta.returnTab||inferReturnTab(state.meta.mode);openQuiz();persist()}
+  function start(questions,meta){state.questions=questions;state.index=0;state.answers={};state.marked={};(questions||[]).forEach(q=>{if(q&&q.marked)state.marked[q.id]=true});state.vocabAdded={};state.meta=meta||{};state.returnTab=state.meta.returnTab||inferReturnTab(state.meta.mode);openQuiz();persist()}
   function openQuiz(){document.querySelectorAll('.app-page').forEach(v=>v.classList.add('hidden'));$('quizView').classList.remove('hidden');$('bottomNav').classList.add('hidden');render();window.scrollTo({top:0})}
   function current(){return state.questions[state.index]}
   function shouldShowWord(q){const word=String(q&&q.word||'').trim(),question=String(q&&q.question||'').trim();if(!word||!question)return false;return question.toLocaleLowerCase().includes(word.toLocaleLowerCase())}

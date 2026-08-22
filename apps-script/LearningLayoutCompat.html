@@ -1,0 +1,26 @@
+<script>
+(()=>{
+  function normalize(){
+    const diff=document.getElementById('starredDifficultBtn');if(!diff||diff.classList.contains('hidden'))return;
+    const title=String(document.getElementById('quizMode')?.textContent||'').trim(),isStarred=title==='Starred Revision';if(isStarred)return;
+    document.getElementById('starredMasteredWrap')?.classList.add('hidden');
+    document.getElementById('starredMasteredConfirm')?.classList.add('hidden');
+    document.getElementById('starredMasteredMini')?.classList.add('hidden');
+    const master=document.getElementById('masteredBtn');if(master)master.classList.toggle('hidden',title==='The Hindu – Today');
+  }
+  function wireCentralFlags(){
+    if(typeof EPApp==='undefined'||!EPApp.call||EPApp.__centralFlagsV3)return;
+    EPApp.__centralFlagsV3=true;const raw=EPApp.call.bind(EPApp);
+    EPApp.call=function(fn,...args){
+      if(fn==='setMarked')return raw('setMarkedCentralV3',...args);
+      if(fn==='setHinduMarked')return raw('setHinduMarkedCentralV3',...args);
+      return raw(fn,...args);
+    };
+  }
+  document.addEventListener('DOMContentLoaded',()=>{
+    wireCentralFlags();
+    ['qId','quizMode','explanation'].forEach(id=>{const el=document.getElementById(id);if(el)new MutationObserver(()=>setTimeout(normalize,0)).observe(el,{childList:true,subtree:true,attributes:id==='explanation',attributeFilter:id==='explanation'?['class']:undefined})});
+    setTimeout(normalize,600);
+  });
+})();
+</script>
