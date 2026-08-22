@@ -30,3 +30,16 @@
   window.EPAddWordType={choose,ensure,install};
 })();
 </script>
+<script>
+(()=>{
+  function hardenFinalLearning(){
+    if(typeof EPApp!=='undefined'&&!EPApp.__masteryGuardWired){EPApp.__masteryGuardWired=true;const call=EPApp.call.bind(EPApp);EPApp.call=function(fn,...args){return call(fn==='markMastered'?'markMasteredV2':fn,...args)}}
+    if(typeof EPQuiz!=='undefined'&&!EPQuiz.__finalModeWired){EPQuiz.__finalModeWired=true;const start=EPQuiz.start;EPQuiz.start=function(qs,meta){const r=start.apply(this,arguments);const mode=String(meta&&meta.mode||'');document.body.dataset.finalQuizMode=mode;if((mode==='mySavedRevision'||mode==='bankCoverage')&&window.EPStarredRevision)setTimeout(()=>EPStarredRevision.setDifficultQuizContext(qs,true),0);return r}}
+    if(!document.getElementById('finalLearningModeStyles')){const st=document.createElement('style');st.id='finalLearningModeStyles';st.textContent='body[data-final-quiz-mode="bankCoverage"] #starredMasteredWrap{display:none!important}';document.head.appendChild(st)}
+    try{const p=JSON.parse(localStorage.getItem('ep-progress-snapshot-v1')||'null');if(p&&!Object.prototype.hasOwnProperty.call(p,'firstAttemptAccuracy')){localStorage.removeItem('ep-progress-snapshot-v1');localStorage.removeItem('ep-progress-refresh-ts-v1');if(window.EPFast)EPFast.drop('progress')}}catch(e){}
+    setTimeout(()=>window.EPPerformanceUI?.refresh(),1200);
+    const note=document.getElementById('dailyNote');if(note){const fix=()=>{if(/Fresh-first:/i.test(note.textContent||''))note.textContent='Adaptive Daily: persistent weak → weak → fragile → due spaced revision → controlled new material.'};fix();new MutationObserver(fix).observe(note,{childList:true,characterData:true,subtree:true})}
+  }
+  document.addEventListener('DOMContentLoaded',()=>setTimeout(hardenFinalLearning,0));
+})();
+</script>
