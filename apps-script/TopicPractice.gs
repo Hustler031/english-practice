@@ -27,14 +27,11 @@ function getTopicPracticeBatch(category,mode,count){
   else if(kind==='new')pool=pool.filter(q=>topicNew_(status[q.id]||{}));
   if(kind==='random'){
     const now=Date.now(),buckets=[[],[],[],[]];
-    pool.forEach(q=>{
-      const st=status[q.id]||{},added=typeof recentContentDate_==='function'?recentContentDate_(q):null,days=added?(now-added.getTime())/86400000:999;
-      if(topicWeak_(st))buckets[0].push(q);else if(days<=7)buckets[1].push(q);else if(topicStarted_(st))buckets[2].push(q);else buckets[3].push(q);
-    });
+    pool.forEach(q=>{const st=status[q.id]||{},added=typeof recentContentDate_==='function'?recentContentDate_(q):null,days=added?(now-added.getTime())/86400000:999;if(topicWeak_(st))buckets[0].push(q);else if(days<=7)buckets[1].push(q);else if(topicStarted_(st))buckets[2].push(q);else buckets[3].push(q);});
     buckets.forEach(shuffle_);pool=buckets.flat();
   }else if(kind!=='all')shuffle_(pool);
   if(kind!=='all')pool=pool.slice(0,requested);
-  return pool.map(serveQuestion_);
+  return serveQuestionsCentralV3_(pool);
 }
 
 function topicPracticeName_(id,topic){
