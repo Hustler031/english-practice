@@ -7,14 +7,14 @@ const fail=m=>{console.error(`\n❌ ${m}`);process.exitCode=1};
 const ok=m=>console.log(`✅ ${m}`);
 const need=(t,n,l)=>t.includes(n)?ok(l):fail(`${l} — missing: ${n}`);
 
-const server=['RobustLearningSave.gs','CentralFlags.gs','BankCoverage.gs','NewPracticeLive.gs','TopicPractice.gs','SourcePractice.gs','Demand.gs'];
+const server=['RobustLearningSave.gs','CentralFlags.gs','BankCoverage.gs','NewPracticeLive.gs','TopicPractice.gs','SourcePractice.gs','Demand.gs','StarredRevision.gs'];
 const front=['SaveReliabilityUI.html','AppJS.html'];
 [...server,...front].forEach(f=>fs.existsSync(path.join(root,f))?ok(`Reliability file present: ${f}`):fail(`Reliability file missing: ${f}`));
 if(process.exitCode)process.exit(process.exitCode);
 server.forEach(f=>{try{new vm.Script(read(f),{filename:f});ok(`Reliability server syntax: ${f}`)}catch(e){fail(`Server syntax failed in ${f}: ${e.message}`)}});
 front.forEach(f=>{try{new vm.Script(read(f).replace(/<\/?script[^>]*>/gi,''),{filename:f});ok(`Reliability frontend syntax: ${f}`)}catch(e){fail(`Frontend syntax failed in ${f}: ${e.message}`)}});
 
-const robust=read('RobustLearningSave.gs'),ui=read('SaveReliabilityUI.html'),flags=read('CentralFlags.gs'),bank=read('BankCoverage.gs'),np=read('NewPracticeLive.gs'),topic=read('TopicPractice.gs'),source=read('SourcePractice.gs'),demand=read('Demand.gs'),app=read('AppJS.html'),index=read('Index.html');
+const robust=read('RobustLearningSave.gs'),ui=read('SaveReliabilityUI.html'),flags=read('CentralFlags.gs'),bank=read('BankCoverage.gs'),np=read('NewPracticeLive.gs'),topic=read('TopicPractice.gs'),source=read('SourcePractice.gs'),demand=read('Demand.gs'),star=read('StarredRevision.gs'),app=read('AppJS.html'),index=read('Index.html');
 [
   ['function submitAnswerV3(','durable central answer endpoint'],
   ['function submitHinduAnswerV3(','durable Hindu answer endpoint'],
@@ -24,9 +24,13 @@ const robust=read('RobustLearningSave.gs'),ui=read('SaveReliabilityUI.html'),fla
   ['answeredAtV3_','original answer timestamp preserved across retries'],
   ['durable:true','server explicitly confirms durable write'],
   ['function repairPendingLearningDerivationsV3(','derived-state self-healing'],
+  ["tryLock(2500)",'derived status commit uses a separate short lock'],
   ['function setMarkedFastV3(','lightweight central Mark update'],
   ["ix('Last_Marked')",'actual Last_Marked status column used'],
-  ['function serveQuestionsCentralV3_(','central Star/Difficult serving helper']
+  ['function serveQuestionsCentralV3_(','central Star/Difficult serving helper'],
+  ['function getMySavedHubCentralV3(','legacy Saved hub has central Star compatibility'],
+  ['function getStarredQuestionListCentralV3(','legacy Starred list has central Star compatibility'],
+  ['function getStarredPracticeBatchCentralV3(','legacy Starred batch has central Star compatibility']
 ].forEach(([n,l])=>need(robust,n,l));
 
 [
@@ -39,6 +43,9 @@ const robust=read('RobustLearningSave.gs'),ui=read('SaveReliabilityUI.html'),fla
   ["window.addEventListener('online'",'retry resumes when connection returns'],
   ["fn==='logStarredRevisionFromUi'",'legacy duplicate Star log suppressed'],
   ['skippedLegacyDuplicate:true','duplicate Star suppression is explicit'],
+  ["getMySavedHub:'getMySavedHubCentralV3'",'legacy Saved hub routed to central Star truth'],
+  ["getStarredQuestionList:'getStarredQuestionListCentralV3'",'legacy Starred list routed centrally'],
+  ["getStarredPracticeBatch:'getStarredPracticeBatchCentralV3'",'legacy Starred batch routed centrally'],
   ['EPSaveReliability','outbox diagnostics exposed']
 ].forEach(([n,l])=>need(ui,n,l));
 if(/nextBtn[^\n]{0,100}disabled/i.test(ui))fail('Reliability layer must never disable Next while saving');else ok('Next remains independent of background saving');
@@ -55,6 +62,8 @@ need(source,'serveQuestionsCentralV3_','Source Practice serves central flags');
 need(demand,'currentStarredMapV2_','Demanded Practice random priority uses central Star state');
 need(demand,'serveQuestionsCentralV3_','Demanded Practice serves central flags');
 need(demand,'getHinduQuizV2','Hindu quiz starts with central Star/Difficult payload');
+need(star,'centralStars=currentStarredMapV2_()','Starred Revision index uses central Star truth');
+need(star,'currentlyStarred=!!centralStars[id]','Starred Revision active state ignores stale legacy mark field');
 need(app,'getDailyBatchReliableV3','Daily receives central flags');
 need(app,'getPracticeBatchCentralV3','generic Random/Weak/Due/Category/Source receives central flags');
 need(app,'getNewPracticeBatchCentralV3','legacy New Practice fallback receives central flags');
