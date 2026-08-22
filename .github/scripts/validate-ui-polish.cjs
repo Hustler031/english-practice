@@ -19,7 +19,7 @@ try{new vm.Script(nav.replace(/<\/?script[^>]*>/gi,''),{filename:'NavigationPoli
   ["libraryMyWordsCard",'Library has My Words content entry'],
   ["Demanded Practice|Recall Check|Mastered",'Library redundant actions are removed'],
   ["hub.stats.difficult",'Starred Difficult count uses existing cached hub stats'],
-  ["data-ui-difficult-count",'Starred Difficult count is visibly injected'],
+  ["dataset.uiDifficultCount",'Starred Difficult count is visibly injected'],
   ["ep:bankCoverage:hub:v3",'Home Bank status uses existing Bank cache'],
   ["ep:mySavedRevision:hub:v3",'Home My Saved status uses existing Saved cache'],
   [".nav button.active",'Active bottom tab gets a stronger visual state'],
