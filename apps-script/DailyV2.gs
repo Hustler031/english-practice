@@ -2,25 +2,8 @@ const DAILY_V2_ROLLOUT='2026-08-16';
 const DAILY_V2_DAY1='2026-08-14';
 const DAILY_V2_HISTORY='Daily_History';
 
-function getBootstrapV2(){
-  const cfg=config_(),all=allQuestions_(),status=statusMap_();
-  const daily=ensureDailyV2_(all,status,Number(cfg.DAILY_TARGET||120));
-  const counts={};
-  all.forEach(q=>{if(!isActive_(q)||(status[q.id]&&status[q.id].mastered))return;const id=canonicalCategory_(q.topic);counts[id]=(counts[id]||0)+1;});
-  const categories=table_(EP.sheets.categories).filter(r=>truthy_(r.Active)).sort((a,b)=>Number(a.Display_Order||99)-Number(b.Display_Order||99)).map(r=>({id:r.Category_ID,name:r.Category_Name,parent:r.Parent_Category,home:truthy_(r.Home_Visible),count:Number(counts[r.Category_ID]||0)}));
-  const today=todayKey_();
-  const hinduToday=table_(EP.sheets.hindu).filter(r=>truthy_(r.Active)&&dateKey_(r.Date)===today).length;
-  const recallIds=recallIds_(status);
-  const recall=all.filter(q=>isActive_(q)&&!(status[q.id]&&status[q.id].mastered)&&recallIds.has(q.id)).length;
-  const mastered=Object.keys(status).filter(id=>status[id].mastered).length;
-  return {schemaVersion:Number(cfg.SCHEMA_VERSION||3),dailyTarget:Number(cfg.DAILY_TARGET||120),extraCounts:String(cfg.EXTRA_COUNTS||'10,20,30,50').split(',').map(Number).filter(Number.isFinite),categories,dailyInfo:daily.info,stats:{dailyTotal:daily.rows.length,dailyCompleted:daily.rows.filter(r=>String(r.Status||'').toLowerCase()==='completed').length,hinduToday,recall,mastered,totalActive:all.filter(q=>isActive_(q)&&!(status[q.id]&&status[q.id].mastered)).length}};
-}
-
-function getDailyBatchV2(){
-  const all=allQuestions_(),status=statusMap_(),daily=ensureDailyV2_(all,status,Number(config_().DAILY_TARGET||120));
-  const map=Object.fromEntries(all.map(q=>[q.id,q]));
-  return daily.rows.filter(r=>String(r.Status||'').toLowerCase()!=='completed').map(r=>map[String(r.Question_ID||'').trim()]).filter(Boolean).filter(q=>isActive_(q)&&!(status[q.id]&&status[q.id].mastered)).map(serveQuestion_);
-}
+function getBootstrapV2(){return getBootstrapV3();}
+function getDailyBatchV2(){return getDailyBatchV3();}
 
 function ensureDailyV2_(all,status,target){
   target=Math.max(1,Number(target||120));
