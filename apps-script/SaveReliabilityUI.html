@@ -32,10 +32,11 @@
     }finally{running=false}
   }
   function wire(){
-    if(typeof EPApp==='undefined'||!EPApp.call||EPApp.__saveReliabilityV3)return;EPApp.__saveReliabilityV3=true;const raw=EPApp.call.bind(EPApp);
+    if(typeof EPApp==='undefined'||!EPApp.call||EPApp.__saveReliabilityV3)return;EPApp.__saveReliabilityV3=true;const raw=EPApp.call.bind(EPApp),centralReads={getMySavedHub:'getMySavedHubCentralV3',getStarredQuestionList:'getStarredQuestionListCentralV3',getStarredPracticeBatch:'getStarredPracticeBatchCentralV3'};
     EPApp.call=function(fn,...args){
       if(fn==='logStarredRevisionFromUi')return Promise.resolve({ok:true,skippedLegacyDuplicate:true});
       if(['submitAnswer','submitAnswerV2','submitHinduAnswer','submitHinduAnswerV2'].includes(fn)){const queued=enqueue(fn,args[0]);if(queued)return queued;return raw(fn,...args)}
+      if(centralReads[fn])return raw(centralReads[fn],...args);
       return raw(fn,...args);
     };
     const q=$('qId');if(q)new MutationObserver(()=>resetTimer()).observe(q,{childList:true,subtree:true});document.addEventListener('visibilitychange',()=>{if(document.hidden)stopTimer();else{visibleAt=Date.now();flushSoon(0)}});window.addEventListener('online',()=>flushSoon(0));setInterval(()=>{if(readQueue().length)flushSoon(0)},30000);resetTimer();flushSoon(0);setTimeout(()=>direct('repairPendingLearningDerivationsV3',5).catch(()=>{}),2500);
