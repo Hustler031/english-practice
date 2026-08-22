@@ -35,7 +35,7 @@ need(dash,'function getTodayActivityCount(','Today activity API');
 ['function reconcileReadyMyWordsFast_(','LockService.getScriptLock()','MYWORD_RECONCILE_SECONDS=45','block.setValues(data)','function reconcileReadyMyWords()','GPT_Status','Practice_Question_ID','myWordPracticeSpec_(type)','function ensureMyWordReconcileTrigger_(','everyMinutes(1)','function hasReadyMyWordsNeedingPromotion_(','function reconcileReadyMyWordsTrigger_(','no-ready-backlog'].forEach(x=>need(reconcile,x,x));
 ['function getStarredRevisionQuestionDetail(','readOnly:true'].forEach(x=>need(srdetail,x,x));
 ['id="homeView"','id="dailyStartBtn"','id="todayDoneBadge"',"include('FastUI')","include('TopicUI')","include('NewPracticeUI')","include('SavedUI')","include('MyWordsFinalUI')","include('StarredRevisionUI')","include('AddWordTypeUI')","include('StarredViewDetailUI')",'EPMyWordsUX.quickAdd()','EPStarredRevision.open()','Starred Revision','Loading daily plan…','onclick="EPApp.openSaved()"','onclick="EPSaved.openCapture()"'].forEach(x=>need(index,x,x));
-['getBootstrapV2','getDailyBatchV2','Complete Previous Target','Fresh-first:'].forEach(x=>need(app,x,x));
+['getBootstrapV2','getDailyBatchReliableV3','Complete Previous Target','Fresh-first:'].forEach(x=>need(app,x,x));
 ["EPApp.call('submitAnswer'",'function next()','function pause()'].forEach(x=>need(quiz,x,x));
 ['window.EPFast','prefetch','source:hub','topic:hub','saved:hub'].forEach(x=>need(fast,x,x));
 ['Topic Practice','Started','New','Random','View All'].forEach(x=>need(tui,x,x));
