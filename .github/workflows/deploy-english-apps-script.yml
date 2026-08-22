@@ -6,6 +6,7 @@ on:
     paths:
       - 'apps-script/**'
       - '.github/scripts/validate-english.cjs'
+      - '.github/scripts/validate-learning.cjs'
       - '.github/workflows/deploy-english-apps-script.yml'
   workflow_dispatch:
 
@@ -32,6 +33,9 @@ jobs:
 
       - name: Validate English application contracts
         run: node .github/scripts/validate-english.cjs
+
+      - name: Validate final learning-system contracts
+        run: node .github/scripts/validate-learning.cjs
 
       - name: Verify required deployment secrets
         env:
