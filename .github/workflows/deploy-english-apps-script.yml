@@ -9,6 +9,7 @@ on:
       - '.github/scripts/validate-learning.cjs'
       - '.github/scripts/validate-reliability.cjs'
       - '.github/scripts/validate-starred-origin.cjs'
+      - '.github/scripts/validate-ui-polish.cjs'
       - '.github/workflows/deploy-english-apps-script.yml'
   workflow_dispatch:
 
@@ -44,6 +45,9 @@ jobs:
 
       - name: Validate Starred origin-day contracts
         run: node .github/scripts/validate-starred-origin.cjs
+
+      - name: Validate UI navigation polish contracts
+        run: node .github/scripts/validate-ui-polish.cjs
 
       - name: Verify required deployment secrets
         env:
