@@ -41,7 +41,10 @@ try{new vm.Script(guard.replace(/<\/?script[^>]*>/gi,''),{filename:'RefreshStart
   ["short='Not added'",'Long Hindu not-added status is compacted'],
   ["openStarredFromHome",'Home Starred click has an explicit stable route'],
   ["stopImmediatePropagation",'Home Starred route avoids stale competing handlers'],
-  ["EPUIPolish.openStarred('home')",'Home Starred route preserves context-aware navigation']
+  ["EPUIPolish.openStarred('home')",'Home Starred route preserves context-aware navigation'],
+  ["exportStarredApi",'Starred global API compatibility export is installed'],
+  ["typeof EPStarredRevision!=='undefined'",'Starred lexical module is detected safely'],
+  ["window.EPStarredRevision=EPStarredRevision",'Starred module is exported to window for modern wrappers']
 ].forEach(([n,l])=>need(guard,n,l));
 if(nav.includes('EPApp.call(')||nav.includes('google.script.run'))fail('UI polish must not add server/data calls');else ok('UI polish adds no server/data calls');
 if(nav.includes('submitAnswer')||nav.includes('Attempt_ID')||nav.includes('performanceFacts')||guard.includes('submitAnswer')||guard.includes('Attempt_ID'))fail('UI refresh/polish must not touch answer/performance architecture');else ok('UI refresh/polish does not touch answer/performance architecture');

@@ -49,6 +49,13 @@
     setTimeout(compactHinduStatus,280);
   }
 
+  function exportStarredApi(){
+    try{
+      if(!window.EPStarredRevision&&typeof EPStarredRevision!=='undefined')window.EPStarredRevision=EPStarredRevision;
+    }catch(e){}
+    return window.EPStarredRevision||null;
+  }
+
   function cachedHomeReady(){
     try{
       const s=window.EPFast?.get?.('home:snapshot');
@@ -77,15 +84,17 @@
   function openStarredFromHome(e){
     const card=e.target.closest?.('#homeStarredQuick');if(!card)return;
     e.preventDefault();e.stopImmediatePropagation();
+    exportStarredApi();
     if(window.EPUIPolish?.openStarred)return window.EPUIPolish.openStarred('home');
     return window.EPStarredRevision?.open?.();
   }
 
   installMobileSafetyStyles();
   preserveLegacyBootstrapTargets();
+  exportStarredApi();
   installToastGuard();
   document.addEventListener('click',openStarredFromHome,true);
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{preserveLegacyBootstrapTargets();watchQuickStart()});
-  else{preserveLegacyBootstrapTargets();watchQuickStart()}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{exportStarredApi();preserveLegacyBootstrapTargets();watchQuickStart()});
+  else{exportStarredApi();preserveLegacyBootstrapTargets();watchQuickStart()}
 })();
 </script>
