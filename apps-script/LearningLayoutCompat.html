@@ -62,3 +62,32 @@
   });
 })();
 </script>
+<script>
+(()=>{
+  const OUTBOX_KEY='ep-star-outbox-v4',SAVED_DIRTY='ep:mySavedRevision:dirty:v1';let running=false,wakeTimer=0;
+  const direct=(fn,...args)=>new Promise((resolve,reject)=>google.script.run.withSuccessHandler(resolve).withFailureHandler(err=>reject(new Error(err&&err.message||err||'Star save failed')))[fn](...args));
+  function read(){try{const x=JSON.parse(localStorage.getItem(OUTBOX_KEY)||'{}');return x&&typeof x==='object'&&!Array.isArray(x)?x:{}}catch(e){return{}}}
+  function write(x){try{localStorage.setItem(OUTBOX_KEY,JSON.stringify(x||{}));return true}catch(e){return false}}
+  function invalidate(){try{localStorage.setItem(SAVED_DIRTY,'1')}catch(e){}if(window.EPFast&&EPFast.drop){['starred:hub','progress'].forEach(k=>EPFast.drop(k))}}
+  function backoff(n){const a=[600,1500,3500,8000,15000,30000,60000];return a[Math.min(a.length-1,Math.max(0,Number(n||1)-1))]}
+  function flushSoon(ms){clearTimeout(wakeTimer);wakeTimer=setTimeout(flush,Math.max(0,Number(ms||0)))}
+  function enqueue(fn,id,marked){id=String(id||'').trim();if(!id)return null;const hindu=String(fn||'').toLowerCase().includes('hindu'),q=read(),seq=Date.now()+Math.random();q[id]={id,marked:!!marked,hindu,seq,tries:0,nextAt:0,queuedAt:Date.now()};if(!write(q))return null;invalidate();flushSoon(0);return Promise.resolve({ok:true,queued:true,durableLocal:true,questionId:id,marked:!!marked})}
+  function overlayPending(questions){const q=read();(questions||[]).forEach(x=>{const id=String(x&&x.id||'').trim();if(id&&q[id])x.marked=!!q[id].marked});return questions}
+  async function flush(){
+    if(running)return;running=true;
+    try{
+      const q=read(),items=Object.values(q);if(!items.length)return;items.sort((a,b)=>Number(a.queuedAt||0)-Number(b.queuedAt||0));const item=items[0],wait=Math.max(0,Number(item.nextAt||0)-Date.now());if(wait>0){flushSoon(Math.min(wait,60000));return}const endpoint=item.hindu?'setHinduMarkedCentralV4':'setMarkedCentralV4';
+      try{const res=await direct(endpoint,item.id,!!item.marked);if(!res||res.ok!==true||res.durable!==true)throw new Error('Server did not confirm durable Star state');const latest=read(),current=latest[item.id];if(current&&Number(current.seq)===Number(item.seq))delete latest[item.id];write(latest);invalidate();setTimeout(()=>direct('repairPendingStarStatusDuplicatesV4',5).catch(()=>{}),0);flushSoon(0)}
+      catch(e){const latest=read(),current=latest[item.id];if(current&&Number(current.seq)===Number(item.seq)){current.tries=Number(current.tries||0)+1;current.lastError=String(e&&e.message||e);current.nextAt=Date.now()+backoff(current.tries);latest[item.id]=current;write(latest);flushSoon(backoff(current.tries))}else flushSoon(0)}
+    }finally{running=false}
+  }
+  function wire(){
+    if(typeof EPApp==='undefined'||!EPApp.call||EPApp.__starReliabilityV4)return;EPApp.__starReliabilityV4=true;const raw=EPApp.call.bind(EPApp),markFns=new Set(['setMarked','setMarkedV2','setMarkedCentralV3','setHinduMarked','setHinduMarkedV2','setHinduMarkedCentralV3']);
+    EPApp.call=function(fn,...args){if(markFns.has(fn)){const queued=enqueue(fn,args[0],args[1]);if(queued)return queued}return raw(fn,...args)};
+    if(typeof EPQuiz!=='undefined'&&typeof EPQuiz.start==='function'&&!EPQuiz.__starOverlayV4){EPQuiz.__starOverlayV4=true;const start=EPQuiz.start;EPQuiz.start=function(questions,meta){overlayPending(questions);return start.apply(this,arguments)}}
+    window.addEventListener('online',()=>flushSoon(0));document.addEventListener('visibilitychange',()=>{if(!document.hidden)flushSoon(0)});setInterval(()=>{if(Object.keys(read()).length)flushSoon(0)},30000);flushSoon(0);setTimeout(()=>direct('repairPendingStarStatusDuplicatesV4',5).catch(()=>{}),5000);
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(wire,60));else setTimeout(wire,60);
+  window.EPStarReliability={flush:()=>flushSoon(0),pending:()=>Object.keys(read()).length,inspect:()=>Object.values(read()).map(x=>({id:x.id,marked:x.marked,hindu:x.hindu,tries:x.tries,nextAt:x.nextAt,lastError:x.lastError||''}))};
+})();
+</script>
