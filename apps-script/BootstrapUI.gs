@@ -9,7 +9,7 @@ function getEnglishUiBootstrap(){
   safe('demandHub',()=>getDemandBatches());
   safe('demandStats',()=>getDemandHubStats());
   safe('hinduToday',()=>getHinduToday());
-  safe('hinduProgress',()=>getHinduPracticeProgress());
+  safe('hinduProgress',()=>getHinduPracticeProgressCentral());
   safe('progressSnapshot',()=>getLearningProgressSnapshot());
   return out;
 }
