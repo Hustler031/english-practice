@@ -1,12 +1,22 @@
 <script>
 (()=>{
+  function ensureToolStyles(){
+    if(document.getElementById('learningToolRowStyles'))return;const s=document.createElement('style');s.id='learningToolRowStyles';s.textContent=`
+      .quiz-tools.learning-difficult-row{grid-template-columns:repeat(var(--learning-tool-count,4),minmax(0,1fr));gap:5px}
+      .quiz-tools.learning-difficult-row .btn{min-width:0;padding:7px 3px;font-size:11px;line-height:1.15;white-space:normal}
+      @media(max-width:380px){.quiz-tools.learning-difficult-row{gap:3px}.quiz-tools.learning-difficult-row .btn{padding:6px 2px;font-size:10px}}
+    `;document.head.appendChild(s);
+  }
   function normalize(){
-    const diff=document.getElementById('starredDifficultBtn');if(!diff||diff.classList.contains('hidden'))return;
-    const title=String(document.getElementById('quizMode')?.textContent||'').trim(),isStarred=title==='Starred Revision';if(isStarred)return;
-    document.getElementById('starredMasteredWrap')?.classList.add('hidden');
-    document.getElementById('starredMasteredConfirm')?.classList.add('hidden');
-    document.getElementById('starredMasteredMini')?.classList.add('hidden');
-    const master=document.getElementById('masteredBtn');if(master)master.classList.toggle('hidden',title==='The Hindu – Today');
+    ensureToolStyles();const diff=document.getElementById('starredDifficultBtn'),tools=document.querySelector('#quizView .quiz-tools'),active=!!diff&&!diff.classList.contains('hidden'),title=String(document.getElementById('quizMode')?.textContent||'').trim(),master=document.getElementById('masteredBtn'),wrap=document.getElementById('starredMasteredWrap'),confirm=document.getElementById('starredMasteredConfirm'),mini=document.getElementById('starredMasteredMini');
+    if(active){
+      if(master)master.classList.add('hidden');
+      if(window.EPStarredRevision?.syncDifficultButton)window.EPStarredRevision.syncDifficultButton();
+      if(tools){const count=[...tools.children].filter(x=>x.classList?.contains('btn')&&!x.classList.contains('hidden')).length;tools.style.setProperty('--learning-tool-count',String(Math.max(1,count)));tools.classList.add('learning-difficult-row')}
+      return;
+    }
+    if(tools){tools.classList.remove('learning-difficult-row');tools.style.removeProperty('--learning-tool-count')}
+    wrap?.classList.add('hidden');confirm?.classList.add('hidden');mini?.classList.add('hidden');if(master)master.classList.toggle('hidden',title==='The Hindu – Today');
   }
   function wireCentralFlags(){
     if(typeof EPApp==='undefined'||!EPApp.call||EPApp.__centralFlagsV3)return;
@@ -46,9 +56,8 @@
     }
   }
   document.addEventListener('DOMContentLoaded',()=>{
-    wireCentralFlags();
-    wireLearningStartLoaders();
-    ['qId','quizMode','explanation'].forEach(id=>{const el=document.getElementById(id);if(el)new MutationObserver(()=>setTimeout(normalize,0)).observe(el,{childList:true,subtree:true,attributes:id==='explanation',attributeFilter:id==='explanation'?['class']:undefined})});
+    wireCentralFlags();wireLearningStartLoaders();ensureToolStyles();
+    ['qId','quizMode','explanation','starredDifficultBtn'].forEach(id=>{const el=document.getElementById(id);if(el)new MutationObserver(()=>setTimeout(normalize,0)).observe(el,{childList:true,subtree:true,attributes:true,attributeFilter:['class']})});
     setTimeout(normalize,600);
   });
 })();
