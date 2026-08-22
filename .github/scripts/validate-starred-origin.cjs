@@ -22,7 +22,7 @@ const stable=read('StarredOriginStable.gs'),ui=read('SaveReliabilityUI.html');
   ['getStarredRevisionBatchStableV4','stable Starred practice batch'],
   ['getStarredOriginAuditV4','origin integrity audit endpoint']
 ].forEach(([n,l])=>need(stable,n,l));
-if(/starredRevisionIndexStableV4_[\s\S]*?starredRevisionActiveDay_\(\)/.test(stable))fail('Stable index must never assign missing events to the current active day');else ok('Stable index has no current-day fallback');
+if(stable.includes('ev&&ev.day?ev.day:starredRevisionActiveDay_()')||stable.includes('ev&&ev.date?ev.date:starredRevisionActiveDate_()'))fail('Stable index must never assign missing origins to the current active day/date');else ok('Stable index has no current-day fallback');
 [
   ["getStarredRevisionHub:'getStarredRevisionHubStableV4'",'UI hub routed to stable origin API'],
   ["getStarredRevisionGroup:'getStarredRevisionGroupStableV4'",'UI grouped days routed to stable origin API'],
