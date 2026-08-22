@@ -43,10 +43,9 @@ function ensureDailyV2_(all,status,target){
       return {rows,info:dailyInfoV2_(rows,batchDate,true,target)};
     }
     archiveDailyV2_(rows,batchDate);
-    const carryIds=previousMarkedIdsV2_(rows,status);
     if(s.getLastRow()>1)s.getRange(2,1,s.getLastRow()-1,Math.max(7,s.getLastColumn())).clearContent();
     const nextDate=addDaysKeyV2_(batchDate,1);
-    rows=createDailyV2_(all,status,target,nextDate,carryIds,s);
+    rows=createDailyV2_(all,status,target,nextDate,[],s);
     return {rows,info:dailyInfoV2_(rows,nextDate,nextDate!==today,target)};
   }
 
@@ -56,19 +55,8 @@ function ensureDailyV2_(all,status,target){
 }
 
 function createDailyV2_(all,status,target,batchDate,carryIds,s){
-  const active=q=>isActive_(q)&&!(status[q.id]&&status[q.id].mastered);
-  const map=Object.fromEntries(all.map(q=>[q.id,q]));
-  const carry=shuffle_((carryIds||[]).map(id=>map[id]).filter(q=>q&&active(q))).slice(0,Math.min(20,target));
-  const carrySet=new Set(carry.map(q=>q.id));
-  const fresh=all.filter(q=>active(q)&&!carrySet.has(q.id)&&Number((status[q.id]||{}).attempts||0)===0);
-  const recent=[],other=[];
-  fresh.forEach(q=>{const d=typeof recentContentDate_==='function'?recentContentDate_(q):null;(d?recent:other).push(q)});
-  shuffle_(recent);shuffle_(other);
-  const freshNeed=Math.max(0,target-carry.length),freshSelected=recent.concat(other).slice(0,freshNeed);
-  const selected=[];
-  freshSelected.forEach(q=>selected.push({q,priority:70,reason:(typeof recentContentDate_==='function'&&recentContentDate_(q))?'Fresh · Recent':'Fresh · Unseen'}));
-  carry.forEach(q=>selected.push({q,priority:90,reason:'Yesterday Marked'}));
-  shuffle_(selected);
+  const active=all.filter(q=>isActive_(q)&&!(status[q.id]&&status[q.id].mastered));
+  const selected=typeof selectAdaptiveDaily_==='function'?selectAdaptiveDaily_(active,status,target):selectDaily_(active,status,target);
   if(selected.length){const out=selected.map(x=>[x.q.id,x.priority,x.reason,batchDate,'New',x.q.topic||'',x.q.conceptId||'']);s.getRange(2,1,out.length,7).setValues(out);}
   return table_(EP.sheets.daily).filter(r=>dateKey_(r.Quiz_Date)===batchDate&&String(r.Question_ID||'').trim());
 }
@@ -107,7 +95,7 @@ function syncDailyCompletionsFromPerformanceV2_(rows,s){
 
 // If an earlier bug jumped from Day N straight to today's calendar day, repair an untouched
 // generated batch by relabelling it as the first missing sequential day. This preserves the
-// exact 120 selected questions instead of discarding them.
+// exact selected questions instead of discarding them.
 function repairSkippedDailyDateV2_(rows,s,today){
   if(!rows.length)return rows;
   const batchDate=dateKey_(rows[0].Quiz_Date);
@@ -140,7 +128,7 @@ function addDaysKeyV2_(key,days){
 function dailyInfoV2_(rows,activeDate,pending,target){
   const today=todayKey_(),dayNo=dailyDayNoV2_(activeDate||today),todayDayNo=dailyDayNoV2_(today);
   const reasons=rows.map(r=>String(r.Reason||''));
-  return {activeDate:activeDate||today,dayNo,todayDayNo,pendingFromPrevious:!!pending,target:Number(target||120),freshCount:reasons.filter(x=>/^Fresh/.test(x)).length,carryCount:reasons.filter(x=>x==='Yesterday Marked').length,available:rows.length};
+  return {activeDate:activeDate||today,dayNo,todayDayNo,pendingFromPrevious:!!pending,target:Number(target||120),freshCount:reasons.filter(x=>/New|Unseen/i.test(x)).length,carryCount:reasons.filter(x=>/Weak|Fragile|Revision/i.test(x)).length,available:rows.length};
 }
 
 function dailyDayNoV2_(key){
