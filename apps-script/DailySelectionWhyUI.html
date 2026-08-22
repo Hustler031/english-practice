@@ -1,0 +1,52 @@
+<script>
+(()=>{
+  const $=id=>document.getElementById(id),DAILY_KEY='ep-quiz-daily-v5',MIX_KEY='ep:daily-selection-mix:v1';
+  let currentQuestion=null,heroTimer=0;
+  const REASONS={
+    PW:{label:'Persistent Weak',icon:'🔴',detail:'Repeated errors or retention failures made this one of the highest-priority recovery questions.'},
+    W:{label:'Weak',icon:'🔥',detail:'Your current learning state was Weak, so Daily prioritised correction before easier material.'},
+    FR:{label:'Fragile',icon:'🟠',detail:'You have improved, but retention is not stable enough yet, so this question was selected for reinforcement.'},
+    DUE:{label:'Due',icon:'⏰',detail:'Its spaced-revision interval was due by the date this Daily batch was created.'},
+    STAR:{label:'Starred',icon:'⭐',detail:'You had this question starred, so Daily deliberately brought it back for focused revision.'},
+    DIFF:{label:'Difficult',icon:'⚡',detail:'You marked this question Difficult, so Daily prioritised another exposure.'},
+    NEW:{label:'New',icon:'🆕',detail:'You had not attempted this genuine-bank question yet; it was selected as controlled fresh exposure.'},
+    LEARN:{label:'Learning',icon:'↻',detail:'You had seen this question before but it was still in the Learning state and needed reinforcement.'},
+    MIX:{label:'Mixed',icon:'🔄',detail:'It was selected by the adaptive category balance after higher-priority recovery and due items were considered.'}
+  };
+  const reasonFor=q=>REASONS[String(q?.selectionReasonCode||'MIX')]||REASONS.MIX;
+  function localDateKey(){const d=new Date(),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`}
+  function installStyles(){
+    if($('dailySelectionWhyStyles'))return;const s=document.createElement('style');s.id='dailySelectionWhyStyles';s.textContent=`
+      #dailyWhyBadge{margin-left:auto;border:1px solid color-mix(in srgb,var(--primary) 28%,var(--line));background:var(--primary2);color:var(--text);border-radius:999px;padding:5px 9px;font-size:11px;font-weight:900;line-height:1.1;min-height:30px;cursor:pointer;white-space:nowrap}
+      #dailyWhyBadge:active{transform:scale(.98)}
+      .daily-mix{margin:8px 0 12px;padding-top:8px;border-top:1px solid rgba(255,255,255,.22)}
+      .daily-mix-head{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:11px;font-weight:900;margin-bottom:7px}
+      .daily-mix-head small{font-weight:700;opacity:.82}
+      .daily-mix-chips{display:flex;gap:6px;flex-wrap:wrap}
+      .daily-mix-chip{display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:5px 7px;font-size:10px;font-weight:800;color:#fff}
+      .daily-why-primary{display:flex;align-items:center;gap:8px;margin:10px 0 8px;padding:10px 12px;border:1px solid var(--line);border-radius:13px;background:var(--primary2);font-weight:900}
+      .daily-why-detail{font-size:13px;line-height:1.5;color:var(--text);margin:0 0 12px}
+      .daily-why-secondary{display:flex;gap:6px;flex-wrap:wrap;margin:7px 0 14px}.daily-why-secondary span{border:1px solid var(--line);border-radius:999px;padding:5px 8px;font-size:11px;font-weight:800;background:var(--bg)}
+      .daily-why-note{font-size:11px;color:var(--muted);line-height:1.4;margin:8px 0 14px}
+      @media(max-width:380px){#dailyWhyBadge{font-size:10px;padding:5px 7px}.meta{row-gap:7px}}
+    `;document.head.appendChild(s);
+  }
+  function ensureBadge(){const meta=document.querySelector('#quizView .meta');if(!meta)return null;let b=$('dailyWhyBadge');if(!b){b=document.createElement('button');b.id='dailyWhyBadge';b.type='button';b.className='hidden';b.onclick=openWhy;meta.appendChild(b)}else if(b.parentElement!==meta)meta.appendChild(b);return b}
+  function ensureSheet(){if($('dailyWhySheet'))return;const w=document.createElement('div');w.id='dailyWhySheet';w.className='sheet-backdrop hidden';w.onclick=e=>{if(e.target===w)closeWhy()};w.innerHTML='<div class="sheet"><h3 style="margin-top:0">Why was this selected?</h3><div id="dailyWhySheetBody"></div><button class="btn ghost full" type="button" onclick="EPDailySelectionWhy.close()">Close</button></div>';document.body.appendChild(w)}
+  function readDailySession(){try{const s=JSON.parse(localStorage.getItem(DAILY_KEY)||'null');return s&&Array.isArray(s.questions)?s:null}catch(e){return null}}
+  function currentDailyQuestion(){if(String($('quizMode')?.textContent||'')!=='Daily Practice')return null;const id=String($('qId')?.textContent||'').trim(),s=readDailySession();if(!id||!s)return null;return s.questions.find(q=>q&&String(q.id||'')===id)||null}
+  function syncBadge(){const b=ensureBadge(),q=currentDailyQuestion();currentQuestion=q;if(!b)return;if(!q||!q.selectionReason){b.classList.add('hidden');b.textContent='';return}const r=reasonFor(q);b.textContent=`${r.icon} ${r.label} ⓘ`;b.classList.remove('hidden')}
+  function openWhy(){const q=currentQuestion||currentDailyQuestion();if(!q)return;ensureSheet();const r=reasonFor(q),codes=[...new Set((q.selectionSignals||[]).map(String))],secondary=codes.filter(c=>c&&c!==String(q.selectionReasonCode||''));const body=$('dailyWhySheetBody');body.innerHTML=`<div class="daily-why-primary"><span>${r.icon}</span><span>${r.label}</span></div><p class="daily-why-detail">${r.detail}</p>${secondary.length?`<div class="muted" style="font-size:11px;font-weight:900">ALSO QUALIFIED AS</div><div class="daily-why-secondary">${secondary.map(c=>{const x=REASONS[c]||REASONS.MIX;return `<span>${x.icon} ${x.label}</span>`}).join('')}</div>`:'<div class="daily-why-note">No additional selector signal was needed for this question.</div>'}<div class="daily-why-note">The primary reason is frozen from the moment this Daily batch was created. Answering the question later does not rewrite why it was selected.</div>`;$('dailyWhySheet').classList.remove('hidden')}
+  function closeWhy(){$('dailyWhySheet')?.classList.add('hidden')}
+  function mixDataFromBootstrap(){const b=window.EPLearningBootstrap,di=b?.dailyInfo;if(!di?.adaptive)return null;const chips=[['🔴','Persistent',Number(di.persistentWeakCount||0)],['🔥','Weak',Number(di.weakCount||0)],['🟠','Fragile',Number(di.fragileCount||0)],['⏰','Due',Number(di.dueCount||0)],['⭐','Flagged',Number(di.flaggedCount||0)],['↻','Learning',Number(di.learningCount||0)],['🆕','New',Number(di.freshCount||0)],['🔄','Mixed',Number(di.mixedCount||0)]].filter(x=>x[2]>0),total=chips.reduce((n,x)=>n+x[2],0);return {savedDay:localDateKey(),activeDate:String(di.activeDate||''),pending:!!di.pendingFromPrevious,carryForwardRemaining:Number(di.carryForwardRemaining||0),total,chips}}
+  function readMixCache(){try{const x=JSON.parse(localStorage.getItem(MIX_KEY)||'null');if(!x||!Array.isArray(x.chips))return null;if(x.savedDay!==localDateKey()&&!x.pending)return null;return x}catch(e){return null}}
+  function saveMixCache(x){try{localStorage.setItem(MIX_KEY,JSON.stringify(x))}catch(e){}}
+  function ensureMix(){const note=$('dailyNote'),hero=note?.closest('.hero');if(!hero)return null;let d=$('dailySelectionMix');if(!d){d=document.createElement('div');d.id='dailySelectionMix';d.className='daily-mix';note.insertAdjacentElement('afterend',d)}return d}
+  function paintMix(data){const d=ensureMix();if(!d)return;if(!data||!data.chips?.length){d.classList.add('hidden');d.innerHTML='';return}const title=data.pending?'Active Batch Mix':"Today's Mix",carry=data.pending&&data.carryForwardRemaining?`<small>📌 ${data.carryForwardRemaining} carry-forward left</small>`:`<small>${data.total} selected</small>`;d.innerHTML=`<div class="daily-mix-head"><span>${title}</span>${carry}</div><div class="daily-mix-chips">${data.chips.map(x=>`<span class="daily-mix-chip">${x[0]} ${x[2]} ${x[1]}</span>`).join('')}</div>`;d.classList.remove('hidden')}
+  function renderMix(){const fresh=mixDataFromBootstrap();if(fresh){saveMixCache(fresh);paintMix(fresh);return}paintMix(readMixCache())}
+  function scheduleMix(){clearTimeout(heroTimer);heroTimer=setTimeout(renderMix,40)}
+  function init(){installStyles();ensureBadge();ensureSheet();syncBadge();renderMix();const q=$('qId'),m=$('quizMode');if(q)new MutationObserver(()=>setTimeout(syncBadge,0)).observe(q,{childList:true,subtree:true,characterData:true});if(m)new MutationObserver(()=>setTimeout(syncBadge,0)).observe(m,{childList:true,subtree:true,characterData:true});const note=$('dailyNote'),progress=$('dailyProgress');if(note)new MutationObserver(scheduleMix).observe(note,{childList:true,subtree:true,characterData:true});if(progress)new MutationObserver(scheduleMix).observe(progress,{childList:true,subtree:true,characterData:true});setTimeout(renderMix,250);setTimeout(renderMix,900)}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+  window.EPDailySelectionWhy={close:closeWhy,refreshMix:renderMix,sync:syncBadge};
+})();
+</script>
