@@ -5,6 +5,7 @@ function enrichServedQuestionsV3_(served,maps){maps=maps||centralServeMapsV3_();
 function serveQuestionsCentralV3_(questions,maps){maps=maps||centralServeMapsV3_();return (questions||[]).map(q=>{const x=serveQuestion_(q);x.marked=!!maps.stars[q.id];x.difficult=!!maps.diff[q.id];return x;});}
 function getPracticeBatchCentralV3(mode,options){return enrichServedQuestionsV3_(getPracticeBatch(mode,options));}
 function getDailyBatchReliableV3(){return enrichServedQuestionsV3_(getDailyBatchV3());}
+function getNewPracticeBatchCentralV3(category,kind,count){return enrichServedQuestionsV3_(getNewPracticeBatch(category,kind,count));}
 
 function answeredAtV3_(value){const d=value instanceof Date?value:new Date(value||Date.now());return isNaN(d)?new Date():d;}
 function appendDurableAttemptV3_(q,payload,isCorrect){
