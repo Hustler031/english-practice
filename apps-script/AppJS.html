@@ -74,7 +74,7 @@ const EPApp=(()=>{
   function returnTabForMode(mode){if(mode==='category'||mode==='source')return'practice';if(mode==='demand')return'demanded';if(mode==='new')return'new';if(['due','weak','recall'].includes(mode))return'revision';if(mode==='hindu')return'hindu';return'home'}
   function toast(msg){const t=$('toast');t.textContent=msg;t.classList.remove('hidden');clearTimeout(t._timer);t._timer=setTimeout(()=>t.classList.add('hidden'),2600)}
   function call(fn,...args){return gas(fn,...args)}
-  function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[m]))}
+  function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
   document.addEventListener('DOMContentLoaded',load);
   return{toggleTheme,showTab,pickCount,closePicker,startDirect,start,openNewPractice,startNewPractice,openDemanded,startDemandBatch,openHindu,startHinduQuiz,openSources,startSource,openMastered,restoreMastered,toast,call,showPracticeLoading,hidePracticeLoading,refreshResumeCard,refreshDashboard};
 })();
