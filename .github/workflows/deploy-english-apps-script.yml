@@ -10,6 +10,7 @@ on:
       - '.github/scripts/validate-reliability.cjs'
       - '.github/scripts/validate-starred-origin.cjs'
       - '.github/scripts/validate-ui-polish.cjs'
+      - '.github/scripts/validate-daily-selection.cjs'
       - '.github/workflows/deploy-english-apps-script.yml'
   workflow_dispatch:
 
@@ -48,6 +49,9 @@ jobs:
 
       - name: Validate UI navigation polish contracts
         run: node .github/scripts/validate-ui-polish.cjs
+
+      - name: Validate Daily selection transparency contracts
+        run: node .github/scripts/validate-daily-selection.cjs
 
       - name: Verify required deployment secrets
         env:
