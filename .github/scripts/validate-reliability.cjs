@@ -8,13 +8,13 @@ const ok=m=>console.log(`✅ ${m}`);
 const need=(t,n,l)=>t.includes(n)?ok(l):fail(`${l} — missing: ${n}`);
 
 const server=['RobustLearningSave.gs','CentralFlags.gs','BankCoverage.gs','NewPracticeLive.gs','TopicPractice.gs','SourcePractice.gs','Demand.gs','StarredRevision.gs'];
-const front=['SaveReliabilityUI.html','AppJS.html'];
+const front=['SaveReliabilityUI.html','AppJS.html','BankCoverageUX.html'];
 [...server,...front].forEach(f=>fs.existsSync(path.join(root,f))?ok(`Reliability file present: ${f}`):fail(`Reliability file missing: ${f}`));
 if(process.exitCode)process.exit(process.exitCode);
 server.forEach(f=>{try{new vm.Script(read(f),{filename:f});ok(`Reliability server syntax: ${f}`)}catch(e){fail(`Server syntax failed in ${f}: ${e.message}`)}});
-front.forEach(f=>{try{new vm.Script(read(f).replace(/<\/?script[^>]*>/gi,''),{filename:f});ok(`Reliability frontend syntax: ${f}`)}catch(e){fail(`Frontend syntax failed in ${f}: ${e.message}`)}});
+front.forEach(f=>{try{new vm.Script(read(f).replace(/<\/?script[^>]*>/gi,''),{filename:f});ok(`Frontend syntax: ${f}`)}catch(e){fail(`Frontend syntax failed in ${f}: ${e.message}`)}});
 
-const robust=read('RobustLearningSave.gs'),ui=read('SaveReliabilityUI.html'),flags=read('CentralFlags.gs'),bank=read('BankCoverage.gs'),np=read('NewPracticeLive.gs'),topic=read('TopicPractice.gs'),source=read('SourcePractice.gs'),demand=read('Demand.gs'),star=read('StarredRevision.gs'),app=read('AppJS.html'),index=read('Index.html');
+const robust=read('RobustLearningSave.gs'),ui=read('SaveReliabilityUI.html'),flags=read('CentralFlags.gs'),bank=read('BankCoverage.gs'),bankux=read('BankCoverageUX.html'),np=read('NewPracticeLive.gs'),topic=read('TopicPractice.gs'),source=read('SourcePractice.gs'),demand=read('Demand.gs'),star=read('StarredRevision.gs'),app=read('AppJS.html'),index=read('Index.html');
 [
   ['function submitAnswerV3(','durable central answer endpoint'],
   ['function submitHinduAnswerV3(','durable Hindu answer endpoint'],
@@ -53,7 +53,16 @@ if(/nextBtn[^\n]{0,100}disabled/i.test(ui))fail('Reliability layer must never di
 need(flags,'setMarkedFastV3','central Star path uses lightweight status write');
 need(flags,'logStarredRevisionEvent_','central Star path still records one Star event');
 need(bank,'bankCoverageSnapshotV3_','Bank Coverage builds one reusable snapshot');
+need(bank,'function getBankCoverageBatch(category,count)','Bank Coverage accepts user-selected unseen count');
+need(bank,'requested=Math.max(1,Math.min(100,Number(count||10)))','Bank Coverage count safely capped at 100');
+need(bank,'function getBankCoverageCategoryDetail(category)','Bank Coverage category detail endpoint');
+need(bank,'function getBankCoverageTodayBatch(category,kind,count)','Bank Coverage today-review endpoint');
+need(bank,'function getBankCoverageSeenBatch(category,count)','Bank Coverage seen-practice endpoint');
 if(/function getBankCoverageBatch[\s\S]*?getBankCoverageHub\(/.test(bank))fail('Bank Coverage batch must not rebuild the hub');else ok('Bank Coverage batch no longer rebuilds the hub');
+if(/function getBankCoverageBatch[\s\S]*?\.slice\(0,meta\.available\)/.test(bank))fail('Bank Coverage new batch must not enforce the old 10/day limit');else ok('Bank Coverage 10 is a default recommendation, not a hard limit');
+['DETAIL_PREFIX=\'ep:bankCoverage:category:v1:\'','readSnap(detailKey(currentCat))','setTimeout(()=>refreshDetail(currentCat),0)','[10,20,50,100]','Attempted Today','Today’s Review','Practice All Again','Wrong Only','Difficult Only','Last Session','getBankCoverageSeenBatch'].forEach(x=>need(bankux,x,`Bank Coverage UX ${x}`));
+if(!bankux.includes('stopImmediatePropagation();openHub()'))fail('Bank Coverage UX must own the Home entry before legacy cache handler');else ok('Bank Coverage Home entry routes to new cache-first UX');
+
 need(np,'currentStarredMapV2_','New Practice reads central Star state');
 need(np,'serveQuestionsCentralV3_','New Practice serves central flags');
 need(topic,'serveQuestionsCentralV3_','Topic Practice serves central flags');
@@ -67,6 +76,7 @@ need(star,'currentlyStarred=!!centralStars[id]','Starred Revision active state i
 need(app,'getDailyBatchReliableV3','Daily receives central flags');
 need(app,'getPracticeBatchCentralV3','generic Random/Weak/Due/Category/Source receives central flags');
 need(app,'getNewPracticeBatchCentralV3','legacy New Practice fallback receives central flags');
+need(index,"include('BankCoverageUX')",'Bank Coverage category UX loaded');
 need(index,"include('SaveReliabilityUI')",'reliability layer loaded in app');
 if(index.lastIndexOf("include('SaveReliabilityUI')")<index.lastIndexOf("include('LearningLayoutCompat')"))fail('SaveReliabilityUI must load after compatibility wrappers');else ok('SaveReliabilityUI loads last among learning wrappers');
 

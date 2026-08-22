@@ -9,13 +9,13 @@ const need=(t,n,l)=>t.includes(n)?ok(l):fail(`${l} — missing: ${n}`);
 const count=(t,n)=>t.split(n).length-1;
 
 const server=['LearningIntelligence.gs','BankCoverage.gs','DailyAdaptive.gs','LearningProgress.gs','MySavedRevision.gs','LearningHinduCompat.gs','CentralFlags.gs'];
-const front=['FinalLearningUI.html','LearningLayoutCompat.html','LearningCacheUX.html'];
+const front=['FinalLearningUI.html','BankCoverageUX.html','LearningLayoutCompat.html','LearningCacheUX.html'];
 [...server,...front].forEach(f=>fs.existsSync(path.join(root,f))?ok(`Learning file present: ${f}`):fail(`Learning file missing: ${f}`));
 if(process.exitCode)process.exit(process.exitCode);
 server.forEach(f=>{try{new vm.Script(read(f),{filename:f});ok(`Learning server syntax: ${f}`)}catch(e){fail(`Learning server syntax failed in ${f}: ${e.message}`)}});
 front.forEach(f=>{try{new vm.Script(read(f).replace(/<\/?script[^>]*>/gi,''),{filename:f});ok(`Learning frontend syntax: ${f}`)}catch(e){fail(`Learning frontend syntax failed in ${f}: ${e.message}`)}});
 
-const li=read('LearningIntelligence.gs'),bank=read('BankCoverage.gs'),daily=read('DailyAdaptive.gs'),progress=read('LearningProgress.gs'),saved=read('MySavedRevision.gs'),hcompat=read('LearningHinduCompat.gs'),flags=read('CentralFlags.gs'),ui=read('FinalLearningUI.html'),layout=read('LearningLayoutCompat.html'),cacheux=read('LearningCacheUX.html'),index=read('Index.html'),quiz=read('QuizJS.html'),star=read('StarredRevision.gs'),hindu=read('HinduUI.html'),dailyV2=read('DailyV2.gs');
+const li=read('LearningIntelligence.gs'),bank=read('BankCoverage.gs'),daily=read('DailyAdaptive.gs'),progress=read('LearningProgress.gs'),saved=read('MySavedRevision.gs'),hcompat=read('LearningHinduCompat.gs'),flags=read('CentralFlags.gs'),ui=read('FinalLearningUI.html'),bankux=read('BankCoverageUX.html'),layout=read('LearningLayoutCompat.html'),cacheux=read('LearningCacheUX.html'),index=read('Index.html'),quiz=read('QuizJS.html'),star=read('StarredRevision.gs'),hindu=read('HinduUI.html'),dailyV2=read('DailyV2.gs');
 [
   ['EP_RETENTION_GAP_MS=24*60*60*1000','24-hour retention gap'],
   ['EP_MAX_ACTIVE_ANSWER_SECONDS=180','active timing capped at 180 seconds'],
@@ -35,8 +35,9 @@ need(li,'recentSpacedWrong>=2','Persistent Weak uses repeated spaced failures');
 need(li,'retentionCorrect>=2','Mastery requires spaced correct recalls');
 need(li,'performanceAttemptExistsV2_','Attempt_ID duplicate protection');
 
-['learningBankEligibleQuestionsV2_','facts.seen.has(id)','Math.min(10-doneToday,unseen)','x.difficult=!!diff[q.id]','x.marked=!!stars[q.id]'].forEach(x=>need(bank,x,`Bank Coverage contract ${x}`));
+['learningBankEligibleQuestionsV2_','facts.seen.has(id)','recommended=Math.max(0,Math.min(10,unseen))','function getBankCoverageBatch(category,count)','function getBankCoverageCategoryDetail(category)','function getBankCoverageTodayBatch(category,kind,count)','function getBankCoverageSeenBatch(category,count)','x.difficult=!!diff[q.id]','x.marked=!!stars[q.id]'].forEach(x=>need(bank,x,`Bank Coverage contract ${x}`));
 if(bank.includes('appendRow')||bank.includes('EP.sheets.performance'))fail('Bank Coverage must not maintain a separate performance history');else ok('Bank Coverage uses central performance only');
+['DETAIL_PREFIX=\'ep:bankCoverage:category:v1:\'','[10,20,50,100]','Attempted Today','Today’s Review','Last Session','getBankCoverageCategoryDetail','getBankCoverageTodayBatch','getBankCoverageSeenBatch','refreshes silently in background'].forEach(x=>need(bankux,x,`Bank Coverage category UX ${x}`));
 
 ['Persistent Weak','Weak','Fragile','Due Spaced Revision','Controlled New','learningCategoryKeyV2_'].forEach(x=>need(daily,x,`Adaptive Daily contract ${x}`));
 ['firstAttemptAccuracy','afterReviewAccuracy','retentionAccuracy','weakConcepts','persistentWeakCount','masteredCount','learningCategoryKeyV2_'].forEach(x=>need(progress,x,`Progress metric ${x}`));
@@ -53,6 +54,7 @@ need(layout,"title==='Starred Revision'",'Starred-only compact Mastered layout p
 need(layout,"title==='The Hindu – Today'",'Hindu legacy Mastered toolbar remains hidden');
 need(layout,'setMarkedCentralV3','all-module Starred routing uses central synchronizer');
 need(index,"include('FinalLearningUI')",'Final learning UI included');
+need(index,"include('BankCoverageUX')",'Bank Coverage category UX included');
 need(index,"include('LearningLayoutCompat')",'Learning layout compatibility included');
 need(index,"include('LearningCacheUX')",'Learning cache UX included');
 need(quiz,'if(q&&q.marked)state.marked[q.id]=true','quiz seeds central Starred state');
