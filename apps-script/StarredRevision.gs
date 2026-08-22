@@ -100,5 +100,5 @@ function getStarredRevisionBatch(scope,kind,count){
   if(mode!=='all'&&mode!=='difficult'){
     const n=Math.max(1,Math.min(100,Number(count||10)));if(['random','weak','new'].includes(mode))pool=pool.slice(0,n);
   }
-  return pool.map(q=>{const served=serveQuestion_(q);served.difficult=!!byId[q.id]?.difficult;return served;});
+  return pool.map(q=>{const served=serveQuestion_(q);served.difficult=!!byId[q.id]?.difficult;served.marked=!!byId[q.id]?.starred;return served;});
 }
