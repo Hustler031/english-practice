@@ -1,7 +1,7 @@
 const EP_RETENTION_MIN_HOURS=20;
 const EP_RETENTION_MIN_MS=EP_RETENTION_MIN_HOURS*60*60*1000;
 const EP_BANK_LOG='Bank_Coverage_Log';
-const EP_SAFE_ATTEMPT_SECONDS=180;
+const EP_SAFE_ATTEMPT_SECONDS=300;
 
 function performanceTimeline_(){
   const qMap=Object.fromEntries(allQuestions_().map(q=>[q.id,q]));
@@ -62,10 +62,11 @@ function learningFacts_(){
 
 function pct1_(n,d){return d?Math.round(Number(n||0)*1000/Number(d))/10:0;}
 function isLowPressureHindu_(q){const t=[q&&q.topic,q&&q.sourceId,q&&q.sourceFile].map(x=>String(x||'').toLowerCase()).join(' ');return t.includes('hindu')||/^HV\d/i.test(String(q&&q.id||''));}
+function isCleanConceptId_(value){const c=String(value||'').trim();if(!c||c.length>80||/^related\s*:/i.test(c)||/[.!?].*\s/.test(c)||c.split(/\s+/).length>6)return false;return /^[A-Za-z0-9_\-\/ ]+$/.test(c);}
 function getLearningAnalytics(){
   const f=learningFacts_(),eligible=bankEligibleQuestions_(f.all),exposed=eligible.filter(q=>(f.timeline.byId[q.id]||[]).length>0).length;
   const states=Object.values(f.byQuestion),conceptWeak=new Set();
-  f.all.forEach(q=>{const st=f.byQuestion[q.id]?.state;if((st==='WEAK'||st==='PERSISTENT_WEAK')&&String(q.conceptId||'').trim())conceptWeak.add(String(q.conceptId).trim())});
+  f.all.forEach(q=>{const st=f.byQuestion[q.id]?.state,c=String(q.conceptId||'').trim();if((st==='WEAK'||st==='PERSISTENT_WEAK')&&isCleanConceptId_(c))conceptWeak.add(c)});
   return {
     retentionMinHours:EP_RETENTION_MIN_HOURS,
     bankEligible:eligible.length,bankExposed:exposed,bankExposedPercent:pct1_(exposed,eligible.length),
@@ -115,10 +116,15 @@ function selectAdaptiveDaily_(questions,status,limit){
   });
   rows.sort((a,b)=>b.priority-a.priority);const out=[],seen=new Set();rows.forEach(x=>{if(out.length<limit&&!seen.has(x.q.id)){seen.add(x.q.id);out.push(x)}});return out;
 }
+function getAdaptiveWeakBatch(count){
+  const f=learningFacts_(),status=statusMap_(),n=Math.max(1,Math.min(120,Number(count||20))),persistent=[],weak=[];
+  f.all.forEach(q=>{if(!isActive_(q)||(status[q.id]&&status[q.id].mastered))return;const st=f.byQuestion[q.id]?.state;if(st==='PERSISTENT_WEAK')persistent.push(q);else if(st==='WEAK')weak.push(q)});
+  shuffle_(persistent);shuffle_(weak);return persistent.concat(weak).slice(0,n).map(serveQuestion_);
+}
 
 function getLearningDataAudit(){
   const f=learningFacts_(),statusSheet=sheet_(EP.sheets.status),statusVals=statusSheet.getLastRow()>1?statusSheet.getRange(2,1,statusSheet.getLastRow()-1,20).getValues():[],statusSeen=new Set(),duplicateStatus=0,zeroAttemptMarked=0;
   statusVals.forEach(r=>{const id=String(r[0]||'').trim();if(!id)return;if(statusSeen.has(id))duplicateStatus++;statusSeen.add(id);if(Number(r[1]||0)===0&&(truthy_(r[10])||String(r[12]||'').toLowerCase()==='marked'))zeroAttemptMarked++;});
-  let malformedConcept=0,missingConcept=0;f.all.forEach(q=>{const c=String(q.conceptId||'').trim();if(!c){missingConcept++;return}if(c.length>80||/\s{2,}|[.!?].*\s/.test(c)||c.split(/\s+/).length>6)malformedConcept++;});
+  let malformedConcept=0,missingConcept=0;f.all.forEach(q=>{const c=String(q.conceptId||'').trim();if(!c){missingConcept++;return}if(!isCleanConceptId_(c))malformedConcept++;});
   return {duplicateAttemptIds:f.timeline.duplicates,duplicateStatusRows:duplicateStatus,zeroAttemptMarkedRows:zeroAttemptMarked,malformedConceptIds:malformedConcept,missingConceptIds:missingConcept,performanceAttempts:f.timeline.attempts.length,statusRows:statusVals.length};
 }
