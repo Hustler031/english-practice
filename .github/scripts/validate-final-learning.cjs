@@ -1,0 +1,40 @@
+const fs=require('fs');
+const path=require('path');
+const vm=require('vm');
+const root=path.resolve(process.cwd(),'apps-script');
+let failed=false;
+const fail=m=>{failed=true;console.error('❌ '+m)};
+const ok=m=>console.log('✅ '+m);
+const read=f=>fs.readFileSync(path.join(root,f),'utf8');
+const server=['LearningIntelligence.gs','DifficultCentral.gs','FinalProgress.gs','MasteryGuard.gs','MySavedRevision.gs','SafeSubmit.gs','DailyV2.gs','StarredRevision.gs'];
+const front=['TopicFlashFix.html','AddWordTypeUI.html'];
+for(const f of server){try{new vm.Script(read(f),{filename:f});ok('Server syntax: '+f)}catch(e){fail('Server syntax '+f+': '+e.message)}}
+for(const f of front){try{const js=read(f).replace(/<\/?script[^>]*>/gi,'');new vm.Script(js,{filename:f});ok('Frontend syntax: '+f)}catch(e){fail('Frontend syntax '+f+': '+e.message)}}
+const learning=read('LearningIntelligence.gs'),daily=read('DailyV2.gs'),saved=read('MySavedRevision.gs'),diff=read('DifficultCentral.gs'),progress=read('FinalProgress.gs'),safe=read('SafeSubmit.gs'),guard=read('MasteryGuard.gs'),topic=read('TopicFlashFix.html'),awt=read('AddWordTypeUI.html'),star=read('StarredRevision.gs'),quiz=read('QuizJS.html'),code=read('Code.gs');
+const need=(txt,token,label)=>txt.includes(token)?ok(label):fail(label+' missing '+token);
+need(learning,"const EP_RETENTION_MIN_HOURS=20",'20-hour retention threshold');
+need(learning,"const EP_SAFE_ATTEMPT_SECONDS=300",'5-minute inactivity cap');
+need(learning,'function getBankCoverageBatch(','Bank Coverage batch API');
+need(learning,'function getAdaptiveWeakBatch(','Adaptive Weak API');
+need(learning,'function isCleanConceptId_(','Concept-ID quality guard');
+need(learning,"st==='PERSISTENT_WEAK'",'Persistent Weak state');
+need(daily,'selectAdaptiveDaily_','Daily uses adaptive selector');
+need(saved,'function getMySavedRevisionHub(','My Saved revision hub');
+need(saved,"if(mode==='difficult')",'My Saved central Difficult filter');
+need(diff,'function getCentralDifficultBatch(','Central Difficult revision');
+need(progress,'firstAttemptAccuracy','First-attempt Progress metric');
+need(progress,'retentionAccuracy','Retention Progress metric');
+need(safe,'findRow_(perf,7,attemptId)','Attempt-ID duplicate guard');
+need(guard,"x.state!=='STRONG'",'Mastery requires Strong');
+need(topic,"actual='submitAnswerV2'",'Central submission routing');
+need(topic,"actual='getFinalLearningProgress'",'Progress routing');
+need(topic,'EPApp.openSaved=openSaved','My Saved routing');
+need(awt,"fn==='markMastered'?'markMasteredV2':fn",'Mastery guard routing');
+need(awt,"if(mode==='weak')return startAdaptiveWeak",'Revision Weak routing');
+need(awt,"data-central-difficult",'Central Difficult UI entry');
+need(star,"ls.state==='WEAK'||ls.state==='PERSISTENT_WEAK'",'Starred Weak uses new state');
+need(quiz,"EPApp.call('submitAnswer'",'Shared quiz submission contract preserved');
+need(code,'function submitAnswer(','Legacy submit API preserved');
+need(code,'function markMastered(','Legacy Mastered backend preserved');
+if(failed){console.error('\nFinal learning validation failed.');process.exit(1)}
+console.log('\n✅ Final learning regression contracts passed.');

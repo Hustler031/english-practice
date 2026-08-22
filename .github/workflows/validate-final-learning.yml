@@ -1,0 +1,27 @@
+name: Validate Final Learning Upgrade
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps-script/**'
+      - '.github/scripts/validate-final-learning.cjs'
+      - '.github/workflows/validate-final-learning.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Existing English regression contracts
+        run: node .github/scripts/validate-english.cjs
+      - name: Final learning regression contracts
+        run: node .github/scripts/validate-final-learning.cjs
