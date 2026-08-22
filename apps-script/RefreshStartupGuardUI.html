@@ -1,6 +1,54 @@
 <script>
 (()=>{
-  let retryTimer=0,retryQueued=false;
+  const $=id=>document.getElementById(id);
+  let retryTimer=0,retryQueued=false,quickObserver=null;
+
+  function installMobileSafetyStyles(){
+    if($('refreshMobileSafetyStyles'))return;
+    const s=document.createElement('style');
+    s.id='refreshMobileSafetyStyles';
+    s.textContent=`
+      .toast{pointer-events:none!important}
+      #legacyHomeMetricSinks{display:none!important}
+      .ui-home-quick>span:nth-child(2){min-width:0}
+      .ui-home-quick>span:nth-child(2)>b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .ui-home-quick>.ui-quick-status{min-width:0;max-width:42vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      @media(max-width:480px){.ui-home-quick>.ui-quick-status{max-width:132px}}
+      @media(max-width:380px){.ui-home-quick>.ui-quick-status{max-width:108px}}
+    `;
+    document.head.appendChild(s);
+  }
+
+  function preserveLegacyBootstrapTargets(){
+    let sink=$('legacyHomeMetricSinks');
+    if(!sink){sink=document.createElement('div');sink.id='legacyHomeMetricSinks';sink.setAttribute('aria-hidden','true');document.body.appendChild(sink)}
+    const recall=$('recallCount');
+    if(recall&&!sink.contains(recall))sink.appendChild(recall);
+  }
+
+  function compactHinduStatus(){
+    const card=$('homeHinduQuick'),status=card?.querySelector(':scope > .ui-quick-status');
+    if(!status)return;
+    const raw=String(status.textContent||'').trim();if(!raw)return;
+    let short=raw;
+    const words=raw.match(/(\d+)\s+words?\s+today/i);
+    if(words)short=`${words[1]} today`;
+    else if(/batch\s+not\s+added|not\s+added\s+yet/i.test(raw))short='Not added';
+    if(raw!==short){status.title=raw;status.textContent=short}
+  }
+
+  function watchQuickStart(){
+    if(quickObserver)return;
+    const home=$('homeView');if(!home)return;
+    quickObserver=new MutationObserver(()=>{
+      preserveLegacyBootstrapTargets();
+      compactHinduStatus();
+    });
+    quickObserver.observe(home,{childList:true,subtree:true,characterData:true});
+    setTimeout(compactHinduStatus,140);
+    setTimeout(compactHinduStatus,280);
+  }
+
   function cachedHomeReady(){
     try{
       const s=window.EPFast?.get?.('home:snapshot');
@@ -12,7 +60,7 @@
     retryQueued=true;clearTimeout(retryTimer);
     retryTimer=setTimeout(()=>{Promise.resolve(window.EPApp.refreshDashboard()).finally(()=>{setTimeout(()=>{retryQueued=false},10000)})},1800);
   }
-  function install(){
+  function installToastGuard(){
     if(typeof window.EPApp==='undefined'||typeof window.EPApp.toast!=='function'||window.EPApp.__cachedBootstrapGuard)return;
     window.EPApp.__cachedBootstrapGuard=true;
     const raw=window.EPApp.toast.bind(window.EPApp);
@@ -25,6 +73,19 @@
       return raw.apply(this,arguments);
     };
   }
-  install();
+
+  function openStarredFromHome(e){
+    const card=e.target.closest?.('#homeStarredQuick');if(!card)return;
+    e.preventDefault();e.stopImmediatePropagation();
+    if(window.EPUIPolish?.openStarred)return window.EPUIPolish.openStarred('home');
+    return window.EPStarredRevision?.open?.();
+  }
+
+  installMobileSafetyStyles();
+  preserveLegacyBootstrapTargets();
+  installToastGuard();
+  document.addEventListener('click',openStarredFromHome,true);
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{preserveLegacyBootstrapTargets();watchQuickStart()});
+  else{preserveLegacyBootstrapTargets();watchQuickStart()}
 })();
 </script>
