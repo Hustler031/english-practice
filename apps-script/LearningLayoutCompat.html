@@ -17,80 +17,8 @@
       return raw(fn,...args);
     };
   }
-
-  const quizLoading=(()=>{
-    function ensure(){
-      let v=document.getElementById('practiceLoading');
-      if(!v){
-        v=document.createElement('div');v.id='practiceLoading';v.className='hidden';
-        v.style.cssText='position:fixed;inset:0;z-index:120;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px';
-        v.innerHTML='<div style="text-align:center"><div style="width:42px;height:42px;border:4px solid var(--line);border-top-color:var(--primary);border-radius:50%;margin:0 auto 16px;animation:epLoadSpin .75s linear infinite"></div><b id="practiceLoadingText" style="font-size:18px">Starting practice…</b><div class="muted" style="margin-top:7px">Preparing your questions</div></div>';
-        document.body.appendChild(v);
-      }
-      if(!document.getElementById('epLoadSpinStyle')){const st=document.createElement('style');st.id='epLoadSpinStyle';st.textContent='@keyframes epLoadSpin{to{transform:rotate(360deg)}}';document.head.appendChild(st)}
-      return v;
-    }
-    function show(label){const v=ensure(),t=document.getElementById('practiceLoadingText');if(t)t.textContent=label||'Starting practice…';v.classList.remove('hidden')}
-    function hide(){document.getElementById('practiceLoading')?.classList.add('hidden')}
-    return {show,hide};
-  })();
-
-  function quizStartLabel(mode){
-    const m=String(mode||'').toLowerCase();
-    if(m==='weak')return'Starting Weak Practice…';
-    if(m==='due')return'Starting Due Revision…';
-    if(m==='recall')return'Starting Recall Check…';
-    if(m==='random')return'Starting Random Practice…';
-    if(m==='difficult')return'Starting Difficult Revision…';
-    if(m==='category'||m==='topicmanaged')return'Starting Topic Practice…';
-    return'Starting practice…';
-  }
-  function wrapStarter(obj,key,labelFn){
-    if(!obj||typeof obj[key]!=='function'||obj[key].__quizLoadingWrapped)return;
-    const raw=obj[key];
-    const wrapped=function(...args){
-      quizLoading.show(labelFn?labelFn(...args):'Starting practice…');
-      try{
-        const out=raw.apply(this,args);
-        if(out&&typeof out.then==='function')return out.finally(()=>quizLoading.hide());
-        return out;
-      }catch(e){quizLoading.hide();throw e}
-    };
-    wrapped.__quizLoadingWrapped=true;obj[key]=wrapped;
-  }
-  function wireQuizLoading(){
-    if(typeof EPApp==='undefined'||typeof EPQuiz==='undefined'||EPApp.__universalQuizLoadingWired)return;
-    EPApp.__universalQuizLoadingWired=true;
-
-    if(typeof EPApp.pickCount==='function'){
-      const rawPick=EPApp.pickCount.bind(EPApp);
-      EPApp.pickCount=function(mode,category){window.__epPendingPracticeMode=String(mode||'');return rawPick(mode,category)};
-    }
-
-    wrapStarter(EPApp,'start',(mode)=>quizStartLabel(mode));
-    wrapStarter(EPApp,'startDemandManaged',(batchId,kind,count,name)=>`Starting ${String(name||'Demanded Practice')}…`);
-    wrapStarter(EPApp,'startHinduQuiz',()=> 'Starting The Hindu Practice…');
-    wrapStarter(window.EPBankCoverage,'start',()=> 'Starting Bank Coverage…');
-    wrapStarter(window.EPMySavedRevision,'start',()=> 'Starting My Saved Words…');
-
-    document.addEventListener('click',e=>{
-      if(e.target.closest?.('#countButtons button'))quizLoading.show(quizStartLabel(window.__epPendingPracticeMode));
-      if(e.target.closest?.('#mySavedRevisionPicker .count-buttons button'))quizLoading.show('Starting My Saved Words…');
-    },true);
-
-    const rawQuizStart=EPQuiz.start.bind(EPQuiz);
-    EPQuiz.start=function(){quizLoading.hide();return rawQuizStart.apply(EPQuiz,arguments)};
-    ['resumeOther','resumeDaily','resumeHindu'].forEach(k=>{if(typeof EPQuiz[k]!=='function')return;const raw=EPQuiz[k].bind(EPQuiz);EPQuiz[k]=function(){quizLoading.hide();return raw.apply(EPQuiz,arguments)}});
-
-    if(typeof EPApp.toast==='function'){
-      const rawToast=EPApp.toast.bind(EPApp);
-      EPApp.toast=function(){quizLoading.hide();return rawToast.apply(EPApp,arguments)};
-    }
-    window.EPPracticeLoading=quizLoading;
-  }
   document.addEventListener('DOMContentLoaded',()=>{
     wireCentralFlags();
-    wireQuizLoading();
     ['qId','quizMode','explanation'].forEach(id=>{const el=document.getElementById(id);if(el)new MutationObserver(()=>setTimeout(normalize,0)).observe(el,{childList:true,subtree:true,attributes:id==='explanation',attributeFilter:id==='explanation'?['class']:undefined})});
     setTimeout(normalize,600);
   });
