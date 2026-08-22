@@ -30,11 +30,18 @@ try{new vm.Script(ui.replace(/<\/?script[^>]*>/gi,''),{filename:'DailySelectionW
   ["Today's Mix",'Daily hero shows the requested Today mix'],
   ["Active Batch Mix",'Carry-forward batches are labelled accurately'],
   ["ep:daily-selection-mix:v1",'Daily hero mix is cached client-side'],
-  ["ep-quiz-daily-v5",'Question reason is read from the existing persisted Daily session'],
+  ["ep-quiz-daily-v5",'Question reason can be read from the persisted Daily session'],
   ["Persistent Weak",'Persistent Weak has a visible reason label'],
-  ["controlled fresh exposure",'Controlled New reason is explained']
+  ["controlled fresh exposure",'Controlled New reason is explained'],
+  ["dailyQuestions",'Daily question payload is retained in-memory for immediate badge rendering'],
+  ["wireQuizStart",'Daily selection UI observes the existing quiz start without changing quiz logic'],
+  ["primeBootstrapMix",'Hero mix has a cache-miss bootstrap hydration path'],
+  ["bootstrapPrimePromise",'Bootstrap hydration is deduplicated'],
+  ["window.EPApp.call('getBootstrapV2')",'Cache-miss hydration reuses the existing bootstrap endpoint']
 ].forEach(([n,l])=>need(ui,n,l));
-if(ui.includes('google.script.run')||ui.includes('EPApp.call('))fail('Daily selection UI must not add any server request');else ok('Daily selection UI adds no server request');
+if(ui.includes('google.script.run'))fail('Daily selection UI must not create a direct Google Apps Script transport');else ok('Daily selection UI does not create a parallel transport');
+const extraCalls=ui.replace("window.EPApp.call('getBootstrapV2')",'');
+if(extraCalls.includes('EPApp.call('))fail('Daily selection UI may only make the one cache-miss bootstrap hydration call');else ok('Daily selection UI adds only the guarded cache-miss bootstrap hydration');
 if(ui.includes('submitAnswer')||ui.includes('Attempt_ID')||ui.includes('nextBtn.disabled'))fail('Daily selection UI must not touch saving/Next architecture');else ok('Daily selection UI does not touch saving or Next');
 if(daily.includes('DAILY_TARGET=')||daily.includes('target=120;'))fail('Selection transparency must not replace the existing configurable Daily target');else ok('Existing configurable Daily target remains authoritative');
 need(index,"<?!= include('DailySelectionWhyUI'); ?>",'Index loads Daily selection transparency UI');
