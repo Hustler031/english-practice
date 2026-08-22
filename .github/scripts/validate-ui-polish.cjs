@@ -32,7 +32,16 @@ try{new vm.Script(guard.replace(/<\/?script[^>]*>/gi,''),{filename:'RefreshStart
   ["Could not load dashboard:",'Refresh guard targets only the dashboard bootstrap error toast'],
   ["cachedHomeReady()",'Refresh guard suppresses only when a valid cached dashboard is present'],
   ["refreshDashboard()",'Transient bootstrap failure gets one silent dashboard retry'],
-  ["__cachedBootstrapGuard",'Refresh guard installs only once']
+  ["__cachedBootstrapGuard",'Refresh guard installs only once'],
+  ["legacyHomeMetricSinks",'Removed Home metrics retain hidden bootstrap targets'],
+  ["preserveLegacyBootstrapTargets",'Legacy recall target is preserved before async bootstrap returns'],
+  ["recallCount",'Recall count null regression is explicitly guarded'],
+  [".toast{pointer-events:none!important}",'Toast cannot block Quick Start taps'],
+  ["max-width:132px",'Mobile Quick Start status pills are width-capped'],
+  ["short='Not added'",'Long Hindu not-added status is compacted'],
+  ["openStarredFromHome",'Home Starred click has an explicit stable route'],
+  ["stopImmediatePropagation",'Home Starred route avoids stale competing handlers'],
+  ["EPUIPolish.openStarred('home')",'Home Starred route preserves context-aware navigation']
 ].forEach(([n,l])=>need(guard,n,l));
 if(nav.includes('EPApp.call(')||nav.includes('google.script.run'))fail('UI polish must not add server/data calls');else ok('UI polish adds no server/data calls');
 if(nav.includes('submitAnswer')||nav.includes('Attempt_ID')||nav.includes('performanceFacts')||guard.includes('submitAnswer')||guard.includes('Attempt_ID'))fail('UI refresh/polish must not touch answer/performance architecture');else ok('UI refresh/polish does not touch answer/performance architecture');
