@@ -1,0 +1,30 @@
+<script>
+(()=>{
+  let retryTimer=0,retryQueued=false;
+  function cachedHomeReady(){
+    try{
+      const s=window.EPFast?.get?.('home:snapshot');
+      return !!(s&&/^Day\s+\d+/i.test(String(s.title||''))&&/^\s*\d+\s*\/\s*\d+/.test(String(s.progress||'')));
+    }catch(e){return false}
+  }
+  function queueSilentRetry(){
+    if(retryQueued||typeof window.EPApp?.refreshDashboard!=='function')return;
+    retryQueued=true;clearTimeout(retryTimer);
+    retryTimer=setTimeout(()=>{Promise.resolve(window.EPApp.refreshDashboard()).finally(()=>{setTimeout(()=>{retryQueued=false},10000)})},1800);
+  }
+  function install(){
+    if(typeof window.EPApp==='undefined'||typeof window.EPApp.toast!=='function'||window.EPApp.__cachedBootstrapGuard)return;
+    window.EPApp.__cachedBootstrapGuard=true;
+    const raw=window.EPApp.toast.bind(window.EPApp);
+    window.EPApp.toast=function(message){
+      const text=String(message||'');
+      if(/^Could not load dashboard:/i.test(text)&&cachedHomeReady()){
+        queueSilentRetry();
+        return;
+      }
+      return raw.apply(this,arguments);
+    };
+  }
+  install();
+})();
+</script>
