@@ -1,0 +1,86 @@
+const EP_STARRED_INTELLIGENCE_VERSION='V1';
+const EP_STARRED_INTELLIGENCE_MODULE='starredRevision';
+
+// Read-only Performance projection for Starred Intelligence. It deliberately does not
+// call ensurePerformanceModuleColumn_(), so recommendation generation cannot mutate schema.
+function starredIntelligencePerformanceFactsV1_(){
+  const s=sheet_(EP.sheets.performance);if(s.getLastRow()<2)return {all:[],byId:{}};
+  const vals=s.getDataRange().getValues(),h=vals[0].map(x=>String(x||'').trim().toLowerCase()),ix=n=>h.indexOf(n);
+  const ti=ix('timestamp')>=0?ix('timestamp'):0,qi=ix('question_id')>=0?ix('question_id'):1,ci=ix('correct')>=0?ix('correct'):3,si=ix('selected_answer')>=0?ix('selected_answer'):2,ai=ix('attempt_id')>=0?ix('attempt_id'):6,mi=ix('marked_revision')>=0?ix('marked_revision'):5,modulei=ix('module');
+  if(modulei<0)throw new Error('Performance Module column is required before Starred Intelligence can run.');
+  const all=[],byId={},seenAttempt=new Set();
+  vals.slice(1).forEach(r=>{const id=String(r[qi]||'').trim();if(!id)return;const d=r[ti] instanceof Date?r[ti]:new Date(r[ti]);if(isNaN(d))return;const attemptId=String(r[ai]||'').trim(),dedupe=attemptId?('A|'+attemptId):('L|'+id+'|'+d.getTime()+'|'+String(r[si]||'')+'|'+String(r[ci]||''));if(seenAttempt.has(dedupe))return;seenAttempt.add(dedupe);const a={id,ts:d,correct:truthy_(r[ci]),selected:String(r[si]||''),marked:truthy_(r[mi]),attemptId,module:String(r[modulei]||'').trim()};all.push(a);(byId[id]||(byId[id]=[])).push(a);});
+  all.sort((a,b)=>a.ts-b.ts);Object.keys(byId).forEach(id=>byId[id].sort((a,b)=>a.ts-b.ts));return {all,byId};
+}
+
+// Read-only Star origin projection. Unlike starredRevisionIndexStableV4_, this never heals,
+// seeds, appends or otherwise mutates Starred_Revision_Log.
+function starredIntelligenceEventMapV1_(){
+  const s=ss_().getSheetByName(typeof STARRED_REVISION_LOG!=='undefined'?STARRED_REVISION_LOG:'Starred_Revision_Log'),latest={};if(!s||s.getLastRow()<2)return latest;
+  s.getRange(2,1,s.getLastRow()-1,5).getValues().forEach((r,i)=>{const id=String(r[0]||'').trim();if(!id)return;const d=r[1] instanceof Date?r[1]:new Date(r[1]),t=isNaN(d)?0:d.getTime(),x={eventAt:isNaN(d)?new Date(0):d,t,date:dateKey_(r[2])||dateKey_(d),day:Number(r[3]||0),action:String(r[4]||'').toUpperCase(),row:i+2};if(!latest[id]||t>latest[id].t||(t===latest[id].t&&x.row>latest[id].row))latest[id]=x;});return latest;
+}
+
+// Read-only access to the existing Difficult storage. Missing storage is treated as empty;
+// recommendation generation never creates the sheet.
+function starredIntelligenceDifficultMapV1_(){
+  const name=typeof STARRED_REVISION_DIFFICULT!=='undefined'?STARRED_REVISION_DIFFICULT:'Starred_Revision_Difficult',s=ss_().getSheetByName(name),out={};if(!s||s.getLastRow()<2)return out;s.getRange(2,1,s.getLastRow()-1,2).getValues().forEach(r=>{const id=String(r[0]||'').trim();if(id)out[id]=truthy_(r[1]);});return out;
+}
+
+function starredIntelligenceScopeV1_(scope){scope=scope||{};if(scope.all===true||(!scope.fromDay&&!scope.toDay))return {all:true,fromDay:1,toDay:999999,label:'All Starred'};const from=Math.max(1,Number(scope.fromDay||1)),to=Math.max(from,Number(scope.toDay||from));return {all:false,fromDay:from,toDay:to,label:String(scope.label||((from===to?'Day '+from:'Days '+from+'–'+to)))};}
+function starredIntelligenceDaysSinceV1_(d,now){if(!(d instanceof Date)||isNaN(d))return null;return Math.max(0,Math.floor((now.getTime()-d.getTime())/86400000));}
+function starredIntelligenceFallbackOriginDayV1_(id,events,facts,maxEventDay){const ev=events[id];if(ev&&Number(ev.day)>0)return Math.max(1,Number(ev.day));const marked=((facts.byId[id]||[]).find(a=>a.marked));if(marked&&typeof dailyDayNoV2_==='function')return Math.max(1,Number(dailyDayNoV2_(dateKey_(marked.ts))||1));return Math.max(1,Number(maxEventDay||1));}
+
+function starredIntelligenceUniverseV1_(){
+  const all=allQuestions_(),stars=currentStarredMapV2_(),mastered=currentMasteredMapV2_(),facts=starredIntelligencePerformanceFactsV1_(),events=starredIntelligenceEventMapV1_(),diff=starredIntelligenceDifficultMapV1_(),status=statusMap_(),now=new Date(),maxEventDay=Math.max(1,...Object.values(events).map(x=>Number(x.day||0))),rows=[];
+  all.forEach(q=>{const id=String(q.id||'').trim();if(!id||!stars[id]||!isActive_(q)||mastered[id])return;const attempts=facts.byId[id]||[],profile=learningProfileV2_(attempts),starAttempts=attempts.filter(a=>String(a.module||'').toLowerCase()===EP_STARRED_INTELLIGENCE_MODULE.toLowerCase()),lastStarred=starAttempts.length?starAttempts[starAttempts.length-1].ts:null,lastAny=attempts.length?attempts[attempts.length-1].ts:null,next=status[id]&&status[id].nextReview?new Date(status[id].nextReview):null,due=!!(next&&!isNaN(next)&&next<=now),day=starredIntelligenceFallbackOriginDayV1_(id,events,facts,maxEventDay),daysSinceStarred=starredIntelligenceDaysSinceV1_(lastStarred,now);rows.push({id,q,day,profile,difficult:!!diff[id],due,revisedCount:starAttempts.length,neverRevised:starAttempts.length===0,lastStarred,lastAny,daysSinceStarred,originEvent:events[id]||null});});return {rows,facts,now};
+}
+
+function starredIntelligenceApplyScopeV1_(rows,scope){const sc=starredIntelligenceScopeV1_(scope);return sc.all?(rows||[]).slice():(rows||[]).filter(x=>x.day>=sc.fromDay&&x.day<=sc.toDay);}
+function starredIntelligenceLearningTierV1_(x){const s=String(x.profile&&x.profile.state||'New');if(s==='Persistent Weak')return 7;if(s==='Weak')return 6;if(s==='Fragile')return 5;if(x.due)return 4;if(x.difficult)return 3;if(s==='Learning'||s==='New')return 2;return 1;}
+function starredIntelligenceLearningSortV1_(a,b){const ta=starredIntelligenceLearningTierV1_(a),tb=starredIntelligenceLearningTierV1_(b);if(tb!==ta)return tb-ta;if(Number(b.due)!==Number(a.due))return Number(b.due)-Number(a.due);if(Number(b.difficult)!==Number(a.difficult))return Number(b.difficult)-Number(a.difficult);const da=a.daysSinceStarred==null?1e9:a.daysSinceStarred,db=b.daysSinceStarred==null?1e9:b.daysSinceStarred;if(db!==da)return db-da;return String(a.id).localeCompare(String(b.id));}
+function starredIntelligenceRotationSortV1_(a,b){if(Number(b.neverRevised)!==Number(a.neverRevised))return Number(b.neverRevised)-Number(a.neverRevised);const at=a.lastStarred instanceof Date?a.lastStarred.getTime():0,bt=b.lastStarred instanceof Date?b.lastStarred.getTime():0;if(at!==bt)return at-bt;const ta=starredIntelligenceLearningTierV1_(a),tb=starredIntelligenceLearningTierV1_(b);if(tb!==ta)return tb-ta;return String(a.id).localeCompare(String(b.id));}
+function starredIntelligenceSignalsV1_(x){const out=[],state=String(x.profile&&x.profile.state||'New');if(state)out.push(state);if(x.due)out.push('Due Recall');if(x.difficult)out.push('Difficult');if(x.neverRevised)out.push('Never Revised');else if(Number(x.daysSinceStarred||0)>=14)out.push('14+ Days Not Revised');else if(Number(x.daysSinceStarred||0)>=7)out.push('7+ Days Not Revised');return [...new Set(out)];}
+function starredIntelligenceLearningReasonV1_(x){const s=String(x.profile&&x.profile.state||'New');if(['Persistent Weak','Weak','Fragile'].includes(s))return s;if(x.due&&x.difficult)return 'Difficult + Due';if(x.due)return 'Due Recall';if(x.difficult)return 'Difficult';if(s==='Learning'||s==='New')return 'Learning';return 'Coverage Rotation';}
+function starredIntelligenceRotationReasonV1_(x){if(x.neverRevised)return 'Never Revised';if(Number(x.daysSinceStarred||0)>=7)return 'Longest Not Revised';return 'Coverage Rotation';}
+function starredIntelligenceMarkSelectionV1_(x,lane){return Object.assign({},x,{selectionLane:lane,selectionReason:lane==='rotation'?starredIntelligenceRotationReasonV1_(x):starredIntelligenceLearningReasonV1_(x),selectionSignals:starredIntelligenceSignalsV1_(x)});}
+
+function starredIntelligenceSmartSelectV1_(rows,count){
+  rows=(rows||[]).slice();const n=Math.min(Math.max(1,Number(count||20)),rows.length);if(!n)return [];
+  const urgent=rows.filter(x=>starredIntelligenceLearningTierV1_(x)>=3),rotationPressure=rows.filter(x=>x.neverRevised||Number(x.daysSinceStarred||0)>=7).length;let learnRatio=.6;if(urgent.length>=Math.ceil(n*.7)&&rotationPressure>0)learnRatio=.7;else if(urgent.length<=Math.floor(n*.35)&&rotationPressure>=Math.ceil(n*.5))learnRatio=.4;const learnTarget=Math.min(n,Math.max(0,Math.round(n*learnRatio))),rotationTarget=n-learnTarget,chosen=[],ids=new Set();
+  rows.slice().sort(starredIntelligenceLearningSortV1_).slice(0,learnTarget).forEach(x=>{chosen.push(starredIntelligenceMarkSelectionV1_(x,'learning'));ids.add(x.id)});
+  rows.slice().sort(starredIntelligenceRotationSortV1_).filter(x=>!ids.has(x.id)).slice(0,rotationTarget).forEach(x=>{chosen.push(starredIntelligenceMarkSelectionV1_(x,'rotation'));ids.add(x.id)});
+  if(chosen.length<n){const fill=rows.slice().sort((a,b)=>{const ar=a.neverRevised||Number(a.daysSinceStarred||0)>=7,br=b.neverRevised||Number(b.daysSinceStarred||0)>=7;if(Number(br)!==Number(ar))return Number(br)-Number(ar);return starredIntelligenceLearningSortV1_(a,b)}).filter(x=>!ids.has(x.id)).slice(0,n-chosen.length);fill.forEach(x=>{const lane=x.neverRevised||Number(x.daysSinceStarred||0)>=7?'rotation':'learning';chosen.push(starredIntelligenceMarkSelectionV1_(x,lane));ids.add(x.id)});}
+  return chosen;
+}
+
+function starredIntelligenceSelectV1_(rows,mode,count){
+  const m=String(mode||'smart').toLowerCase(),n=Math.max(1,Math.min(50,Number(count||20)));if(m==='smart'||m==='recommended')return starredIntelligenceSmartSelectV1_(rows,n);let pool=(rows||[]).slice();
+  if(m==='notrevised')pool=pool.filter(x=>x.neverRevised).sort(starredIntelligenceRotationSortV1_);
+  else if(m==='due')pool=pool.filter(x=>x.due).sort(starredIntelligenceLearningSortV1_);
+  else if(m==='weak')pool=pool.filter(x=>['Persistent Weak','Weak','Fragile'].includes(String(x.profile&&x.profile.state||''))).sort(starredIntelligenceLearningSortV1_);
+  else if(m==='difficult')pool=pool.filter(x=>x.difficult).sort(starredIntelligenceLearningSortV1_);
+  else if(m==='longest')pool=pool.sort(starredIntelligenceRotationSortV1_);
+  else throw new Error('Unknown Starred Intelligence mode: '+mode);
+  return pool.slice(0,n).map(x=>starredIntelligenceMarkSelectionV1_(x,m==='longest'||m==='notrevised'?'rotation':'learning'));
+}
+
+function starredIntelligenceCoverageV1_(rows){const total=rows.length,revised=rows.filter(x=>x.revisedCount>0).length,never=total-revised,once=rows.filter(x=>x.revisedCount===1).length,multiple=rows.filter(x=>x.revisedCount>=2).length,longOverdue=rows.filter(x=>x.revisedCount>0&&Number(x.daysSinceStarred||0)>=14).length;return {activeStarred:total,revised,neverRevised:never,revisedOnce:once,revisedMultiple:multiple,longOverdue,percent:total?Math.round(revised*1000/total)/10:0};}
+function starredIntelligenceHealthV1_(rows){const state=n=>rows.filter(x=>String(x.profile&&x.profile.state||'New')===n).length;return {persistentWeak:state('Persistent Weak'),weak:state('Weak'),fragile:state('Fragile'),learning:state('Learning'),newCount:state('New'),strong:state('Strong'),due:rows.filter(x=>x.due).length,difficult:rows.filter(x=>x.difficult).length};}
+function starredIntelligenceRotationV1_(rows){const never=rows.filter(x=>x.neverRevised).length,days7=rows.filter(x=>!x.neverRevised&&Number(x.daysSinceStarred||0)>=7).length,days14=rows.filter(x=>!x.neverRevised&&Number(x.daysSinceStarred||0)>=14).length,total=rows.length;let priority='Healthy';if(never>=Math.max(5,Math.ceil(total*.25))||days14>=Math.max(5,Math.ceil(total*.2)))priority='High';else if(never||days7)priority='Moderate';return {neverRevised:never,days7Plus:days7,days14Plus:days14,priority};}
+function starredIntelligenceCompositionV1_(selected){const c={persistentWeak:0,weakFragile:0,due:0,difficult:0,learning:0,coverageRotation:0};(selected||[]).forEach(x=>{const r=x.selectionReason;if(r==='Persistent Weak')c.persistentWeak++;else if(r==='Weak'||r==='Fragile')c.weakFragile++;else if(r==='Due Recall'||r==='Difficult + Due')c.due++;else if(r==='Difficult')c.difficult++;else if(r==='Learning')c.learning++;else c.coverageRotation++;});return Object.assign({total:(selected||[]).length},c);}
+function starredIntelligenceRecommendationV1_(health,coverage,rotation){if(health.persistentWeak+health.weak>=8)return `Do a Smart Revision set. The biggest need is Persistent Weak / Weak recall${coverage.neverRevised?`, while ${coverage.neverRevised} Starred question${coverage.neverRevised===1?' still needs':'s still need'} first Starred Revision exposure`:''}.`;if(health.due>=8)return `Today's Smart set should emphasize spaced retention${coverage.neverRevised?` while rotating through ${coverage.neverRevised} Never Revised question${coverage.neverRevised===1?'':'s'}`:''}.`;if(rotation.priority==='High')return 'Your urgent weak queue is relatively smaller than the rotation backlog. Prioritize coverage rotation today.';if(coverage.neverRevised>0)return `${coverage.neverRevised} current Starred question${coverage.neverRevised===1?' has':'s have'} never been revised through Starred Revision. Smart Mix will protect that coverage.`;return 'Most active Starred questions already have Starred Revision exposure. Smart Mix will emphasize due retention and longest-not-revised rotation.';}
+function starredIntelligenceFocusV1_(health,rotation){if(health.persistentWeak+health.weak>=8)return 'Persistent Weak + Weak recall';if(health.due>=8)return 'Overdue retention';if(rotation.priority==='High')return 'Coverage rotation';if(health.fragile>=8)return 'Fragile retention';return 'Balanced retention + rotation';}
+
+function starredIntelligenceScopeOptionsV1_(rows){
+  rows=rows||[];const currentDay=Math.max(1,...rows.map(x=>Number(x.day||1))),groups=[{type:'all',label:'All Starred',scope:{all:true,fromDay:1,toDay:999999}}],currentMonth=Math.floor((currentDay-1)/30)+1,currentMonthStart=(currentMonth-1)*30+1,currentBlockStart=Math.floor((currentDay-1)/10)*10+1;
+  for(let d=currentDay;d>=currentBlockStart;d--)if(rows.some(x=>x.day===d))groups.push({type:'day',label:'Day '+d,scope:{fromDay:d,toDay:d}});
+  for(let start=currentBlockStart-10;start>=currentMonthStart;start-=10){const end=Math.min(start+9,currentDay);if(rows.some(x=>x.day>=start&&x.day<=end))groups.push({type:'block',label:'Days '+start+'–'+end,scope:{fromDay:start,toDay:end}});}
+  for(let month=currentMonth-1;month>=1;month--){const start=(month-1)*30+1,end=month*30;if(rows.some(x=>x.day>=start&&x.day<=end))groups.push({type:'month',label:'Month '+month+' · Days '+start+'–'+end,scope:{fromDay:start,toDay:end}});}
+  return groups;
+}
+
+function getStarredIntelligenceHub(scope,count){const u=starredIntelligenceUniverseV1_(),sc=starredIntelligenceScopeV1_(scope),rows=starredIntelligenceApplyScopeV1_(u.rows,sc),coverage=starredIntelligenceCoverageV1_(rows),health=starredIntelligenceHealthV1_(rows),rotation=starredIntelligenceRotationV1_(rows),recommended=starredIntelligenceSmartSelectV1_(rows,Math.max(1,Math.min(50,Number(count||20))));return {version:EP_STARRED_INTELLIGENCE_VERSION,generatedAt:new Date().toISOString(),scope:sc,scopeOptions:starredIntelligenceScopeOptionsV1_(u.rows),coverage,health,rotation,recommendedCount:recommended.length,composition:starredIntelligenceCompositionV1_(recommended),recommendation:starredIntelligenceRecommendationV1_(health,coverage,rotation),focus:starredIntelligenceFocusV1_(health,rotation),available:{smart:rows.length,notRevised:coverage.neverRevised,due:health.due,weak:health.persistentWeak+health.weak+health.fragile,difficult:health.difficult,longest:rows.length}};}
+
+function getStarredIntelligenceBatch(scope,mode,count){const u=starredIntelligenceUniverseV1_(),sc=starredIntelligenceScopeV1_(scope),eligible=starredIntelligenceApplyScopeV1_(u.rows,sc),selected=starredIntelligenceSelectV1_(eligible,mode,count);return selected.map(x=>{const q=serveQuestion_(x.q);q.marked=true;q.difficult=!!x.difficult;q.smartStarred=true;q.smartStarredReason=x.selectionReason;q.smartStarredSignals=x.selectionSignals;q.smartStarredLane=x.selectionLane;q.smartStarredBaselineState=String(x.profile&&x.profile.state||'New');q.smartStarredNeverRevised=!!x.neverRevised;q.smartStarredLastRevision=x.lastStarred?x.lastStarred.toISOString():'';return q;});}
+
+function getStarredIntelligenceAuditV1(scope){const u=starredIntelligenceUniverseV1_(),rows=starredIntelligenceApplyScopeV1_(u.rows,scope),stars=currentStarredMapV2_(),mastered=currentMasteredMapV2_(),violations=rows.filter(x=>!stars[x.id]||!isActive_(x.q)||mastered[x.id]);return {ok:violations.length===0,eligible:rows.length,violations:violations.map(x=>x.id),coverage:starredIntelligenceCoverageV1_(rows),health:starredIntelligenceHealthV1_(rows),rotation:starredIntelligenceRotationV1_(rows)};}
