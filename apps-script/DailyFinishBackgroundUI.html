@@ -1,0 +1,82 @@
+<script>
+(()=>{
+  const DAILY_KEY='ep-quiz-daily-v5',OUTBOX_KEY='ep-answer-outbox-v3',FINISH_KEY='ep:daily-finish-pending:v1',BASE_KEY='ep-daily-ui-base-v1';
+  let finalizeTimer=0,finalizing=false;
+  const $=id=>document.getElementById(id);
+  function readJson(key,fallback){try{const x=JSON.parse(localStorage.getItem(key)||'null');return x==null?fallback:x}catch(e){return fallback}}
+  function writeJson(key,value){try{localStorage.setItem(key,JSON.stringify(value));return true}catch(e){return false}}
+  function readSession(){const s=readJson(DAILY_KEY,null);return s&&Array.isArray(s.questions)&&s.meta?.mode==='daily'?s:null}
+  function readFinish(){const x=readJson(FINISH_KEY,null);return x&&Array.isArray(x.questionIds)?x:null}
+  function readOutbox(){const q=readJson(OUTBOX_KEY,[]);return Array.isArray(q)?q:[]}
+  function pendingDailyItems(){return readOutbox().filter(x=>String(x?.payload?.module||'').toLowerCase()==='daily')}
+  function prioritizeDailyOutbox(){const q=readOutbox();if(q.length<2)return;const daily=[],other=[];q.forEach(x=>(String(x?.payload?.module||'').toLowerCase()==='daily'?daily:other).push(x));if(!daily.length)return;writeJson(OUTBOX_KEY,daily.concat(other))}
+  function localDateKey(){const d=new Date(),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`}
+  function batchDate(){return String(window.EPLearningBootstrap?.dailyInfo?.activeDate||localDateKey())}
+  function allServedAnswered(s){return !!s?.questions?.length&&s.questions.every(q=>q&&Object.prototype.hasOwnProperty.call(s.answers||{},String(q.id||'')))}
+  function displayNumbers(s){let base=null;try{base=JSON.parse(sessionStorage.getItem(BASE_KEY)||'null')}catch(e){}const answered=Object.keys(s?.answers||{}).length,total=Math.max(Number(base?.total||0),Number(s?.questions?.length||0),1),done=Math.min(total,Number(base?.done||0)+answered);return {done,total}}
+  function saveFinishState(s){
+    const nums=displayNumbers(s),state={version:1,createdAt:new Date().toISOString(),batchDate:batchDate(),questionIds:s.questions.map(q=>String(q?.id||'').trim()).filter(Boolean),displayDone:nums.done,displayTotal:nums.total,serverRemaining:null};
+    s.meta=Object.assign({},s.meta,{finishPending:true,finishedAt:state.createdAt});writeJson(DAILY_KEY,s);writeJson(FINISH_KEY,state);return state;
+  }
+  function paintPending(state){
+    state=state||readFinish();if(!state)return;
+    const total=Math.max(1,Number(state.displayTotal||0)),done=Math.min(total,Math.max(Number(state.displayDone||0),total));
+    if($('dailyProgress'))$('dailyProgress').textContent=`${done} / ${total}`;
+    if($('dailyBar'))$('dailyBar').style.width='100%';
+    if($('dailyNote'))$('dailyNote').textContent=state.serverRemaining>0?`Daily completed locally. ${state.serverRemaining} answer${state.serverRemaining===1?' is':'s are'} still being confirmed in the background.`:'Daily completed locally. Syncing final answers in the background…';
+    if($('dailyStartBtn')){$('dailyStartBtn').disabled=true;$('dailyStartBtn').textContent='Daily sync pending'}
+    $('dailyResumeBtn')?.classList.add('hidden');
+  }
+  function clearConfirmedFinish(){
+    const s=readSession();if(s?.meta?.finishPending)try{localStorage.removeItem(DAILY_KEY)}catch(e){}
+    try{localStorage.removeItem(FINISH_KEY);sessionStorage.removeItem(BASE_KEY)}catch(e){}
+  }
+  function scheduleFinalize(ms){clearTimeout(finalizeTimer);finalizeTimer=setTimeout(finalizePending,Math.max(0,Number(ms||0)))}
+  async function finalizePending(){
+    const state=readFinish();if(!state||finalizing)return;
+    paintPending(state);prioritizeDailyOutbox();
+    if(pendingDailyItems().length){window.EPSaveReliability?.flush?.();scheduleFinalize(700);return}
+    if(typeof EPApp?.call!=='function'){scheduleFinalize(1800);return}
+    finalizing=true;
+    try{
+      const res=await EPApp.call('reconcileDailyCompletionV4',state.questionIds,state.batchDate);
+      if(res&&Number(res.remaining||0)===0){
+        clearConfirmedFinish();
+        if(typeof EPApp.refreshDashboard==='function')await EPApp.refreshDashboard();
+        EPApp.toast?.('Daily target completed ✓');
+        return;
+      }
+      state.serverRemaining=Math.max(0,Number(res?.remaining||0));writeJson(FINISH_KEY,state);paintPending(state);scheduleFinalize(3000);
+    }catch(e){scheduleFinalize(3000)}finally{finalizing=false}
+  }
+  function beginDailyFinish(){
+    const s=readSession();if(!s)return false;
+    if(!allServedAnswered(s)){EPApp.toast?.('Answer the remaining Daily questions before finishing.');return true}
+    const state=saveFinishState(s);EPApp.showTab?.('home');setTimeout(()=>paintPending(state),0);EPApp.toast?.('Daily finished · final sync is running in the background');prioritizeDailyOutbox();window.EPSaveReliability?.flush?.();scheduleFinalize(80);return true;
+  }
+  function disableHinduDifficult(){
+    const hindu=String($('quizMode')?.textContent||'').trim()==='The Hindu – Today';if(!hindu)return;
+    try{window.EPStarredRevision?.setDifficultQuizContext?.([],false)}catch(e){}
+    $('starredDifficultBtn')?.classList.add('hidden');
+  }
+  function wireQuiz(){
+    if(typeof EPQuiz==='undefined'||EPQuiz.__dailyFinishBackgroundV4)return;EPQuiz.__dailyFinishBackgroundV4=true;
+    const rawNext=EPQuiz.next,rawStart=EPQuiz.start,rawResumeHindu=EPQuiz.resumeHindu;
+    EPQuiz.next=function(){const s=readSession(),isDaily=String($('quizMode')?.textContent||'')==='Daily Practice',last=String($('nextBtn')?.textContent||'').trim()==='Finish';if(isDaily&&last&&s)return beginDailyFinish();return rawNext.apply(this,arguments)};
+    EPQuiz.start=function(questions,meta){const r=rawStart.apply(this,arguments);if(String(meta?.mode||'')==='hindu')setTimeout(disableHinduDifficult,0);return r};
+    EPQuiz.resumeHindu=function(){const r=rawResumeHindu.apply(this,arguments);setTimeout(disableHinduDifficult,0);return r};
+  }
+  function wireDailyLaunchGuard(){
+    if(typeof EPApp==='undefined'||typeof EPApp.startDirect!=='function'||EPApp.__dailyFinishLaunchGuardV4)return;EPApp.__dailyFinishLaunchGuardV4=true;const raw=EPApp.startDirect;
+    EPApp.startDirect=function(mode){const state=readFinish();if(String(mode)==='daily'&&state){EPApp.showTab?.('home');setTimeout(()=>paintPending(state),0);scheduleFinalize(0);return Promise.resolve({ok:true,syncPending:true})}return raw.apply(this,arguments)};
+  }
+  function init(){
+    wireQuiz();wireDailyLaunchGuard();
+    const mode=$('quizMode');if(mode)new MutationObserver(()=>setTimeout(disableHinduDifficult,0)).observe(mode,{childList:true,subtree:true,characterData:true});
+    window.addEventListener('online',()=>scheduleFinalize(0));document.addEventListener('visibilitychange',()=>{if(!document.hidden)scheduleFinalize(0)});
+    const pending=readFinish();if(pending){setTimeout(()=>paintPending(pending),250);scheduleFinalize(400)}
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(init,100));else setTimeout(init,100);
+  window.EPDailyFinish={pending:()=>!!readFinish(),finalize:()=>scheduleFinalize(0),inspect:()=>({finish:readFinish(),pendingDaily:pendingDailyItems().length})};
+})();
+</script>

@@ -12,6 +12,7 @@ on:
       - '.github/scripts/validate-ui-polish.cjs'
       - '.github/scripts/validate-daily-selection.cjs'
       - '.github/scripts/validate-star-reliability.cjs'
+      - '.github/scripts/validate-daily-finish.cjs'
       - '.github/workflows/deploy-english-apps-script.yml'
   workflow_dispatch:
 
@@ -56,6 +57,9 @@ jobs:
 
       - name: Validate central Star reliability contracts
         run: node .github/scripts/validate-star-reliability.cjs
+
+      - name: Validate Daily background finish contracts
+        run: node .github/scripts/validate-daily-finish.cjs
 
       - name: Verify required deployment secrets
         env:
