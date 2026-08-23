@@ -1,86 +1,144 @@
 const fs=require('fs'),path=require('path'),vm=require('vm');
 const root=path.resolve(process.cwd(),'apps-script'),read=n=>fs.readFileSync(path.join(root,n),'utf8');
 const fail=m=>{console.error(`❌ ${m}`);process.exitCode=1},ok=m=>console.log(`✅ ${m}`),need=(t,n,l)=>t.includes(n)?ok(l):fail(`${l} — missing: ${n}`),assert=(v,m)=>v?ok(m):fail(m);
-for(const f of ['StarredIntelligence.gs','StarredIntelligenceUI.html','StarredRevisionUI.html','LearningIntelligence.gs','LearningLayoutCompat.html','SaveReliabilityUI.html','Index.html'])if(!fs.existsSync(path.join(root,f)))fail(`Missing ${f}`);
+for(const f of ['StarredIntelligence.gs','StarredIntelligenceOptimization.gs','StarredIntelligenceUI.html','StarredRevisionUI.html','LearningIntelligence.gs','LearningLayoutCompat.html','SaveReliabilityUI.html','Index.html'])if(!fs.existsSync(path.join(root,f)))fail(`Missing ${f}`);
 if(process.exitCode)process.exit(process.exitCode);
-const server=read('StarredIntelligence.gs'),ui=read('StarredIntelligenceUI.html'),legacyUi=read('StarredRevisionUI.html'),learning=read('LearningIntelligence.gs'),starReliability=read('LearningLayoutCompat.html'),save=read('SaveReliabilityUI.html'),index=read('Index.html');
-try{new vm.Script(server,{filename:'StarredIntelligence.gs'});ok('Starred Intelligence server syntax')}catch(e){fail(`StarredIntelligence.gs syntax: ${e.message}`)}
+const server=read('StarredIntelligence.gs'),opt=read('StarredIntelligenceOptimization.gs'),ui=read('StarredIntelligenceUI.html'),legacyUi=read('StarredRevisionUI.html'),learning=read('LearningIntelligence.gs'),starReliability=read('LearningLayoutCompat.html'),save=read('SaveReliabilityUI.html'),index=read('Index.html');
+try{new vm.Script(server,{filename:'StarredIntelligence.gs'});ok('Starred Intelligence V1 server syntax')}catch(e){fail(`StarredIntelligence.gs syntax: ${e.message}`)}
+try{new vm.Script(opt,{filename:'StarredIntelligenceOptimization.gs'});ok('Starred Intelligence V2 optimization syntax')}catch(e){fail(`StarredIntelligenceOptimization.gs syntax: ${e.message}`)}
 try{new vm.Script(ui.replace(/<\/?script[^>]*>/gi,''),{filename:'StarredIntelligenceUI.html'});ok('Starred Intelligence UI syntax')}catch(e){fail(`StarredIntelligenceUI.html syntax: ${e.message}`)}
 
-// Strict eligibility and central-state reuse.
+// Strict eligibility and central-state reuse remain authoritative.
 [
   ['currentStarredMapV2_()','selector reads authoritative Central Star state'],
   ['currentMasteredMapV2_()','selector reads authoritative Central Mastered state'],
   ['learningProfileV2_(attempts)','selector reuses central learning profile instead of defining a second engine'],
   ["!stars[id]||!isActive_(q)||mastered[id]",'Star + Active + non-Mastered gate is applied before ranking'],
-  ['starredIntelligenceApplyScopeV1_','Starred Day/Block/Month scope has a dedicated pre-ranking gate'],
+  ['starredIntelligenceApplyScopeV1_','Starred Day/Block/Month scope is applied before ranking'],
   ["String(a.module||'').toLowerCase()===EP_STARRED_INTELLIGENCE_MODULE.toLowerCase()",'Starred coverage is derived only from Module = starredRevision attempts'],
   ['starAttempts.length===0','Not Revised means zero genuine Starred Revision attempts'],
   ['status[id]&&status[id].nextReview','Due Now reads the existing central Next_Review clock'],
-  ['starredIntelligenceDifficultMapV1_','Smart ranking reads the existing Difficult state'],
-  ["q.marked=true",'served Smart questions are seeded as current Starred'],
-  ['q.difficult=!!x.difficult','served Smart questions are seeded from existing Difficult state']
+  ['starredIntelligenceDifficultMapV1_','Smart ranking reads the existing Difficult state']
 ].forEach(([n,l])=>need(server,n,l));
+need(opt,"!q||!stars[id]||!isActive_(q)||mastered[id]",'prepared Start revalidates current Star / Active / non-Mastered eligibility');
+need(opt,"eventDay<sc.fromDay||eventDay>sc.toDay",'prepared Start revalidates requested Starred scope');
+need(opt,"m==='difficult'&&!diff[id]",'prepared Difficult Start revalidates current manual Difficult state');
+need(opt,'out.marked=true','prepared Smart questions remain seeded as current Starred');
+need(opt,'out.difficult=!!difficultNow','prepared Smart questions seed current Difficult state');
 
-// Read-only recommendation generation: no spreadsheet/state writes and no Daily coupling.
-for(const bad of ['.setValue(','.setValues(','.appendRow(','.clearContent(','.insertSheet(','PropertiesService','markDaily_(','ensureDailyAdaptiveV3_(','createDailyAdaptiveV3_(','ensureDailyV2_(','createDailyV2_(','sheet_(EP.sheets.daily)','Daily_Quiz'])if(server.includes(bad))fail(`Starred Intelligence recommendation layer must be read-only / Daily-isolated — found ${bad}`);else ok(`No forbidden write/Daily coupling: ${bad}`);
-assert(!/setMarkedCentral|setHinduMarkedCentral|setStarredRevisionDifficult\s*\(/.test(server+ui),'Smart layer introduces no parallel Star or Difficult saving path');
-assert(!/Mastered_Log|Question_Status|Starred_Revision_Log\s*=|Starred_Revision_Difficult\s*=/.test(server),'Smart layer introduces no new persisted state definition');
+// V1 and V2 recommendation layers must remain side-effect free and Daily-isolated.
+for(const text of [server,opt])for(const bad of ['.setValue(','.setValues(','.appendRow(','.clearContent(','.insertSheet(','PropertiesService','markDaily_(','ensureDailyAdaptiveV3_(','createDailyAdaptiveV3_(','ensureDailyV2_(','createDailyV2_(','sheet_(EP.sheets.daily)','Daily_Quiz'])if(text.includes(bad))fail(`Starred Intelligence recommendation layer must be read-only / Daily-isolated — found ${bad}`);else ok(`No forbidden write/Daily coupling: ${bad}`);
+assert(!/setMarkedCentral|setHinduMarkedCentral|setStarredRevisionDifficult\s*\(/.test(server+opt),'server layer introduces no parallel Star or Difficult saving path');
+assert(!/Mastered_Log|Question_Status|Starred_Revision_Log\s*=|Starred_Revision_Difficult\s*=/.test(server+opt),'Smart layer introduces no new persisted learning/Star/Difficult state definition');
 
-// Existing Practice All / hierarchy remains untouched; Smart entry is additive only at top summary.
+// Existing Practice All / hierarchy remains untouched; Smart entry stays additive only at top summary.
 need(legacyUi,"EPStarredRevision.start(${json},\"all\",0)",'existing Practice All path remains present');
 need(legacyUi,'Practice All','existing Practice All control remains unchanged');
 need(ui,"document.querySelector('#starredRevisionBody > .sr-summary')",'Smart Revision entry is injected only into All Starred summary');
-need(ui,"b.textContent='🧠 Smart Revision'",'new top-level Smart Revision button exists');
+need(ui,"b.textContent='🧠 Smart Revision'",'top-level Smart Revision button remains additive');
 assert(!ui.includes('sr-group-panel')&&!ui.includes('sr-day-panel'),'Smart UI does not inject Smart Revision into Day/Block/Month action grids');
 
-// Existing quiz/save engine reuse and module history contract.
+// Existing quiz/save/Star/Difficult engines remain reused.
 need(ui,"EPQuiz.start(qs,{mode:'starredRevision'",'Smart session reuses existing quiz engine with Module route starredRevision');
-need(ui,"smartStarred:true",'Smart metadata is additive to existing starredRevision mode');
-need(ui,"EPQuiz.resumeOther()",'Smart Starred sessions use existing resume engine');
-need(ui,"EPQuiz.hasSavedSessionFor('starredRevision')",'Smart launch respects existing shared paused-session contract');
-need(save,'p.module=fn.indexOf(\'Hindu\')>=0?\'hindu\':moduleForQuestion(id)','answer outbox still derives module from existing quiz session');
-need(save,"if(m)return m",'saved quiz mode remains authoritative for Performance Module');
+need(ui,'smartStarred:true','Smart metadata remains additive to existing starredRevision mode');
+need(ui,'EPQuiz.resumeOther()','Smart Starred sessions use existing resume engine');
+need(ui,"EPQuiz.hasSavedSessionFor('starredRevision')",'Smart launch respects existing paused-session contract');
+need(save,"emitDurableAck(item,res)",'durable Answer acknowledgement remains authoritative');
+need(save,"module:String(item&&item.payload&&item.payload.module||'')",'durable acknowledgement preserves module');
 need(starReliability,"OUTBOX_KEY='ep-star-outbox-v4'",'existing durable Star outbox remains intact');
 need(starReliability,'overlayPending','existing pending Star overlay remains intact');
 need(legacyUi,'setStarredRevisionDifficult','existing Difficult toggle remains authoritative');
 
-// UI requirements.
-for(const text of ['Recommended Now','Starred Coverage','Learning Health','Smart Practice','Not Revised','Due Now','Weak Focus','Difficult','Longest Not Revised','Rotation Health','Day-wise Intelligence / Scope','Today\'s Recommendation'])need(ui,text,`UI contains ${text}`);
-need(ui,'<details class="si-card si-health">','Learning Health is collapsible and collapsed by default');
-need(ui,'[10,20,30,50]','Smart batch sizes are 10 / 20 / 30 / 50');
-need(ui,'smartStarredReason','question-level Smart selection reason is preserved in quiz payload/session');
-need(ui,'Session Complete','Smart session summary exists');
+// Cooldown and snapshot performance contracts.
+need(opt,'EP_STARRED_INTELLIGENCE_COOLDOWN_MS_V2=24*60*60*1000','24-hour Smart cooldown is explicit and non-persisted');
+need(opt,'recentStarredCooldown:recent','cooldown is derived from existing Starred Revision attempt timestamp');
+need(opt,'const fresh=rows.filter(x=>!x.recentStarredCooldown),recent=rows.filter(x=>x.recentStarredCooldown)','Smart selector performs non-cooldown first pass with recent fallback');
+need(opt,'EP_STARRED_INTELLIGENCE_SIZES_V2.forEach','10/20/30/50 recommendations are precomputed from one snapshot universe');
+need(opt,'smartBySize','snapshot exposes precomputed size plans');
+need(ui,"EPApp.call('getStarredIntelligenceSnapshotV2',scope)",'page loads one Starred Intelligence snapshot');
+need(ui,"function setSize(n){batchSize=[10,20,30,50].includes(Number(n))?Number(n):20;render()}",'size switching is client-side only');
+assert(!/function setSize\([^)]*\)[\s\S]{0,180}load\(/.test(ui),'size switching never triggers backend recomputation');
+need(ui,"EPApp.call('getStarredIntelligencePreparedBatchV2'",'Start uses lightweight prepared-batch verification');
+assert(!ui.includes("EPApp.call('getStarredIntelligenceBatch'"),'optimized UI no longer rebuilds full Smart universe on Start');
+const preparedBody=opt.slice(opt.indexOf('function getStarredIntelligencePreparedBatchV2'));
+assert(!preparedBody.includes('starredIntelligenceUniverseV1_(')&&!preparedBody.includes('starredIntelligencePerformanceFactsV1_('),'prepared Start does not rescan Performance or rebuild complete universe');
+need(ui,'const snapshots=new Map(),openSections=new Set()','narrow client snapshot cache and fold state exist');
+need(ui,'snapshotDirty=true;snapshots.clear()','relevant changes invalidate all cached Smart snapshots');
+need(ui,"String(e?.detail?.module||'')!=='starredRevision'",'only durable Starred Revision answers trigger answer-based Smart invalidation');
+for(const fn of ['setMarked','setStarredRevisionDifficult','markMastered','restoreMastered'])need(ui,fn,`snapshot invalidation watches ${fn}`);
+need(ui,'if(!hub||snapshotDirty||scopeKey(hub.scope)!==scopeKey(scope))return await load(true)','Start refuses stale/dirty snapshot');
+need(ui,'if(res?.needsRefresh&&retry)','Start regenerates safely when lightweight eligibility verification detects material change');
 
-// Pure selector behavior tests: rotation must not be starved by a permanent weak queue.
-const ctx={console,Date,Math,Set,Object,String,Number,Array,Error};vm.createContext(ctx);new vm.Script(server).runInContext(ctx);
+// Post-session fresh result is computed once after durability and reused.
+need(ui,"const pending=Number(window.EPSaveReliability?.pending?.()||0)",'session summary waits for durable Answer outbox');
+need(ui,"EPApp.call('getStarredIntelligenceSnapshotV2',sum.meta?.smartScope||{all:true})",'post-session computes one confirmed fresh Smart snapshot');
+need(ui,'rememberSnapshot(fresh)','confirmed post-session snapshot is retained for immediate Back to Intelligence reuse');
+need(ui,'Next Smart Set Ready','session summary prepares the next recommendation without auto-starting');
+
+// Race protection.
+need(ui,'let hub=null,scope=','UI has isolated Starred Intelligence request state');
+need(ui,'requestSeq=0','latest-request-wins sequence exists');
+need(ui,'const seq=++requestSeq','each asynchronous snapshot refresh has a unique sequence');
+need(ui,'if(seq!==requestSeq)return null','stale snapshot responses are rejected');
+need(ui,'function changeScope(value)','scope changes have explicit request lifecycle');
+need(ui,'requestSeq++;scope=Object.assign','scope change invalidates older in-flight response before starting the newer request');
+
+// Compact mobile-first UI contracts.
+need(ui,'Recommended Now —','Recommended Now remains permanently visible');
+for(const section of ['coverage','health','practice','rotation','scope'])need(ui,`data-si-section=\"${section}\"`,`collapsible ${section} section exists`);
+need(ui,'openSections.has(name)','open fold state is reapplied across renders');
+need(ui,'sectionToggle(name,isOpen)','open fold state is tracked client-side');
+need(ui,'ⓘ','compact information affordance is used');
+assert(!ui.includes('<div class="si-card"><b>Why this set?</b>'),'permanent Why This Set paragraph was removed');
+assert(!ui.includes("<b>Today's Recommendation</b>"),'duplicate large Today recommendation card was removed');
+need(ui,'Starred Coverage ›','Starred Coverage collapsed row exists');
+need(ui,'Learning Health ›','Learning Health collapsed row exists');
+need(ui,'Smart Practice ›','Smart Practice collapsed row exists');
+need(ui,'Rotation Health ›','Rotation Health collapsed row exists');
+need(ui,'Day-wise Intelligence ›','Day-wise Intelligence collapsed row exists');
+need(ui,'smartStarredReason','question-level Smart reason badge remains');
+
+// Pure behavior tests: learning/rotation plus anti-repeat cooldown.
+const ctx={console,Date,Math,Set,Object,String,Number,Array,Error};vm.createContext(ctx);new vm.Script(server+'\n'+opt).runInContext(ctx);
 const now=Date.now(),day=86400000;
-const row=(id,state,days,extra={})=>Object.assign({id,profile:{state},due:false,difficult:false,neverRevised:false,lastStarred:new Date(now-days*day),daysSinceStarred:days},extra);
-const mixed=[...Array.from({length:8},(_,i)=>row('W'+i,i<4?'Persistent Weak':'Weak',1)),row('OLD_STRONG','Strong',20),row('NEVER_STRONG','Strong',0,{neverRevised:true,lastStarred:null,daysSinceStarred:null})];
-const smart=ctx.starredIntelligenceSmartSelectV1_(mixed,10);
+const row=(id,state,days,extra={})=>Object.assign({id,profile:{state},due:false,difficult:false,neverRevised:false,lastStarred:days==null?null:new Date(now-days*day),daysSinceStarred:days,recentStarredCooldown:false},extra);
+const mixed=[...Array.from({length:8},(_,i)=>row('W'+i,i<4?'Persistent Weak':'Weak',2)),row('OLD_STRONG','Strong',20),row('NEVER_STRONG','Strong',null,{neverRevised:true})];
+const smart=ctx.starredIntelligenceSmartSelectV2_(mixed,10);
 assert(smart.length===10,'Smart Mix returns requested eligible count');
 assert(smart.some(x=>x.selectionLane==='learning'),'Smart Mix contains learning-priority lane');
 assert(smart.some(x=>x.selectionLane==='rotation'),'Smart Mix reserves coverage-rotation lane');
 assert(smart.some(x=>x.id==='OLD_STRONG'),'old Strong Starred item cannot be permanently starved by Weak items');
 assert(smart.some(x=>x.id==='NEVER_STRONG'),'Never Revised Starred item receives rotation exposure');
-const rotation=ctx.starredIntelligenceSelectV1_([row('RECENT','Strong',2),row('OLD','Strong',15),row('NEVER','Strong',0,{neverRevised:true,lastStarred:null,daysSinceStarred:null})],'longest',3);
-assert(rotation.map(x=>x.id).join(',')==='NEVER,OLD,RECENT','Longest Not Revised orders Never Revised → oldest → recent');
-const nr=ctx.starredIntelligenceSelectV1_([row('A','Weak',1),row('B','Strong',0,{neverRevised:true,lastStarred:null,daysSinceStarred:null})],'notRevised',10);
-assert(nr.length===1&&nr[0].id==='B','Not Revised mode ignores central state and uses Starred-module exposure only');
-const weak=ctx.starredIntelligenceSelectV1_([row('PW','Persistent Weak',1),row('W','Weak',1),row('F','Fragile',1),row('S','Strong',30)],'weak',10);
-assert(weak.map(x=>x.id).join(',')==='PW,W,F','Weak Focus includes only Persistent Weak / Weak / Fragile in priority order');
-const due=ctx.starredIntelligenceSelectV1_([row('D1','Strong',5,{due:true}),row('D0','Persistent Weak',1,{due:false})],'due',10);
+
+const recentCompleted=Array.from({length:20},(_,i)=>row('DONE'+i,i<8?'Persistent Weak':'Weak',0,{recentStarredCooldown:true}));
+const alternatives=Array.from({length:20},(_,i)=>row('ALT'+i,'Strong',10+i));
+const next20=ctx.starredIntelligenceSmartSelectV2_(recentCompleted.concat(alternatives),20);
+assert(next20.length===20&&next20.every(x=>x.id.startsWith('ALT')),'Smart N immediately excludes all just-completed IDs when N non-cooldown alternatives exist');
+
+const fresh23=Array.from({length:23},(_,i)=>row('FRESH'+i,i<5?'Weak':'Strong',8+i));
+const recent7=Array.from({length:7},(_,i)=>row('REC'+i,'Persistent Weak',0,{recentStarredCooldown:true}));
+const filled30=ctx.starredIntelligenceSmartSelectV2_(fresh23.concat(recent7),30);
+assert(filled30.length===30,'soft cooldown never returns an artificially small Smart set');
+assert(filled30.slice(0,23).every(x=>!x.recentStarredCooldown)&&filled30.slice(23).every(x=>x.recentStarredCooldown),'cooldown questions are used only as fallback after all non-recent alternatives');
+
+const weakPref=ctx.starredIntelligenceSelectV2_([row('RECENT_WEAK','Weak',0,{recentStarredCooldown:true}),row('FRESH_WEAK','Weak',3)],'weak',2);
+assert(weakPref[0].id==='FRESH_WEAK','explicit Weak Focus prefers equivalent non-recent candidate before recent candidate');
+const rotation=ctx.starredIntelligenceSelectV2_([row('RECENT','Strong',0,{recentStarredCooldown:true}),row('OLD','Strong',15),row('NEVER','Strong',null,{neverRevised:true})],'longest',3);
+assert(rotation.map(x=>x.id).join(',')==='NEVER,OLD,RECENT','Longest Not Revised orders Never Revised → old non-recent → recent cooldown');
+const nr=ctx.starredIntelligenceSelectV2_([row('A','Weak',2),row('B','Strong',null,{neverRevised:true})],'notRevised',10);
+assert(nr.length===1&&nr[0].id==='B','Not Revised remains based only on Starred-module exposure');
+const due=ctx.starredIntelligenceSelectV2_([row('D1','Strong',5,{due:true}),row('D0','Persistent Weak',1,{due:false})],'due',10);
 assert(due.length===1&&due[0].id==='D1','Due Now includes only centrally due Starred questions');
-const diff=ctx.starredIntelligenceSelectV1_([row('M','Strong',5,{difficult:true}),row('N','Persistent Weak',5,{difficult:false})],'difficult',10);
+const diff=ctx.starredIntelligenceSelectV2_([row('M','Strong',5,{difficult:true}),row('N','Persistent Weak',5,{difficult:false})],'difficult',10);
 assert(diff.length===1&&diff[0].id==='M','Difficult mode eligibility remains manual Difficult only');
 const scoped=ctx.starredIntelligenceApplyScopeV1_([{id:'D5',day:5},{id:'D8',day:8}],{fromDay:5,toDay:5});
-assert(scoped.length===1&&scoped[0].id==='D5','scope filtering excludes Starred questions outside requested Day/Block/Month before ranking');
+assert(scoped.length===1&&scoped[0].id==='D5','scope filtering still excludes questions outside requested Day/Block/Month before ranking');
 
-// New global function names must not collide with existing server files.
-const newFns=[...server.matchAll(/function\s+([A-Za-z0-9_]+)\s*\(/g)].map(m=>m[1]),others=fs.readdirSync(root).filter(f=>f.endsWith('.gs')&&f!=='StarredIntelligence.gs').map(read).join('\n');
+// No global collisions across all server files.
+const newFns=[...server.matchAll(/function\s+([A-Za-z0-9_]+)\s*\(/g),...opt.matchAll(/function\s+([A-Za-z0-9_]+)\s*\(/g)].map(m=>m[1]),others=fs.readdirSync(root).filter(f=>f.endsWith('.gs')&&!['StarredIntelligence.gs','StarredIntelligenceOptimization.gs'].includes(f)).map(read).join('\n');
 for(const fn of newFns)assert(!new RegExp(`function\\s+${fn.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\s*\\(`).test(others),`no duplicate global function: ${fn}`);
 
-need(index,"include('StarredIntelligenceUI')",'Starred Intelligence UI is included');
-assert(index.indexOf("include('StarredIntelligenceUI')")>index.indexOf("include('ModuleSyncUI')"),'Starred Intelligence integration loads last and wraps only finalized existing behavior');
-if(process.exitCode){console.error('\nStarred Intelligence validation failed. Deployment must not proceed.');process.exit(process.exitCode)}
-console.log('\n✅ Starred Intelligence isolation, rotation, eligibility, save-routing and UI contracts passed.');
+need(index,"include('StarredIntelligenceUI')",'Starred Intelligence UI remains included');
+assert(index.indexOf("include('StarredIntelligenceUI')")>index.indexOf("include('ModuleSyncUI')"),'Starred Intelligence integration still loads last and wraps only finalized existing behavior');
+if(process.exitCode){console.error('\nStarred Intelligence optimization validation failed. Deployment must not proceed.');process.exit(process.exitCode)}
+console.log('\n✅ Starred Intelligence cooldown, snapshot, race, eligibility, save-routing and compact UX contracts passed.');
