@@ -14,6 +14,7 @@ on:
       - '.github/scripts/validate-star-reliability.cjs'
       - '.github/scripts/validate-daily-finish.cjs'
       - '.github/scripts/validate-module-sync.cjs'
+      - '.github/scripts/validate-starred-intelligence.cjs'
       - '.github/workflows/deploy-english-apps-script.yml'
   workflow_dispatch:
 
@@ -64,6 +65,9 @@ jobs:
 
       - name: Validate module synchronization and Hindu fast path
         run: node .github/scripts/validate-module-sync.cjs
+
+      - name: Validate Starred Intelligence isolation and rotation
+        run: node .github/scripts/validate-starred-intelligence.cjs
 
       - name: Verify required deployment secrets
         env:
