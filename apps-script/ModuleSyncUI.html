@@ -1,0 +1,61 @@
+<script>
+(()=>{
+  const SAVED_DIRTY='ep:mySavedRevision:dirty:v1',BANK_DIRTY='ep:bankCoverage:dirty:v1',ACK_KEY='ep:module-sync:last-ack:v1';
+  let hinduPrefetch=null,hinduPrefetched=null,hinduPrefetchedAt=0,hinduProgressDirty=false,savedTimer=0,bankTimer=0,hinduTimer=0;
+  const $=id=>document.getElementById(id);
+  const visible=id=>{const el=$(id);return !!(el&&!el.classList.contains('hidden'))};
+  function markDirty(key){try{localStorage.setItem(key,'1')}catch(e){}}
+  function rememberAck(d){try{localStorage.setItem(ACK_KEY,JSON.stringify(Object.assign({at:new Date().toISOString()},d||{})))}catch(e){}}
+  function dropFast(keys){if(window.EPFast&&EPFast.drop)(keys||[]).forEach(k=>EPFast.drop(k))}
+  function refreshSavedVisible(){
+    if(!visible('mySavedRevisionView')||!window.EPMySavedCacheUX?.refresh)return;
+    clearTimeout(savedTimer);savedTimer=setTimeout(()=>{EPMySavedCacheUX.refresh();setTimeout(()=>{if(visible('mySavedRevisionView'))EPMySavedCacheUX.refresh()},1300)},180);
+  }
+  function refreshBankVisible(){
+    if(!visible('bankCoverageView')||!window.EPBankCacheUX?.refresh)return;
+    clearTimeout(bankTimer);bankTimer=setTimeout(()=>{EPBankCacheUX.refresh();setTimeout(()=>{if(visible('bankCoverageView'))EPBankCacheUX.refresh()},1300)},180);
+  }
+  function applyHinduProgress(p){
+    if(!p||!Number(p.total||0))return;const btn=$('hinduActions')?.querySelector('button');if(!btn)return;
+    const completed=Math.max(0,Number(p.roundsCompleted||0)),next=Math.max(1,Number(p.nextRound||completed+1));btn.textContent=completed>0?`Practice Again · Round ${next}`:'Start Practice · Round 1';btn.dataset.round=String(next);
+  }
+  function refreshHinduProgressVisible(){
+    if(!hinduProgressDirty||!visible('hinduView')||typeof EPApp?.call!=='function')return;
+    clearTimeout(hinduTimer);hinduTimer=setTimeout(async()=>{try{const p=await EPApp.call('getHinduPracticeProgressCentral');window.EPFast?.set?.('hindu:progress',p);applyHinduProgress(p);hinduProgressDirty=false}catch(e){}},180);
+  }
+  function onDurableAnswer(e){
+    const d=e?.detail||{},module=String(d.module||'').trim();rememberAck(d);
+    markDirty(SAVED_DIRTY);markDirty(BANK_DIRTY);dropFast(['progress','new:hub','topic:hub','source:hub','demand:hub','demand:stats','starred:hub']);
+    if(module==='mySavedRevision'){dropFast(['saved:hub']);refreshSavedVisible()}
+    if(module==='bankCoverage')refreshBankVisible();
+    if(module==='hindu'){dropFast(['hindu:progress']);hinduProgressDirty=true;refreshHinduProgressVisible()}
+  }
+
+  function hinduPrefetchFresh(){return Array.isArray(hinduPrefetched)&&hinduPrefetched.length&&Date.now()-hinduPrefetchedAt<180000}
+  function prefetchHinduQuiz(){
+    if(hinduPrefetchFresh())return Promise.resolve(hinduPrefetched);if(hinduPrefetch)return hinduPrefetch;if(typeof EPApp?.call!=='function')return Promise.resolve([]);
+    hinduPrefetch=EPApp.call('getHinduQuizFastV4').then(qs=>{hinduPrefetched=Array.isArray(qs)?qs:[];hinduPrefetchedAt=Date.now();return hinduPrefetched}).catch(()=>[]).finally(()=>{hinduPrefetch=null});return hinduPrefetch;
+  }
+  function takeHinduQuiz(){
+    if(hinduPrefetchFresh()){const qs=hinduPrefetched;hinduPrefetched=null;hinduPrefetchedAt=0;return Promise.resolve(qs)}
+    if(hinduPrefetch)return hinduPrefetch.then(qs=>{hinduPrefetched=null;hinduPrefetchedAt=0;return qs});
+    return EPApp.call('getHinduQuizFastV4');
+  }
+  function wireHinduFastLaunch(){
+    if(typeof EPApp==='undefined'||EPApp.__hinduFastLaunchV4)return;EPApp.__hinduFastLaunchV4=true;
+    const rawOpen=typeof EPApp.openHindu==='function'?EPApp.openHindu.bind(EPApp):null;
+    if(rawOpen)EPApp.openHindu=function(){const r=rawOpen.apply(this,arguments);setTimeout(()=>prefetchHinduQuiz(),350);return r};
+    EPApp.startHinduQuiz=async function(){
+      EPQuiz.replaceSavedFor('hindu');window.EPFast?.showQuizLoading?.('Loading The Hindu Quiz…');
+      try{
+        const qs=await takeHinduQuiz();if(!qs||!qs.length){window.EPFast?.hideQuizLoading?.();EPApp.toast?.('Today’s Hindu-word batch is not available.');return}
+        document.body.classList.add('quiz-active');$('bottomNav')?.classList.add('hidden');window.EPFast?.hideQuizLoading?.();EPQuiz.start(qs,{mode:'hindu',returnTab:'hindu',serverSynced:true});
+      }catch(e){window.EPFast?.hideQuizLoading?.();EPApp.toast?.('Could not load The Hindu quiz: '+String(e&&e.message||e))}
+    };
+  }
+  function wireHinduVisibility(){const view=$('hinduView');if(!view)return;new MutationObserver(()=>{if(!view.classList.contains('hidden'))refreshHinduProgressVisible()}).observe(view,{attributes:true,attributeFilter:['class']})}
+  function init(){window.addEventListener('ep:answer-durable',onDurableAnswer);wireHinduFastLaunch();wireHinduVisibility()}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(init,220));else setTimeout(init,220);
+  window.EPModuleSync={refreshSaved:refreshSavedVisible,refreshBank:refreshBankVisible,refreshHindu:()=>{hinduProgressDirty=true;refreshHinduProgressVisible()},prefetchHindu:prefetchHinduQuiz,inspect:()=>{let last=null;try{last=JSON.parse(localStorage.getItem(ACK_KEY)||'null')}catch(e){}return {lastAck:last,hinduPrefetched:hinduPrefetchFresh(),hinduProgressDirty}}};
+})();
+</script>

@@ -13,6 +13,7 @@
   function moduleForQuestion(id){const s=sessionForQuestion(id),m=String(s&&s.meta&&s.meta.mode||'').trim();if(m)return m;const title=String($('quizMode')?.textContent||'').toLowerCase();if(title.includes('bank coverage'))return'bankCoverage';if(title.includes('my saved'))return'mySavedRevision';if(title.includes('starred'))return'starredRevision';if(title.includes('hindu'))return'hindu';if(title.includes('daily'))return'daily';if(title.includes('difficult'))return'difficult';return'practice'}
   function makeAttemptId(id){return String(id||'Q').trim()+'-'+Date.now()+'-'+Math.random().toString(36).slice(2,8)}
   function invalidateLearningCaches(){try{localStorage.setItem(BANK_DIRTY,'1');localStorage.setItem(SAVED_DIRTY,'1')}catch(e){}if(window.EPFast&&EPFast.drop){['new:hub','topic:hub','source:hub','demand:hub','demand:stats','starred:hub','progress'].forEach(k=>EPFast.drop(k))}}
+  function emitDurableAck(item,res){try{window.dispatchEvent(new CustomEvent('ep:answer-durable',{detail:{attemptId:String(item&&item.attemptId||''),endpoint:String(item&&item.endpoint||''),questionId:String(item&&item.payload&&item.payload.questionId||''),module:String(item&&item.payload&&item.payload.module||''),durable:!!(res&&res.durable),deduped:!!(res&&res.deduped)}}))}catch(e){}}
   function enqueue(fn,payload){
     const p=Object.assign({},payload||{}),id=String(p.questionId||'').trim();if(!id)return null;p.module=fn.indexOf('Hindu')>=0?'hindu':moduleForQuestion(id);p.timeSeconds=activeSeconds(id,p.timeSeconds);p.attemptId=String(p.attemptId||'').trim()||makeAttemptId(id);p.answeredAt=p.answeredAt||new Date().toISOString();
     const endpoint=fn.indexOf('Hindu')>=0?'submitHinduAnswerV3':'submitAnswerV3',q=readQueue();if(!q.some(x=>x&&x.attemptId===p.attemptId))q.push({attemptId:p.attemptId,endpoint,payload:p,tries:0,nextAt:0,queuedAt:Date.now()});if(!writeQueue(q))return null;invalidateLearningCaches();flushSoon(0);return Promise.resolve({ok:true,queued:true,attemptId:p.attemptId,correctKey:String(p.correctKey||'')});
@@ -25,7 +26,7 @@
       const q=readQueue();if(!q.length){setTimeout(()=>direct('repairPendingLearningDerivationsV3',5).catch(()=>{}),0);return}
       const item=q[0],wait=Math.max(0,Number(item.nextAt||0)-Date.now());if(wait>0){flushSoon(Math.min(wait,60000));return}
       try{
-        const res=await direct(item.endpoint,item.payload);if(!res||res.durable!==true)throw new Error('Server did not confirm durable save');const latest=readQueue().filter(x=>x&&x.attemptId!==item.attemptId);writeQueue(latest);invalidateLearningCaches();flushSoon(0);
+        const res=await direct(item.endpoint,item.payload);if(!res||res.durable!==true)throw new Error('Server did not confirm durable save');const latest=readQueue().filter(x=>x&&x.attemptId!==item.attemptId);writeQueue(latest);invalidateLearningCaches();emitDurableAck(item,res);flushSoon(0);
       }catch(e){
         const latest=readQueue(),i=latest.findIndex(x=>x&&x.attemptId===item.attemptId);if(i>=0){latest[i].tries=Number(latest[i].tries||0)+1;latest[i].lastError=String(e&&e.message||e);latest[i].nextAt=Date.now()+backoff(latest[i].tries);writeQueue(latest);flushSoon(backoff(latest[i].tries))}
       }
