@@ -22,11 +22,11 @@ function submitAnswerBatchV4(items){
   if(!valid.length)return {ok:true,batchSize:input.length,durableCount:0,results};
   const lock=LockService.getScriptLock();if(!lock.tryLock(5000))throw new Error('SAVE_BUSY_RETRY');
   try{
-    ensurePerformanceModuleColumn_();const perf=sheet_(EP.sheets.performance),headers=perf.getRange(1,1,1,perf.getLastColumn()).getValues()[0].map(x=>String(x||'').trim()),ai=headers.indexOf('Attempt_ID'),existing=new Set();
-    if(ai>=0&&perf.getLastRow()>1)perf.getRange(2,ai+1,perf.getLastRow()-1,1).getValues().forEach(r=>{const id=String(r[0]||'').trim();if(id)existing.add(id)});
+    ensurePerformanceModuleColumn_();const perf=sheet_(EP.sheets.performance),headers=perf.getRange(1,1,1,perf.getLastColumn()).getValues()[0].map(x=>String(x||'').trim()),ai=headers.indexOf('Attempt_ID'),existing=new Set();if(ai<0)throw new Error('Performance Attempt_ID column missing');
+    if(perf.getLastRow()>1)perf.getRange(2,ai+1,perf.getLastRow()-1,1).getValues().forEach(r=>{const id=String(r[0]||'').trim();if(id)existing.add(id)});
     const accepted=[],rows=[];valid.forEach(x=>{if(existing.has(x.attemptId)){results[x.index]=Object.assign(results[x.index],{durable:true,deduped:true});accepted.push(x);return}existing.add(x.attemptId);const obj={Timestamp:x.now,Question_ID:x.id,Selected_Answer:x.selected,Correct:!!x.isCorrect,Time_Seconds:x.secs,Marked_Revision:!!x.payload.marked,Attempt_ID:x.attemptId,Topic:x.q.topic||'',Concept_ID:x.q.conceptId||'',Module:x.module};rows.push(headers.map(k=>Object.prototype.hasOwnProperty.call(obj,k)?obj[k]:''));accepted.push(x)});
     if(rows.length){const start=perf.getLastRow()+1;perf.getRange(start,1,rows.length,headers.length).setValues(rows);SpreadsheetApp.flush();}
-    accepted.forEach(x=>{results[x.index]=Object.assign(results[x.index],{durable:true,deduped:existing.has(x.attemptId)&&!rows.length?true:results[x.index].deduped||false})});
+    accepted.forEach(x=>{results[x.index]=Object.assign(results[x.index],{durable:true,deduped:rows.length?results[x.index].deduped||false:true})});
     try{queueDerivedRepairsV4_(accepted)}catch(e){accepted.forEach(x=>{results[x.index].derivedQueued=false;results[x.index].derivedQueueError=String(e&&e.message||e)})}
   }finally{lock.releaseLock();}
   const durableCount=results.filter(r=>r&&r.durable===true).length;return {ok:true,batchSize:input.length,durableCount,results};
