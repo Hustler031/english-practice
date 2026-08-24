@@ -1,12 +1,13 @@
 const fs=require('fs'),path=require('path'),vm=require('vm');
 const root=path.resolve(process.cwd(),'apps-script'),read=n=>fs.readFileSync(path.join(root,n),'utf8');
 const fail=m=>{console.error(`❌ ${m}`);process.exitCode=1},ok=m=>console.log(`✅ ${m}`),need=(t,n,l)=>t.includes(n)?ok(l):fail(`${l} — missing: ${n}`),assert=(v,m)=>v?ok(m):fail(m);
-for(const f of ['StarredIntelligence.gs','StarredIntelligenceOptimization.gs','StarredIntelligenceUI.html','StarredRevisionUI.html','LearningIntelligence.gs','LearningLayoutCompat.html','SaveReliabilityUI.html','Index.html'])if(!fs.existsSync(path.join(root,f)))fail(`Missing ${f}`);
+for(const f of ['StarredIntelligence.gs','StarredIntelligenceOptimization.gs','StarredIntelligenceUI.html','StarredRevisionUI.html','QuizJS.html','LearningIntelligence.gs','LearningLayoutCompat.html','SaveReliabilityUI.html','Index.html'])if(!fs.existsSync(path.join(root,f)))fail(`Missing ${f}`);
 if(process.exitCode)process.exit(process.exitCode);
-const server=read('StarredIntelligence.gs'),opt=read('StarredIntelligenceOptimization.gs'),ui=read('StarredIntelligenceUI.html'),legacyUi=read('StarredRevisionUI.html'),learning=read('LearningIntelligence.gs'),starReliability=read('LearningLayoutCompat.html'),save=read('SaveReliabilityUI.html'),index=read('Index.html');
+const server=read('StarredIntelligence.gs'),opt=read('StarredIntelligenceOptimization.gs'),ui=read('StarredIntelligenceUI.html'),legacyUi=read('StarredRevisionUI.html'),quiz=read('QuizJS.html'),learning=read('LearningIntelligence.gs'),starReliability=read('LearningLayoutCompat.html'),save=read('SaveReliabilityUI.html'),index=read('Index.html');
 try{new vm.Script(server,{filename:'StarredIntelligence.gs'});ok('Starred Intelligence V1 server syntax')}catch(e){fail(`StarredIntelligence.gs syntax: ${e.message}`)}
 try{new vm.Script(opt,{filename:'StarredIntelligenceOptimization.gs'});ok('Starred Intelligence V2 optimization syntax')}catch(e){fail(`StarredIntelligenceOptimization.gs syntax: ${e.message}`)}
 try{new vm.Script(ui.replace(/<\/?script[^>]*>/gi,''),{filename:'StarredIntelligenceUI.html'});ok('Starred Intelligence UI syntax')}catch(e){fail(`StarredIntelligenceUI.html syntax: ${e.message}`)}
+try{new vm.Script(quiz.replace(/<\/?script[^>]*>/gi,''),{filename:'QuizJS.html'});ok('Quiz lifecycle syntax')}catch(e){fail(`QuizJS.html syntax: ${e.message}`)}
 
 // Strict eligibility and central-state reuse remain authoritative.
 [
@@ -48,6 +49,14 @@ need(save,"module:String(item&&item.payload&&item.payload.module||'')",'durable 
 need(starReliability,"OUTBOX_KEY='ep-star-outbox-v4'",'existing durable Star outbox remains intact');
 need(starReliability,'overlayPending','existing pending Star overlay remains intact');
 need(legacyUi,'setStarredRevisionDifficult','existing Difficult toggle remains authoritative');
+
+// Completed-session lifecycle guard: a late callback can never resurrect shared OTHER storage.
+need(quiz,'sessionGeneration:0,live:false','quiz instances have an in-memory generation/live guard');
+need(quiz,'function isLiveGeneration(generation)','async callbacks verify the current live quiz generation');
+need(quiz,'if(!isLiveGeneration(generation))return','late answer/state callbacks are rejected after completion or replacement');
+need(quiz,'function completeCurrentSaved(){state.live=false;state.sessionGeneration=','Finish invalidates the current quiz generation before clearing storage');
+need(quiz,'if(!state.live||!state.questions.length)return','completed quiz state cannot be persisted again');
+assert(!/location\.reload\s*\(|window\.location\.reload\s*\(/.test(ui+quiz),'Smart restart fix uses no forced page reload');
 
 // Cooldown and snapshot performance contracts.
 need(opt,'EP_STARRED_INTELLIGENCE_COOLDOWN_MS_V2=24*60*60*1000','24-hour Smart cooldown is explicit and non-persisted');
@@ -98,6 +107,26 @@ need(ui,'Rotation Health ›','Rotation Health collapsed row exists');
 need(ui,'Day-wise Intelligence ›','Day-wise Intelligence collapsed row exists');
 need(ui,'smartStarredReason','question-level Smart reason badge remains');
 
+// Exact Smart restart regression: Finish clears OTHER, late callback cannot restore it, then Smart 2 and Smart 3 start without reload.
+(function testQuizRestartLifecycle(){
+  const storage=new Map(),elements={};
+  const classList=()=>{const s=new Set();return{add:(...x)=>x.forEach(v=>s.add(v)),remove:(...x)=>x.forEach(v=>s.delete(v)),contains:x=>s.has(x),toggle:(x,force)=>{const on=force===undefined?!s.has(x):!!force;on?s.add(x):s.delete(x);return on}}};
+  const makeEl=()=>{const e={textContent:'',className:'',style:{},disabled:false,children:[],classList:classList(),querySelector:sel=>sel==='.option-text'?{textContent:''}:null,appendChild(x){this.children.push(x);return x}};let html='';Object.defineProperty(e,'innerHTML',{get:()=>html,set:v=>{html=String(v);e.children=[]}});return e};
+  ['quizView','bottomNav','quizMode','quizCounter','quizBar','qCategory','qId','qText','qWord','prevBtn','nextBtn','markBtn','masteredBtn','vocabBtn','optionList','feedback','explanation'].forEach(id=>elements[id]=makeEl());
+  const pending=[];
+  const delayed=()=>({then(fn){pending.push(fn);return{catch(){return this}}}});
+  const localStorage={getItem:k=>storage.has(k)?storage.get(k):null,setItem:(k,v)=>storage.set(k,String(v)),removeItem:k=>storage.delete(k)};
+  const document={getElementById:id=>elements[id]||null,querySelectorAll:()=>[],createElement:()=>makeEl()};
+  const EPApp={call:fn=>fn==='submitAnswer'?delayed():{then(fn){fn({});return{catch(){return this}}}},toast:()=>{},showTab:()=>{},refreshDashboard:()=>{},refreshResumeCard:()=>{}};
+  const q=id=>({id,topic:'Vocabulary',question:`Question ${id}`,correctKey:'A',options:[{key:'A',text:'A'},{key:'B',text:'B'},{key:'C',text:'C'},{key:'D',text:'D'}]});
+  const qctx={console,Date,Math,Set,Object,String,Number,Array,Error,JSON,localStorage,document,EPApp,confirm:()=>true,window:{scrollTo:()=>{}},setTimeout:(fn)=>{fn();return 1}};vm.createContext(qctx);new vm.Script(quiz.replace(/<\/?script[^>]*>/gi,'')).runInContext(qctx);
+  const start=id=>qctx.EPQuiz.start([q(id)],{mode:'starredRevision',smartStarred:true,batchId:id,returnTab:'home'});
+  const answer=()=>elements.optionList.children[0].onclick();
+  start('SMART-1');answer();assert(qctx.EPQuiz.hasSavedSessionFor('starredRevision'),'Smart session 1 is resumable while live');qctx.EPQuiz.next();assert(!storage.has('ep-quiz-other-v4'),'Smart session 1 Finish clears shared OTHER session');assert(!qctx.EPQuiz.hasSavedSessionFor('starredRevision'),'finished Smart session is not reported as paused');const late1=pending.shift();late1&&late1({correctKey:'A'});assert(!storage.has('ep-quiz-other-v4'),'late Smart 1 answer callback cannot resurrect completed OTHER session');
+  start('SMART-2');answer();assert(JSON.parse(storage.get('ep-quiz-other-v4')).meta.batchId==='SMART-2','Smart session 2 starts without browser refresh');qctx.EPQuiz.next();const late2=pending.shift();late2&&late2({correctKey:'A'});assert(!storage.has('ep-quiz-other-v4'),'Smart session 2 remains cleared after its late callback');
+  start('SMART-3');assert(JSON.parse(storage.get('ep-quiz-other-v4')).meta.batchId==='SMART-3','Smart session 3 starts without browser refresh');qctx.EPQuiz.pause();assert(storage.has('ep-quiz-other-v4'),'paused Smart session remains resumable');qctx.EPQuiz.resumeOther();assert(JSON.parse(storage.get('ep-quiz-other-v4')).meta.batchId==='SMART-3','Pause/Resume contract remains intact after lifecycle guard');
+})();
+
 // Pure behavior tests: learning/rotation plus anti-repeat cooldown.
 const ctx={console,Date,Math,Set,Object,String,Number,Array,Error};vm.createContext(ctx);new vm.Script(server+'\n'+opt).runInContext(ctx);
 const now=Date.now(),day=86400000;
@@ -141,4 +170,4 @@ for(const fn of newFns)assert(!new RegExp(`function\\s+${fn.replace(/[.*+?^${}()
 need(index,"include('StarredIntelligenceUI')",'Starred Intelligence UI remains included');
 assert(index.indexOf("include('StarredIntelligenceUI')")>index.indexOf("include('ModuleSyncUI')"),'Starred Intelligence integration still loads last and wraps only finalized existing behavior');
 if(process.exitCode){console.error('\nStarred Intelligence optimization validation failed. Deployment must not proceed.');process.exit(process.exitCode)}
-console.log('\n✅ Starred Intelligence cooldown, snapshot, race, eligibility, save-routing and compact UX contracts passed.');
+console.log('\n✅ Starred Intelligence cooldown, snapshot, race, eligibility, save-routing, restart lifecycle and compact UX contracts passed.');
