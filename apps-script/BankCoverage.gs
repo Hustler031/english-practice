@@ -43,6 +43,11 @@ function getBankCoverageBatch(category,count){
   const cat=String(category||'').trim(),requested=Math.max(1,Math.min(100,Number(count||10))),s=bankCoverageSnapshotV3_(),facts=s.facts,group=s.rows.find(g=>g.id===cat);if(!group)return [];const diff=centralDifficultMapV2_(),stars=currentStarredMapV2_();
   const pool=shuffle_(group.questions.filter(q=>!s.mastered[q.id]&&!facts.seen.has(q.id))).slice(0,requested);return pool.map(q=>{const x=serveQuestion_(q);x.difficult=!!diff[q.id];x.marked=!!stars[q.id];return x;});
 }
+function getBankCoverageMixedBatch(count,excludedQuestionIds){
+  const requested=Math.max(1,Math.min(50,Number(count||10))),s=bankCoverageSnapshotV3_(),facts=s.facts,blocked=new Set((Array.isArray(excludedQuestionIds)?excludedQuestionIds:[]).map(id=>String(id||'').trim()).filter(Boolean)),groups=s.rows.map(g=>({id:g.id,questions:shuffle_(g.questions.filter(q=>!s.mastered[q.id]&&!facts.seen.has(q.id)&&!blocked.has(String(q.id||'').trim())))})).filter(g=>g.questions.length),pool=[],used=new Set();
+  shuffle_(groups);while(pool.length<requested){let added=0;shuffle_(groups);for(const g of groups){if(pool.length>=requested)break;while(g.questions.length){const q=g.questions.pop(),id=String(q&&q.id||'').trim();if(!id||used.has(id))continue;used.add(id);pool.push(q);added++;break;}}if(!added)break;}
+  const diff=centralDifficultMapV2_(),stars=currentStarredMapV2_();return pool.map(q=>{const x=serveQuestion_(q);x.difficult=!!diff[q.id];x.marked=!!stars[q.id];return x;});
+}
 function getBankCoverageTodayBatch(category,kind,count){
   const cat=String(category||'').trim(),mode=String(kind||'all').toLowerCase(),requested=Math.max(1,Math.min(100,Number(count||100))),s=bankCoverageSnapshotV3_(),group=s.rows.find(g=>g.id===cat);if(!group)return [];const latest=bankCoverageLatestByIdV4_(s.todayBankByCategory[cat]||[]),diff=centralDifficultMapV2_(),stars=currentStarredMapV2_();let pool=group.questions.filter(q=>latest[q.id]);
   if(mode==='wrong')pool=pool.filter(q=>!latest[q.id].correct);else if(mode==='difficult')pool=pool.filter(q=>!!diff[q.id]);shuffle_(pool);pool=pool.slice(0,requested);return pool.map(q=>{const x=serveQuestion_(q);x.difficult=!!diff[q.id];x.marked=!!stars[q.id];return x;});
