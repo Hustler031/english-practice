@@ -6,15 +6,16 @@ const read=n=>fs.readFileSync(path.join(root,n),'utf8');
 const fail=m=>{console.error(`\n❌ ${m}`);process.exitCode=1};
 const ok=m=>console.log(`✅ ${m}`);
 const need=(t,n,l)=>t.includes(n)?ok(l):fail(`${l} — missing: ${n}`);
+const count=(t,n)=>t.split(n).length-1;
 
-const server=['RobustLearningSave.gs','CentralFlags.gs','BankCoverage.gs','NewPracticeLive.gs','TopicPractice.gs','SourcePractice.gs','Demand.gs','StarredRevision.gs'];
+const server=['RobustLearningSave.gs','AnswerBatchV4.gs','CentralFlags.gs','BankCoverage.gs','NewPracticeLive.gs','TopicPractice.gs','SourcePractice.gs','Demand.gs','StarredRevision.gs'];
 const front=['SaveReliabilityUI.html','AppJS.html','BankCoverageUX.html'];
 [...server,...front].forEach(f=>fs.existsSync(path.join(root,f))?ok(`Reliability file present: ${f}`):fail(`Reliability file missing: ${f}`));
 if(process.exitCode)process.exit(process.exitCode);
 server.forEach(f=>{try{new vm.Script(read(f),{filename:f});ok(`Reliability server syntax: ${f}`)}catch(e){fail(`Server syntax failed in ${f}: ${e.message}`)}});
 front.forEach(f=>{try{new vm.Script(read(f).replace(/<\/?script[^>]*>/gi,''),{filename:f});ok(`Frontend syntax: ${f}`)}catch(e){fail(`Frontend syntax failed in ${f}: ${e.message}`)}});
 
-const robust=read('RobustLearningSave.gs'),ui=read('SaveReliabilityUI.html'),flags=read('CentralFlags.gs'),bank=read('BankCoverage.gs'),bankux=read('BankCoverageUX.html'),np=read('NewPracticeLive.gs'),topic=read('TopicPractice.gs'),source=read('SourcePractice.gs'),demand=read('Demand.gs'),star=read('StarredRevision.gs'),app=read('AppJS.html'),index=read('Index.html');
+const robust=read('RobustLearningSave.gs'),batch=read('AnswerBatchV4.gs'),ui=read('SaveReliabilityUI.html'),flags=read('CentralFlags.gs'),bank=read('BankCoverage.gs'),bankux=read('BankCoverageUX.html'),np=read('NewPracticeLive.gs'),topic=read('TopicPractice.gs'),source=read('SourcePractice.gs'),demand=read('Demand.gs'),star=read('StarredRevision.gs'),app=read('AppJS.html'),index=read('Index.html');
 [
   ['function submitAnswerV3(','durable central answer endpoint'],
   ['function submitHinduAnswerV3(','durable Hindu answer endpoint'],
@@ -34,12 +35,36 @@ const robust=read('RobustLearningSave.gs'),ui=read('SaveReliabilityUI.html'),fla
 ].forEach(([n,l])=>need(robust,n,l));
 
 [
+  ['EP_ANSWER_BATCH_SIZE_V4=15','conservative 15-attempt server batch'],
+  ['function submitAnswerBatchV4(','central durable batch endpoint'],
+  ['normalizeAnswerBatchItemV4_','per-attempt validation and normalization'],
+  ['Attempt_ID required','batch rejects attempts without stable Attempt_ID'],
+  ["headers.indexOf('Attempt_ID')",'batch dedupes against persisted Attempt_IDs'],
+  ['getRange(start,1,rows.length,headers.length).setValues(rows)','new Performance attempts written in one range'],
+  ['queueDerivedRepairsV4_','durable attempts queue derived-state repair'],
+  ['function repairPendingLearningDerivationsV4(','derived repair processes multiple questions together'],
+  ['const facts=performanceFactsV2_()','derived batch reuses one Performance facts snapshot'],
+  ['writeStatusSummaryV2_(q,profile,!!stars[id],facts)','derived batch reuses shared facts and Star snapshot'],
+  ['durableCount','per-batch durable acknowledgement summary']
+].forEach(([n,l])=>need(batch,n,l));
+if(batch.includes('appendRow('))fail('V4 answer batch must not append Performance one row at a time');else ok('V4 answer batch avoids appendRow');
+if(count(batch,'SpreadsheetApp.flush()')!==1)fail(`V4 answer batch must contain exactly one flush site, found ${count(batch,'SpreadsheetApp.flush()')}`);else ok('V4 answer batch has one bounded flush site');
+if(count(batch,'performanceFactsV2_()')!==1)fail(`V4 path should perform one full Performance scan only in derived batch, found ${count(batch,'performanceFactsV2_()')}`);else ok('V4 durable write path avoids full Performance scan; derived batch scans once');
+
+[
   ["OUTBOX_KEY='ep-answer-outbox-v3'",'persistent local answer outbox'],
-  ['submitAnswerV3','outbox targets durable answer endpoint'],
-  ['submitHinduAnswerV3','outbox targets durable Hindu endpoint'],
+  ['BATCH_SIZE=15','client drains up to 15 ready answers per RPC'],
+  ['submitAnswerBatchV4','outbox uses central durable batch endpoint'],
+  ['readyBatch(q)','flusher selects multiple ready items'],
+  ['applyBatchResponse(batch,res)','partial batch acknowledgements handled individually'],
+  ['ack&&ack.durable===true','only durably acknowledged attempts are removed'],
+  ['repairPendingLearningDerivationsV4','client triggers efficient derived repair after durable drain'],
+  ['submitAnswerV3','existing V3 outbox record metadata remains compatible'],
+  ['submitHinduAnswerV3','existing Hindu V3 outbox record metadata remains compatible'],
   ['answeredAt','client captures answer time before retry'],
   ['attemptId','client persists stable Attempt_ID'],
   ['backoff(','automatic retry backoff'],
+  ["filter(x=>x&&Number(x.nextAt||0)<=now)",'backed-off item does not block other ready attempts'],
   ["window.addEventListener('online'",'retry resumes when connection returns'],
   ["fn==='logStarredRevisionFromUi'",'legacy duplicate Star log suppressed'],
   ['skippedLegacyDuplicate:true','duplicate Star suppression is explicit'],
@@ -48,6 +73,8 @@ const robust=read('RobustLearningSave.gs'),ui=read('SaveReliabilityUI.html'),fla
   ["getStarredPracticeBatch:'getStarredPracticeBatchCentralV3'",'legacy Starred batch routed centrally'],
   ['EPSaveReliability','outbox diagnostics exposed']
 ].forEach(([n,l])=>need(ui,n,l));
+if(ui.includes('direct(item.endpoint,item.payload)'))fail('Answer outbox must not drain one server call per queued item');else ok('One-at-a-time answer RPC drain removed');
+if(/const item=q\[0\]/.test(ui))fail('Answer outbox must not be head-of-line single-item only');else ok('Answer outbox no longer uses q[0] single-item drain');
 if(/nextBtn[^\n]{0,100}disabled/i.test(ui))fail('Reliability layer must never disable Next while saving');else ok('Next remains independent of background saving');
 
 need(flags,'setMarkedFastV3','central Star path uses lightweight status write');
