@@ -100,7 +100,7 @@ for(const section of ['coverage','health','practice','rotation','scope'])need(ui
 need(ui,'openSections.has(name)','open fold state is reapplied across renders');
 need(ui,'sectionToggle(name,isOpen)','open fold state is tracked client-side');
 need(ui,'ⓘ','compact information affordance is used');
-assert(!ui.includes('<div class="si-card"><b>Why This Set?</b>'),'permanent Why This Set paragraph was removed');
+assert(!ui.includes('<div class="si-card"><b>Why this set?</b>'),'permanent Why This Set paragraph was removed');
 assert(!ui.includes("<b>Today's Recommendation</b>"),'duplicate large Today recommendation card was removed');
 need(ui,'Starred Coverage ›','Starred Coverage collapsed row exists');
 need(ui,'Learning Health ›','Learning Health collapsed row exists');
