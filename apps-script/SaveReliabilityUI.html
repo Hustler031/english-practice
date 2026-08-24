@@ -1,7 +1,7 @@
 <script>
 (()=>{
-  const OUTBOX_KEY='ep-answer-outbox-v3',BANK_DIRTY='ep:bankCoverage:dirty:v1',SAVED_DIRTY='ep:mySavedRevision:dirty:v1',STAR_ORIGIN_CACHE='ep:starred-origin-ui:v4';
-  let running=false,wakeTimer=0,currentQ='',activeMs=0,visibleAt=0;
+  const OUTBOX_KEY='ep-answer-outbox-v3',BANK_DIRTY='ep:bankCoverage:dirty:v1',SAVED_DIRTY='ep:mySavedRevision:dirty:v1',STAR_ORIGIN_CACHE='ep:starred-origin-ui:v4',BATCH_SIZE=15,DERIVED_BATCH=25;
+  let running=false,wakeTimer=0,repairTimer=0,repairRunning=false,currentQ='',activeMs=0,visibleAt=0;
   const $=id=>document.getElementById(id);
   const direct=(fn,...args)=>new Promise((resolve,reject)=>google.script.run.withSuccessHandler(resolve).withFailureHandler(err=>reject(new Error(err&&err.message||err||'Save failed')))[fn](...args));
   function readQueue(){try{const q=JSON.parse(localStorage.getItem(OUTBOX_KEY)||'[]');return Array.isArray(q)?q:[]}catch(e){return[]}}
@@ -20,16 +20,24 @@
   }
   function backoff(tries){const steps=[1000,2500,5000,15000,30000,60000];return steps[Math.min(steps.length-1,Math.max(0,Number(tries||1)-1))]}
   function flushSoon(ms){clearTimeout(wakeTimer);wakeTimer=setTimeout(flush,Math.max(0,Number(ms||0)))}
+  function readyBatch(q){const now=Date.now();return (q||[]).filter(x=>x&&Number(x.nextAt||0)<=now).sort((a,b)=>Number(a.queuedAt||0)-Number(b.queuedAt||0)).slice(0,BATCH_SIZE)}
+  function scheduleQueue(q){q=Array.isArray(q)?q:readQueue();if(!q.length){kickDerivedRepair(900);return}if(readyBatch(q).length){flushSoon(0);return}const now=Date.now(),next=Math.min(...q.map(x=>Number(x&&x.nextAt||now+60000)).filter(x=>x>now));flushSoon(Number.isFinite(next)?Math.min(60000,Math.max(250,next-now)):1000)}
+  function batchPayload(batch){return (batch||[]).map(x=>({attemptId:String(x&&x.attemptId||''),endpoint:String(x&&x.endpoint||''),payload:Object.assign({},x&&x.payload||{},{attemptId:String(x&&x.attemptId||'')})}))}
+  function applyBatchResponse(batch,res){
+    const acks=new Map((Array.isArray(res&&res.results)?res.results:[]).map(x=>[String(x&&x.attemptId||''),x])),sent=new Map((batch||[]).map(x=>[String(x&&x.attemptId||''),x])),latest=readQueue(),out=[],now=Date.now();let durable=0;
+    latest.forEach(item=>{const id=String(item&&item.attemptId||'');if(!sent.has(id)){out.push(item);return}const ack=acks.get(id);if(ack&&ack.durable===true){durable++;emitDurableAck(item,ack);return}item.tries=Number(item.tries||0)+1;item.lastError=String(ack&&ack.error||'Server did not confirm durable save');item.nextAt=now+backoff(item.tries);out.push(item)});
+    writeQueue(out);if(durable)invalidateLearningCaches();return out;
+  }
+  function applyBatchFailure(batch,error){
+    const sent=new Set((batch||[]).map(x=>String(x&&x.attemptId||''))),latest=readQueue(),now=Date.now();latest.forEach(item=>{if(!sent.has(String(item&&item.attemptId||'')))return;item.tries=Number(item.tries||0)+1;item.lastError=String(error&&error.message||error||'Batch save failed');item.nextAt=now+backoff(item.tries)});writeQueue(latest);return latest;
+  }
+  function kickDerivedRepair(ms){clearTimeout(repairTimer);repairTimer=setTimeout(async()=>{if(repairRunning||readQueue().length)return;repairRunning=true;try{const res=await direct('repairPendingLearningDerivationsV4',DERIVED_BATCH);if(res&&Number(res.pending||0)>0)kickDerivedRepair(res.busy?2500:1200)}catch(e){kickDerivedRepair(3000)}finally{repairRunning=false}},Math.max(0,Number(ms||0)))}
   async function flush(){
     if(running)return;running=true;
     try{
-      const q=readQueue();if(!q.length){setTimeout(()=>direct('repairPendingLearningDerivationsV3',5).catch(()=>{}),0);return}
-      const item=q[0],wait=Math.max(0,Number(item.nextAt||0)-Date.now());if(wait>0){flushSoon(Math.min(wait,60000));return}
-      try{
-        const res=await direct(item.endpoint,item.payload);if(!res||res.durable!==true)throw new Error('Server did not confirm durable save');const latest=readQueue().filter(x=>x&&x.attemptId!==item.attemptId);writeQueue(latest);invalidateLearningCaches();emitDurableAck(item,res);flushSoon(0);
-      }catch(e){
-        const latest=readQueue(),i=latest.findIndex(x=>x&&x.attemptId===item.attemptId);if(i>=0){latest[i].tries=Number(latest[i].tries||0)+1;latest[i].lastError=String(e&&e.message||e);latest[i].nextAt=Date.now()+backoff(latest[i].tries);writeQueue(latest);flushSoon(backoff(latest[i].tries))}
-      }
+      const q=readQueue();if(!q.length){kickDerivedRepair(900);return}const batch=readyBatch(q);if(!batch.length){scheduleQueue(q);return}
+      try{const res=await direct('submitAnswerBatchV4',batchPayload(batch));if(!res||!Array.isArray(res.results))throw new Error('Server did not return batch acknowledgements');scheduleQueue(applyBatchResponse(batch,res))}
+      catch(e){scheduleQueue(applyBatchFailure(batch,e))}
     }finally{running=false}
   }
   function wire(){
@@ -41,9 +49,9 @@
       return raw(fn,...args);
     };
     try{if(localStorage.getItem(STAR_ORIGIN_CACHE)!=='1'){localStorage.setItem(STAR_ORIGIN_CACHE,'1');if(window.EPFast&&EPFast.drop)EPFast.drop('starred:hub')}}catch(e){}
-    const q=$('qId');if(q)new MutationObserver(()=>resetTimer()).observe(q,{childList:true,subtree:true});document.addEventListener('visibilitychange',()=>{if(document.hidden)stopTimer();else{visibleAt=Date.now();flushSoon(0)}});window.addEventListener('online',()=>flushSoon(0));setInterval(()=>{if(readQueue().length)flushSoon(0)},30000);resetTimer();flushSoon(0);setTimeout(()=>direct('repairPendingLearningDerivationsV3',5).catch(()=>{}),2500);
+    const q=$('qId');if(q)new MutationObserver(()=>resetTimer()).observe(q,{childList:true,subtree:true});document.addEventListener('visibilitychange',()=>{if(document.hidden)stopTimer();else{visibleAt=Date.now();flushSoon(0);kickDerivedRepair(1200)}});window.addEventListener('online',()=>{flushSoon(0);kickDerivedRepair(1200)});setInterval(()=>{if(readQueue().length)flushSoon(0);else kickDerivedRepair(0)},30000);resetTimer();flushSoon(0);kickDerivedRepair(2500);
   }
   document.addEventListener('DOMContentLoaded',()=>setTimeout(wire,20));
-  window.EPSaveReliability={flush:()=>flushSoon(0),pending:()=>readQueue().length,inspect:()=>readQueue().map(x=>({attemptId:x.attemptId,endpoint:x.endpoint,tries:x.tries,nextAt:x.nextAt,queuedAt:x.queuedAt}))};
+  window.EPSaveReliability={flush:()=>flushSoon(0),pending:()=>readQueue().length,inspect:()=>readQueue().map(x=>({attemptId:x.attemptId,endpoint:x.endpoint,module:x&&x.payload&&x.payload.module||'',tries:x.tries,nextAt:x.nextAt,queuedAt:x.queuedAt})),batchSize:BATCH_SIZE};
 })();
 </script>
