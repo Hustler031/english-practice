@@ -50,12 +50,14 @@ need(starReliability,"OUTBOX_KEY='ep-star-outbox-v4'",'existing durable Star out
 need(starReliability,'overlayPending','existing pending Star overlay remains intact');
 need(legacyUi,'setStarredRevisionDifficult','existing Difficult toggle remains authoritative');
 
-// Completed-session lifecycle guard: a late callback can never resurrect shared OTHER storage.
+// Completed/replaced-session lifecycle guard: late callbacks can never resurrect shared OTHER storage.
 need(quiz,'sessionGeneration:0,live:false','quiz instances have an in-memory generation/live guard');
 need(quiz,'function isLiveGeneration(generation)','async callbacks verify the current live quiz generation');
 need(quiz,'if(!isLiveGeneration(generation))return','late answer/state callbacks are rejected after completion or replacement');
-need(quiz,'function completeCurrentSaved(){state.live=false;state.sessionGeneration=','Finish invalidates the current quiz generation before clearing storage');
-need(quiz,'if(!state.live||!state.questions.length)return','completed quiz state cannot be persisted again');
+need(quiz,'function invalidateCurrentGeneration()','quiz completion and explicit replacement share one generation invalidator');
+need(quiz,'function completeCurrentSaved(){invalidateCurrentGeneration();','Finish invalidates the current quiz generation before clearing storage');
+need(quiz,'if(state.live&&keyForMode(state.meta.mode)===key)invalidateCurrentGeneration()','explicit shared-session replacement invalidates the matching live generation');
+need(quiz,'if(!state.live||!state.questions.length)return','completed/replaced quiz state cannot be persisted again');
 assert(!/location\.reload\s*\(|window\.location\.reload\s*\(/.test(ui+quiz),'Smart restart fix uses no forced page reload');
 
 // Cooldown and snapshot performance contracts.
@@ -120,11 +122,12 @@ need(ui,'smartStarredReason','question-level Smart reason badge remains');
   const EPApp={call:fn=>fn==='submitAnswer'?delayed():{then(fn){fn({});return{catch(){return this}}}},toast:()=>{},showTab:()=>{},refreshDashboard:()=>{},refreshResumeCard:()=>{}};
   const q=id=>({id,topic:'Vocabulary',question:`Question ${id}`,correctKey:'A',options:[{key:'A',text:'A'},{key:'B',text:'B'},{key:'C',text:'C'},{key:'D',text:'D'}]});
   const qctx={console,Date,Math,Set,Object,String,Number,Array,Error,JSON,localStorage,document,EPApp,confirm:()=>true,window:{scrollTo:()=>{}},setTimeout:(fn)=>{fn();return 1}};vm.createContext(qctx);new vm.Script(quiz.replace(/<\/?script[^>]*>/gi,'')).runInContext(qctx);const Quiz=vm.runInContext('EPQuiz',qctx);
-  const start=id=>Quiz.start([q(id)],{mode:'starredRevision',smartStarred:true,batchId:id,returnTab:'home'});
+  const start=id=>Quiz.start([q(id)],{mode:'starredRevision',smartStarred:true,batchId:id,returnTab:'home'}),startOther=id=>Quiz.start([q(id)],{mode:'category',category:'Vocabulary',batchId:id,returnTab:'practice'});
   const answer=()=>elements.optionList.children[0].onclick();
   start('SMART-1');answer();assert(Quiz.hasSavedSessionFor('starredRevision'),'Smart session 1 is resumable while live');Quiz.next();assert(!storage.has('ep-quiz-other-v4'),'Smart session 1 Finish clears shared OTHER session');assert(!Quiz.hasSavedSessionFor('starredRevision'),'finished Smart session is not reported as paused');const late1=pending.shift();late1&&late1({correctKey:'A'});assert(!storage.has('ep-quiz-other-v4'),'late Smart 1 answer callback cannot resurrect completed OTHER session');
   start('SMART-2');answer();assert(JSON.parse(storage.get('ep-quiz-other-v4')).meta.batchId==='SMART-2','Smart session 2 starts without browser refresh');Quiz.next();const late2=pending.shift();late2&&late2({correctKey:'A'});assert(!storage.has('ep-quiz-other-v4'),'Smart session 2 remains cleared after its late callback');
   start('SMART-3');assert(JSON.parse(storage.get('ep-quiz-other-v4')).meta.batchId==='SMART-3','Smart session 3 starts without browser refresh');Quiz.pause();assert(storage.has('ep-quiz-other-v4'),'paused Smart session remains resumable');Quiz.resumeOther();assert(JSON.parse(storage.get('ep-quiz-other-v4')).meta.batchId==='SMART-3','Pause/Resume contract remains intact after lifecycle guard');
+  startOther('OTHER-PAUSED');answer();Quiz.pause();assert(JSON.parse(storage.get('ep-quiz-other-v4')).meta.mode==='category','unrelated shared OTHER session remains paused until user chooses replacement');Quiz.replaceSavedFor('starredRevision');assert(!storage.has('ep-quiz-other-v4'),'confirmed shared OTHER replacement clears the paused session');const lateOther=pending.shift();lateOther&&lateOther({correctKey:'A'});assert(!storage.has('ep-quiz-other-v4'),'late callback cannot resurrect an explicitly replaced unrelated OTHER session');
 })();
 
 // Pure behavior tests: learning/rotation plus anti-repeat cooldown.
@@ -170,4 +173,4 @@ for(const fn of newFns)assert(!new RegExp(`function\\s+${fn.replace(/[.*+?^${}()
 need(index,"include('StarredIntelligenceUI')",'Starred Intelligence UI remains included');
 assert(index.indexOf("include('StarredIntelligenceUI')")>index.indexOf("include('ModuleSyncUI')"),'Starred Intelligence integration still loads last and wraps only finalized existing behavior');
 if(process.exitCode){console.error('\nStarred Intelligence optimization validation failed. Deployment must not proceed.');process.exit(process.exitCode)}
-console.log('\n✅ Starred Intelligence cooldown, snapshot, race, eligibility, save-routing, restart lifecycle and compact UX contracts passed.');
+console.log('\n✅ Starred Intelligence cooldown, snapshot, race, eligibility, save-routing, restart/replacement lifecycle and compact UX contracts passed.');
