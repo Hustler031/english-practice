@@ -3,10 +3,8 @@
   const MODES=new Set(['phrasalRevision','phrasalDaily']);
   function apply(questions,meta){const mode=String(meta&&meta.mode||'');if(MODES.has(mode)&&window.EPStarredRevision?.setDifficultQuizContext)EPStarredRevision.setDifficultQuizContext(questions||[],true);}
   function install(){
-    if(typeof EPQuiz==='undefined'||EPQuiz.__phrasalDifficultWired)return;EPQuiz.__phrasalDifficultWired=true;
-    const priorStart=EPQuiz.start,priorResumeOther=EPQuiz.resumeOther;
-    EPQuiz.start=function(questions,meta){const r=priorStart.apply(EPQuiz,arguments);apply(questions,meta);return r};
-    EPQuiz.resumeOther=function(){let s=null;try{s=JSON.parse(localStorage.getItem('ep-quiz-other-v4')||'null')}catch(e){}const r=priorResumeOther.apply(EPQuiz,arguments);apply(s&&s.questions||[],s&&s.meta||{});return r};
+    if(typeof EPQuiz!=='undefined'&&!EPQuiz.__phrasalDifficultWired){EPQuiz.__phrasalDifficultWired=true;const priorStart=EPQuiz.start,priorResumeOther=EPQuiz.resumeOther;EPQuiz.start=function(questions,meta){const r=priorStart.apply(EPQuiz,arguments);apply(questions,meta);return r};EPQuiz.resumeOther=function(){let s=null;try{s=JSON.parse(localStorage.getItem('ep-quiz-other-v4')||'null')}catch(e){}const r=priorResumeOther.apply(EPQuiz,arguments);apply(s&&s.questions||[],s&&s.meta||{});return r}}
+    if(typeof EPApp!=='undefined'&&!EPApp.__phrasalHistoryRouteWired){EPApp.__phrasalHistoryRouteWired=true;const priorShowTab=EPApp.showTab;EPApp.showTab=function(name){if(name==='phrasalMastery'){window.EPPhrasalMastery?.open?.();return}return priorShowTab.apply(this,arguments)}}
   }
   install();
   document.addEventListener('DOMContentLoaded',install);
