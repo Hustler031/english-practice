@@ -15,6 +15,7 @@ on:
       - '.github/scripts/validate-daily-finish.cjs'
       - '.github/scripts/validate-module-sync.cjs'
       - '.github/scripts/validate-starred-intelligence.cjs'
+      - '.github/scripts/validate-smart-saved-phrasal.cjs'
       - '.github/workflows/deploy-english-apps-script.yml'
   workflow_dispatch:
 
@@ -68,6 +69,9 @@ jobs:
 
       - name: Validate Starred Intelligence isolation and rotation
         run: node .github/scripts/validate-starred-intelligence.cjs
+
+      - name: Validate Smart My Saved and Phrasal mastery
+        run: node .github/scripts/validate-smart-saved-phrasal.cjs
 
       - name: Verify required deployment secrets
         env:

@@ -15,6 +15,7 @@ on:
       - '.github/scripts/validate-daily-finish.cjs'
       - '.github/scripts/validate-module-sync.cjs'
       - '.github/scripts/validate-starred-intelligence.cjs'
+      - '.github/scripts/validate-smart-saved-phrasal.cjs'
       - '.github/workflows/validate-english-pr.yml'
 
 permissions:
@@ -51,3 +52,5 @@ jobs:
         run: node .github/scripts/validate-module-sync.cjs
       - name: Validate Starred Intelligence isolation and rotation
         run: node .github/scripts/validate-starred-intelligence.cjs
+      - name: Validate Smart My Saved and Phrasal mastery
+        run: node .github/scripts/validate-smart-saved-phrasal.cjs
