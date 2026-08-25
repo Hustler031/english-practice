@@ -25,7 +25,7 @@
   function closePicker(){$('smartMySavedPicker')?.classList.add('hidden')}
   function run(n){closePicker();start(pendingMode,n)}
   function startAll(){start('all',0)}
-  function manage(){window.EPMyWordsUX?.open?.()}
+  function manage(){if(window.EPMyWordsUX?.open)EPMyWordsUX.open()}
   function viewHistory(scope,kind){if(legacy?.view)return legacy.view(scope,kind);EPApp.toast('Saved-word list is unavailable right now.')}
   function prepareSession(batchId){const opts={batchId};if(!EPQuiz.hasSavedSessionFor('mySavedRevision'))return true;if(EPQuiz.isSameRequested('mySavedRevision',opts)){EPQuiz.resumeOther();return false}if(!confirm('A paused extra practice set exists. Start this My Saved set and replace it?'))return false;EPQuiz.replaceSavedFor('mySavedRevision');return true}
   async function launchBatch(fetcher,batchId,title,label){if(!prepareSession(batchId))return;EPApp.showPracticeLoading?.(label||'Starting My Saved Practice…');try{const qs=await fetcher();if(!qs.length){EPApp.hidePracticeLoading?.();EPApp.toast('No eligible saved-word questions in this section.');return}document.body.classList.add('quiz-active');$('bottomNav')?.classList.add('hidden');EPApp.hidePracticeLoading?.();EPQuiz.start(qs,{mode:'mySavedRevision',batchId,title,returnTab:'revision'})}catch(e){EPApp.hidePracticeLoading?.();EPApp.toast('Could not load My Saved revision: '+(e.message||e))}}
