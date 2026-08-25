@@ -26,7 +26,7 @@
   function decorateStarredStats(){const summary=$('starredRevisionBody')?.querySelector('.sr-summary .sr-stats'),hub=window.EPFast?.get?.('starred:hub');if(!summary||!hub?.stats)return;let chip=summary.querySelector('[data-ui-difficult-count]');if(!chip){chip=document.createElement('span');chip.dataset.uiDifficultCount='1';summary.appendChild(chip)}const html=`<b>${Number(hub.stats.difficult||0)}</b> Difficult`;if(chip.innerHTML!==html)chip.innerHTML=html}
   function organizeHome(){
     const home=$('homeView');if(!home)return;const head=[...home.querySelectorAll('.row.between')].find(x=>String(x.textContent||'').includes('Quick Start')),grid=head?.nextElementSibling;if(!head||!grid)return;
-    let addMini=head.querySelector('button');if(!addMini){addMini=document.createElement('button');head.appendChild(addMini)}addMini.id='homeAddWordMini';addMini.className='btn soft mini ui-quick-add-mini';addMini.textContent='＋ Add Word';addMini.onclick=()=>window.EPMyWordsUX?.quickAdd?.();
+    let addMini=head.querySelector('button');if(!addMini){addMini=document.createElement('button');head.appendChild(addMini)}addMini.id='homeAddWordQuick';addMini.className='btn soft mini ui-quick-add-mini';addMini.textContent='＋ Add Word';addMini.onclick=()=>window.EPMyWordsUX?.quickAdd?.();
     let hindu=[...grid.querySelectorAll('.quick-btn')].find(x=>String(x.textContent||'').includes('The Hindu'));
     let starred=[...grid.querySelectorAll('.quick-btn')].find(x=>String(x.textContent||'').includes('Starred Revision'));
     let bank=[...grid.querySelectorAll('.quick-btn')].find(x=>String(x.textContent||'').includes('Bank Coverage'));
