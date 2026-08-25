@@ -49,7 +49,7 @@ forbid(compat,'setPhrasal','No Phrasal-specific difficult API');
 
 ['include(\'SmartMySavedUI\')','include(\'PhrasalMasteryUI\')','include(\'PhrasalQuizCompatUI\')'].forEach(x=>need(index,x,`Index wires ${x}`));
 need(nav,'ensureOrder(grid,[hindu,saved,phrasal,starred,bank])','Quick Start order is Hindu → My Saved → Phrasal → Starred');
-need(nav,"id='homeAddWordMini'",'Tiny Add Word remains on Quick Start heading');
+need(nav,"id='homeAddWordQuick'",'Tiny Add Word remains on Quick Start heading');
 need(nav,'ui-quick-add-mini','Add Word is styled secondary/compact');
 need(nav,'libraryPhrasalCard','Library contains Phrasal Verb entry');
 need(nav,'EPMyWordsUX?.quickAdd?.()','Quick Add reuses existing Add Word flow');
