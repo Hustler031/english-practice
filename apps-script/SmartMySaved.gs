@@ -1,5 +1,6 @@
 const EP_SMART_MY_SAVED_VERSION='V2';
 const EP_SMART_MY_SAVED_MODULE='mySavedRevision';
+// Shared central primitives are supplied by mySavedRevisionContextV2_: mySavedRevisionItemsV2_, performanceFactsV2_, learningProfileV2_, currentStarredMapV2_, centralDifficultMapV2_, currentMasteredMapV2_, statusMap_.
 
 function smartMySavedDaysSinceV1_(d,now){if(!(d instanceof Date)||isNaN(d))return null;return Math.max(0,Math.floor((now.getTime()-d.getTime())/86400000));}
 function smartMySavedTierV1_(x){const s=String(x.profile&&x.profile.state||'New');if(s==='Persistent Weak')return 8;if(s==='Weak')return 7;if(s==='Fragile')return 6;if(x.due)return 5;if(x.difficult)return 4;if(x.neverRevised)return 3;if(s==='Learning'||s==='New')return 2;return 1;}
