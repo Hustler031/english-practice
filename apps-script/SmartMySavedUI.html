@@ -21,8 +21,8 @@
   function startAll(){start('all',0)}
   async function start(mode,count){const batchId=`smart-my-saved-${mode}-${count||'all'}`,opts={batchId};if(EPQuiz.hasSavedSessionFor('mySavedRevision')){if(EPQuiz.isSameRequested('mySavedRevision',opts)){EPQuiz.resumeOther();return}if(!confirm('A paused extra practice set exists. Start this My Saved set and replace it?'))return;EPQuiz.replaceSavedFor('mySavedRevision')}try{const qs=await EPApp.call('getSmartMySavedBatchV1',mode,count||20);if(!qs.length){EPApp.toast('No eligible saved-word questions in this mode.');return}document.body.classList.add('quiz-active');$('bottomNav')?.classList.add('hidden');EPQuiz.start(qs,{mode:'mySavedRevision',batchId,title:mode==='smart'?'My Saved · Smart Revision':'My Saved · '+mode.replace(/^./,x=>x.toUpperCase()),returnTab:'revision'})}catch(e){EPApp.toast('Could not load My Saved revision: '+(e.message||e))}}
   function back(){$('mySavedRevisionView')?.classList.add('hidden');EPApp.showTab('revision')}
-  function install(){legacy=window.EPMySavedRevision||{};legacy.open=open;legacy.back=back;window.EPMySavedRevision=legacy;if(typeof EPApp!=='undefined')EPApp.openSaved=open;const card=[...document.querySelectorAll('#revisionView .list-card')].find(x=>(x.textContent||'').includes('My Saved'));if(card){card.onclick=open;card.innerHTML='<b>🔖 My Saved Words</b><div class="muted">Smart Revision · Weak · Difficult · Starred · Random · Practice All</div>'}}
-  document.addEventListener('DOMContentLoaded',()=>setTimeout(install,45));
+  function install(){legacy=window.EPMySavedRevision||{};legacy.open=open;legacy.back=back;window.EPMySavedRevision=legacy;if(typeof EPApp!=='undefined')EPApp.openSaved=open;const card=[...document.querySelectorAll('#revisionView .list-card')].find(x=>(x.textContent||'').includes('My Saved'));if(card){card.onclick=()=>EPApp.openSaved();card.innerHTML='<b>🔖 My Saved Words</b><div class="muted">Smart Revision · Weak · Difficult · Starred · Random · Practice All</div>'}}
   window.EPSmartMySaved={open,pick,closePicker,run,start,startAll,back};
+  install();
 })();
 </script>

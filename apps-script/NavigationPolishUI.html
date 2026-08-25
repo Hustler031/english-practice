@@ -73,7 +73,7 @@
   }
   function openStarred(origin){starredOrigin=origin||'home';window.EPStarredRevision?.open?.()}
   function openBank(origin){bankOrigin=origin||'home';const api=window.EPBankCoverageUX?.open?window.EPBankCoverageUX:window.EPBankCoverage;api?.open?.()}
-  function openSaved(origin){savedOrigin=origin||'revision';window.EPMySavedRevision?.open?.()}
+  function openSaved(origin){savedOrigin=origin||'revision';EPApp.openSaved?.()}
   function openWords(origin){wordsOrigin=origin||'revision';window.EPMyWordsUX?.open?.()}
   function openPhrasal(origin){window.EPPhrasalMastery?.open?.(origin||'home')}
   function openHindu(origin){hinduOrigin=origin||'home';EPApp.openHindu();setTimeout(()=>{const b=$('hinduView')?.querySelector('.subhead button');if(b)b.onclick=()=>EPApp.showTab(hinduOrigin==='library'?'library':'home')},0)}
