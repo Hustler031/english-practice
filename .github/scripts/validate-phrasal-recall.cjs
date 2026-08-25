@@ -17,7 +17,6 @@ const quiz=read('QuizJS.html'),pv=read('PhrasalMastery.gs'),pvui=read('PhrasalMa
 for(const [n,t] of [['QuizJS.html',quiz],['PhrasalMasteryUI.html',pvui],['NavigationPolishUI.html',nav],['SaveReliabilityUI.html',save]]){try{new vm.Script(strip(t),{filename:n});ok(`Frontend syntax: ${n}`)}catch(e){fail(`Frontend syntax failed ${n}: ${e.message}`)}}
 for(const [n,t] of [['PhrasalMastery.gs',pv],['AnswerBatchV4.gs',batch],['LearningIntelligence.gs',learning]]){try{new vm.Script(t,{filename:n});ok(`Server syntax: ${n}`)}catch(e){fail(`Server syntax failed ${n}: ${e.message}`)}}
 
-// Data-contract fixture for the exact requested 2026-08-25 augmentation.
 const originalIds=['PV0227','PV0228','PV0229','PV0230','PV0231','PV0232','PV0233','PV0234','PV0235','PV0236','PV0237','PV0238','PV0239','PV0240','PV0241'];
 const originalConcepts=['PV_CALL_OFF','PV_FALL_BACK_ON','PV_GET_OVER','PV_LOOK_UP','PV_LOOK_FORWARD_TO','PV_PUT_ASIDE','PV_RUN_OUT','PV_SET_ASIDE','PV_CALL_IN','PV_BREAK_OFF','PV_SET_OUT','PV_FALL_TO','PV_GET_ACROSS','PV_BEAR_AWAY','PV_FALL_APART'];
 const newIds=['PV0242','PV0243','PV0244','PV0245','PV0246'];
@@ -26,9 +25,8 @@ if(new Set([...originalIds,...newIds]).size===20)ok('Today’s 20 fixture has un
 if(new Set([...originalConcepts,...newConcepts]).size===20)ok('Today’s 20 fixture has 20 concept-distinct slots');else fail('Today’s 20 fixture leaks a Concept_ID between recognition and recall slots');
 if(newConcepts.every(x=>!originalConcepts.includes(x)))ok('Five recall concepts exclude all original 15 concepts');else fail('A recall concept duplicates today’s original 15');
 
-// Rendering + saving contracts stay inside the existing quiz/outbox architecture.
 need(quiz,"function isRecallCard(q)",'Existing EPQuiz recognises Reverse Recall Card');
-need(quiz,'Reverse Recall Card','Recall type is driven by existing Question_Type');
+need(quiz,'reverse recall card','Recall type is driven by existing Question_Type');
 need(quiz,'Think of the Phrasal Verb first.','Recall prompt asks for independent retrieval before reveal');
 need(quiz,'View Answer','Recall card has explicit answer reveal');
 need(quiz,'✓ Yaad tha','Recall card exposes successful-recall self rating');
@@ -49,7 +47,6 @@ need(batch,'Selected_Answer:x.selected','Performance keeps selected A/B/C distin
 need(batch,'Concept_ID:x.q.conceptId','Performance keeps Concept_ID');
 need(batch,'Attempt_ID:x.attemptId','Performance keeps stable Attempt_ID');
 
-// Type-aware intelligence is additive to the existing concept/mastery system.
 need(pv,'phrasalQuestionFamilyV2_','Phrasal normalises Question_Type into learning families');
 need(pv,"return'recall'",'Reverse Recall is an independent-recall family');
 need(pv,"return'confusion'",'Confusion/discrimination has a separate family');
@@ -102,29 +99,27 @@ function quizEnv(){
   ['quizView','bottomNav','quizMode','quizCounter','quizBar','qCategory','qId','qText','qWord','prevBtn','nextBtn','markBtn','masteredBtn','vocabBtn','optionList','feedback','explanation'].forEach(id=>new Node(doc,id));
   const store=new Map(),calls=[];const localStorage={getItem:k=>store.has(k)?store.get(k):null,setItem:(k,v)=>store.set(k,String(v)),removeItem:k=>store.delete(k)};
   const EPApp={call(fn,payload){calls.push({fn,payload:Object.assign({},payload)});return Promise.resolve({ok:true,correctKey:'A'})},toast(){},showTab(){},refreshResumeCard(){}};
-  const sandbox={document:doc,window:null,localStorage,EPApp,console,Date,Math,JSON,Object,Array,String,Number,Boolean,RegExp,Set,Map,Promise,Error,confirm:()=>true,setTimeout:fn=>{fn();return 1}};sandbox.window=sandbox;sandbox.window.scrollTo=()=>{};vm.createContext(sandbox);vm.runInContext(strip(quiz),sandbox,{filename:'QuizJS.html'});return {sandbox,doc,calls};
+  const sandbox={document:doc,window:null,localStorage,EPApp,console,Date,Math,JSON,Object,Array,String,Number,Boolean,RegExp,Set,Map,Promise,Error,confirm:()=>true,setTimeout:fn=>{fn();return 1}};sandbox.window=sandbox;sandbox.window.scrollTo=()=>{};vm.createContext(sandbox);vm.runInContext(strip(quiz),sandbox,{filename:'QuizJS.html'});const quizApi=vm.runInContext('EPQuiz',sandbox);return {sandbox,doc,calls,quiz:quizApi};
 }
 async function recallUiRegression(){
   try{
     const e=quizEnv(),q={id:'PV0242',topic:'Phrasal Verb',word:'Look After',question:'To take care of someone or something = ?',questionType:'Reverse Recall Card',correctKey:'A',options:[{key:'A',text:'Yaad tha'},{key:'B',text:'Confused'},{key:'C',text:'Bhool gaya'},{key:'D',text:''}],explanation:'Take care of or tend.',example:'She looks after her grandmother.'};
-    e.sandbox.EPQuiz.start([q],{mode:'phrasalDaily',batchId:'phrasal-today-2026-08-25'});
+    e.quiz.start([q],{mode:'phrasalDaily',batchId:'phrasal-today-2026-08-25'});
     let list=e.doc.nodes.optionList;
     if(!list.innerHTML.includes('View Answer')||!list.innerHTML.includes('Think of the Phrasal Verb first.'))throw new Error('initial recall state is missing retrieval prompt/reveal control');
     if(list.innerHTML.includes('Look After')||list.innerHTML.includes('Yaad tha')||list.innerHTML.includes('Confused')||list.innerHTML.includes('Bhool gaya'))throw new Error('answer/self-rating leaked before View Answer');
     if(!e.doc.nodes.qWord.classList.contains('hidden'))throw new Error('Word field leaked the answer before reveal');
     ok('Reverse Recall initially shows prompt only with no answer or semantic options');
-    e.sandbox.EPQuiz.revealRecall();list=e.doc.nodes.optionList;
+    e.quiz.revealRecall();list=e.doc.nodes.optionList;
     if(!list.innerHTML.includes('Look After')||!list.innerHTML.includes('Take care of or tend.')||!list.innerHTML.includes('She looks after her grandmother.'))throw new Error('reveal is missing target/meaning/example');
     if(list.recallButtons.length!==3||list.recallButtons.map(x=>x.dataset.key).join('')!=='ABC')throw new Error('self-rating controls are not exactly A/B/C');
     ok('View Answer reveals word, compact learning text, example, and exactly three A/B/C ratings');
     list.recallButtons[1].onclick();await Promise.resolve();await Promise.resolve();
     const b=e.calls.find(x=>x.fn==='submitAnswer');if(!b||b.payload.selectedKey!=='B')throw new Error('Confused did not save as B through submitAnswer');
     ok('Confused saves selected answer B through the existing answer call');
-
-    for(const [key,id] of [['A','PV0243'],['C','PV0244']]){const x=quizEnv(),qq=Object.assign({},q,{id,word:key==='A'?'Break With':'Make Up'});x.sandbox.EPQuiz.start([qq],{mode:'phrasalDaily'});x.sandbox.EPQuiz.revealRecall();x.doc.nodes.optionList.recallButtons.find(b=>b.dataset.key===key).onclick();await Promise.resolve();const c=x.calls.find(v=>v.fn==='submitAnswer');if(!c||c.payload.selectedKey!==key)throw new Error(`${key} rating did not keep its selected answer`)}
+    for(const [key,id] of [['A','PV0243'],['C','PV0244']]){const x=quizEnv(),qq=Object.assign({},q,{id,word:key==='A'?'Break With':'Make Up'});x.quiz.start([qq],{mode:'phrasalDaily'});x.quiz.revealRecall();x.doc.nodes.optionList.recallButtons.find(b=>b.dataset.key===key).onclick();await Promise.resolve();const c=x.calls.find(v=>v.fn==='submitAnswer');if(!c||c.payload.selectedKey!==key)throw new Error(`${key} rating did not keep its selected answer`)}
     ok('Yaad tha saves A and Bhool gaya saves C distinctly');
-
-    const n=quizEnv(),mcq={id:'PV0001',topic:'Phrasal Verb',word:'Bear Away',question:'What does Bear Away mean?',questionType:'Meaning',correctKey:'B',options:[{key:'A',text:'A1'},{key:'B',text:'B1'},{key:'C',text:'C1'},{key:'D',text:'D1'}]};n.sandbox.EPQuiz.start([mcq],{mode:'phrasalRevision'});if(n.doc.nodes.optionList.children.length!==4)throw new Error('normal MCQ did not render four existing options');if(n.doc.nodes.optionList.innerHTML.includes('View Answer'))throw new Error('normal MCQ entered recall rendering');ok('Normal MCQ rendering remains the existing four-option path');
+    const n=quizEnv(),mcq={id:'PV0001',topic:'Phrasal Verb',word:'Bear Away',question:'What does Bear Away mean?',questionType:'Meaning',correctKey:'B',options:[{key:'A',text:'A1'},{key:'B',text:'B1'},{key:'C',text:'C1'},{key:'D',text:'D1'}]};n.quiz.start([mcq],{mode:'phrasalRevision'});if(n.doc.nodes.optionList.children.length!==4)throw new Error('normal MCQ did not render four existing options');if(n.doc.nodes.optionList.innerHTML.includes('View Answer'))throw new Error('normal MCQ entered recall rendering');ok('Normal MCQ rendering remains the existing four-option path');
   }catch(e){fail('Reverse Recall EPQuiz behavioral regression — '+e.message)}
 }
 
