@@ -21,7 +21,7 @@
     const sh=window.EPFast?.get?.('starred:hub');if(star&&sh?.stats){const focus=Number(sh.stats.focus||0),diff=Number(sh.stats.difficult||0);quickStatus(star,`${focus} focus${diff?' · '+diff+' ⚡':''}`)}
     const bh=readSnap(BANK_KEY);if(bank&&bh)quickStatus(bank,`${Number(bh.coverage||0).toFixed(0)}% exposed`);
     const mh=readSnap(SAVED_KEY);if(saved&&mh?.stats)quickStatus(saved,`${Number(mh.stats.focus ?? mh.stats.saved ?? 0)} active`);
-    if(phrasal&&window.EPPhrasalMastery)quickStatus(phrasal,'Smart + Today’s 15');
+    if(phrasal&&window.EPPhrasalMastery)quickStatus(phrasal,'Smart + Today’s 20');
   }
   function decorateStarredStats(){const summary=$('starredRevisionBody')?.querySelector('.sr-summary .sr-stats'),hub=window.EPFast?.get?.('starred:hub');if(!summary||!hub?.stats)return;let chip=summary.querySelector('[data-ui-difficult-count]');if(!chip){chip=document.createElement('span');chip.dataset.uiDifficultCount='1';summary.appendChild(chip)}const html=`<b>${Number(hub.stats.difficult||0)}</b> Difficult`;if(chip.innerHTML!==html)chip.innerHTML=html}
   function organizeHome(){
@@ -38,7 +38,7 @@
     if(!starred)starred=makeQuick('⭐','Starred Revision','Open',()=>openStarred('home'),'ui-accent-starred','homeStarredQuick');
     if(!bank)bank=makeQuick('◫','Bank Coverage','Open',()=>openBank('home'),'ui-accent-bank','homeBankQuick');
     let saved=$('homeSavedQuick');if(!saved)saved=makeQuick('🔖','My Saved Words','Open',()=>openSaved('home'),'ui-accent-saved','homeSavedQuick');
-    let phrasal=$('homePhrasalQuick');if(!phrasal)phrasal=makeQuick('↗','Phrasal Verb','Smart + Today’s 15',()=>openPhrasal('home'),'ui-accent-phrasal','homePhrasalQuick');
+    let phrasal=$('homePhrasalQuick');if(!phrasal)phrasal=makeQuick('↗','Phrasal Verb','Smart + Today’s 20',()=>openPhrasal('home'),'ui-accent-phrasal','homePhrasalQuick');
     ensureOrder(grid,[hindu,saved,phrasal,starred,bank]);updateQuickStatuses();
   }
   function organizePractice(){
@@ -61,7 +61,7 @@
     const v=$('libraryView'),list=v?.querySelector('.list');if(!list)return;const intro=v.querySelector(':scope > p.muted');if(intro&&intro.textContent!=='Your saved words and study sources.')intro.textContent='Your saved words and study sources.';
     const cards=[...list.querySelectorAll('.list-card')],find=t=>cards.find(x=>String(x.textContent||'').includes(t)),hindu=find('The Hindu Vocabulary'),source=find('Sources / PDFs');cards.filter(x=>/Demanded Practice|Recall Check|Mastered/.test(String(x.textContent||''))).forEach(x=>x.remove());
     let words=$('libraryMyWordsCard');if(!words){words=makeCard('<b>📝 My Words</b><div class="muted">View and manage every word you captured</div>',()=>openWords('library'));words.id='libraryMyWordsCard'}
-    let phrasal=$('libraryPhrasalCard');if(!phrasal){phrasal=makeCard('<b>↗ Phrasal Verb</b><div class="muted">Today’s 15 · Smart Revision · permanent concept history</div>',()=>openPhrasal('library'));phrasal.id='libraryPhrasalCard'}
+    let phrasal=$('libraryPhrasalCard');if(!phrasal){phrasal=makeCard('<b>↗ Phrasal Verb</b><div class="muted">Today’s 20 · Smart Revision · permanent concept history</div>',()=>openPhrasal('library'));phrasal.id='libraryPhrasalCard'}
     if(source)source.onclick=()=>openSources('library');if(hindu)hindu.onclick=()=>openHindu('library');ensureOrder(list,[words,phrasal,source,hindu]);
   }
   function fixBackButtons(){const nb=$('newView')?.querySelector('.subhead button');if(nb)nb.onclick=()=>EPApp.showTab('practice')}
