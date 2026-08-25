@@ -24,23 +24,21 @@
   function groupCard(g){const key=`group:${g.type}:${g.fromDay}-${g.toDay}`,open=foldOpen(key),scope={fromDay:g.fromDay,toDay:g.toDay},nested=(g.days||[]).map(d=>dayCard(d,key)).join('');return `<div class="lc-fold" data-key="${key}"><div class="lc-fold-head" onclick="EPMySavedCacheUX.toggle(this)"><div><b>${esc(g.label)}</b><div class="muted">${statText(g.stats)}</div></div><span class="lc-chevron">${open?'⌄':'›'}</span></div><div class="lc-fold-body ${open?'':'hidden'}">${savedActions(scope,g.stats)}${nested?`<div class="lc-subdays">${nested}</div>`:''}</div></div>`}
   function renderSaved(h){if(!h)return;const body=$('mySavedRevisionBody');if(!body)return;const all={fromDay:1,toDay:999999};body.innerHTML=`<div class="card"><b>All My Saved Words</b><div class="muted" style="margin-top:4px">${Number(h.stats?.saved||0)} saved · ${Number(h.stats?.seen||0)} seen · ${Number(h.stats?.left||0)} left</div>${savedActions(all,h.stats)}<div class="lc-cache-note">Cached · updates silently in background</div></div>${categoryFold(h)}<h3 class="section-title">Day-wise Focus</h3>${(h.groups||[]).map(groupCard).join('')||'<div class="empty card">No enriched saved words are in practice yet.</div>'}`}
   async function refreshSaved(force=false){const snap=readSnap(SAVED_KEY);if(savedRefreshing||(!force&&!dirty(SAVED_DIRTY)&&snap&&Date.now()-snap.ts<TTL))return;savedRefreshing=true;try{const h=await EPApp.call('getMySavedRevisionHub');writeSnap(SAVED_KEY,h);clearDirty(SAVED_DIRTY);if($('mySavedRevisionView')&&!$('mySavedRevisionView').classList.contains('hidden'))renderSaved(h)}catch(e){}finally{savedRefreshing=false}}
-  function openSaved(){ensureStyles();ensureSaved();showPage('mySavedRevisionView');const snap=readSnap(SAVED_KEY);if(snap?.data)renderSaved(snap.data);else $('mySavedRevisionBody').innerHTML='<div class="list-card"><div class="muted">Preparing My Saved Words for first use…</div></div>';setTimeout(()=>refreshSaved(true),0)}
+  function openSaved(){if(window.EPApp?.openSaved)return EPApp.openSaved()}
   function toggle(head){const fold=head.closest('[data-key]'),body=head.nextElementSibling,ch=head.querySelector('.lc-chevron');if(!fold||!body)return;const key=fold.dataset.key,opening=body.classList.contains('hidden');body.classList.toggle('hidden',!opening);if(opening)openSavedFolds.add(key);else openSavedFolds.delete(key);if(ch)ch.textContent=opening?'⌄':'›'}
-  window.EPMySavedCacheUX={toggle,refresh:()=>refreshSaved(true)};
+  window.EPMySavedCacheUX={toggle,refresh:()=>window.EPSmartMySaved?.refresh?.(true)};
 
-  function markLearningCachesDirty(){markDirty(BANK_DIRTY);markDirty(SAVED_DIRTY)}
+  function markLearningCachesDirty(){markDirty(BANK_DIRTY);markDirty(SAVED_DIRTY);window.EPSmartMySaved?.markDirty?.();window.EPPhrasalMastery?.markDirty?.()}
   function rebindEntryPoints(){
     if(window.EPBankCoverage)EPBankCoverage.open=openBank;
-    if(window.EPMySavedRevision){EPMySavedRevision.open=openSaved;if(window.EPApp)EPApp.openSaved=openSaved}
     const bank=$('bankCoverageQuick');if(bank&&bank.__cacheOpen!==true){bank.__cacheOpen=true;bank.onclick=e=>{e?.preventDefault?.();openBank()}}
-    const cards=[...document.querySelectorAll('#revisionView .list-card')],saved=cards.find(x=>/^\s*🔖?\s*My Saved/i.test(String(x.textContent||'').trim())||String(x.textContent||'').includes('My Saved Words'));if(saved&&saved.__cacheOpen!==true){saved.__cacheOpen=true;saved.onclick=e=>{e?.preventDefault?.();openSaved()}}
   }
   function scheduleRebind(){clearTimeout(rebindTimer);rebindTimer=setTimeout(rebindEntryPoints,0)}
   function wire(){
     ensureStyles();rebindEntryPoints();
-    document.addEventListener('click',e=>{const bank=e.target.closest?.('#bankCoverageQuick');if(bank){e.preventDefault();e.stopImmediatePropagation();openBank();return}const card=e.target.closest?.('#revisionView .list-card');if(card&&String(card.textContent||'').includes('My Saved')){e.preventDefault();e.stopImmediatePropagation();openSaved()}},true);
+    document.addEventListener('click',e=>{const bank=e.target.closest?.('#bankCoverageQuick');if(bank){e.preventDefault();e.stopImmediatePropagation();openBank()}},true);
     const mo=new MutationObserver(scheduleRebind);mo.observe(document.body,{childList:true,subtree:true});
-    const raw=EPApp?.call?.bind(EPApp);if(raw&&!EPApp.__learningCacheUxWired){EPApp.__learningCacheUxWired=true;EPApp.call=function(fn,...args){const p=raw(fn,...args);if(['submitAnswer','submitAnswerV2','submitHinduAnswer','submitHinduAnswerV2','setMarked','setMarkedV2','setMarkedCentralV3','setHinduMarked','setHinduMarkedV2','setHinduMarkedCentralV3','setStarredRevisionDifficult','setCentralDifficult','markMastered','markMasteredV2'].includes(fn))Promise.resolve(p).finally(markLearningCachesDirty);return p}}
+    const raw=EPApp?.call?.bind(EPApp);if(raw&&!EPApp.__learningCacheUxWired){EPApp.__learningCacheUxWired=true;EPApp.call=function(fn,...args){const p=raw(fn,...args);if(['submitAnswer','submitAnswerV2','submitHinduAnswer','submitHinduAnswerV2','setMarked','setMarkedV2','setMarkedCentralV3','setHinduMarked','setHinduMarkedV2','setHinduMarkedCentralV3','setStarredRevisionDifficult','setCentralDifficult','markMastered','markMasteredV2'].includes(fn))Promise.resolve(p).then(markLearningCachesDirty,()=>{});return p}}
   }
   document.addEventListener('DOMContentLoaded',()=>setTimeout(wire,0));
 })();
