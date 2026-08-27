@@ -1,15 +1,18 @@
-[eval]:1
-process.stdout.write(require('fs').readFileSync(apps-script/MyWordTypes.gs,'utf8'))
-                                                ^
+const MY_WORD_TYPES_SHEET='My_Word_Types';
+const MY_WORD_TYPE_LABELS={AUTO:'Auto',V:'Vocabulary',SM:'Spelling Mistakes',OWS:'One Word Substitution',PV:'Phrasal Verbs',IP:'Idioms & Phrases',CU:'Concept / Usage'};
+const MY_WORD_EXPLICIT_TYPES={V:true,SM:true,OWS:true,PV:true,IP:true};
 
-ReferenceError: apps is not defined
-    at [eval]:1:49
-    at runScriptInThisContext (node:internal/vm:219:10)
-    at node:internal/process/execution:451:12
-    at [eval]-wrapper:6:24
-    at runScriptInContext (node:internal/process/execution:449:60)
-    at evalFunction (node:internal/process/execution:283:30)
-    at evalTypeScript (node:internal/process/execution:295:3)
-    at node:internal/main/eval_string:71:3
-
-Node.js v24.19.0
+function normalizeMyWordType_(value){const x=String(value||'').trim().toUpperCase().replace(/\s+/g,'').replace('/','');return Object.prototype.hasOwnProperty.call(MY_WORD_TYPE_LABELS,x)?x:'V';}
+function isMyWordExplicitType_(value){return !!MY_WORD_EXPLICIT_TYPES[normalizeMyWordType_(value)];}
+function inferAutoMyWordType_(row){const r=row||{},pos=String(r.Part_of_Speech||r.partOfSpeech||'').toLowerCase(),text=[r.Word,r.word,r.Context,r.context,r.Meaning,r.meaning,r.Question,r.question,r.Explanation,r.explanation].map(x=>String(x||'').toLowerCase()).join(' ');if(/concept\s*\/\s*usage|grammar\s*[-/]?\s*usage|\bcu\b/.test(pos)||/\b(uncountable|countable|grammar|usage|confusable|confusion|figurative|metaphor|tone|passage|belief\s+vs\s+believe|\bvs\b.*\busage)\b/.test(text))return'CU';if(/phrasal\s+verb/.test(pos)||/^(brush\s+aside)\b/.test(text))return'PV';if(/idiom|phrase/.test(pos))return'IP';if(/one[- ]word\s+substitution|\bows\b/.test(pos))return'OWS';if(/spelling|misspell/.test(pos))return'SM';return'V';}
+function resolveMyWordType_(row,captureType){const selected=String(captureType||'').trim()?normalizeMyWordType_(captureType):'';return selected==='AUTO'||!selected?inferAutoMyWordType_(row):selected;}
+function ensureMyWordTypesSheet_(){const ss=ss_();let s=ss.getSheetByName(MY_WORD_TYPES_SHEET);if(!s){s=ss.insertSheet(MY_WORD_TYPES_SHEET);s.getRange(1,1,1,3).setValues([['Saved_ID','Capture_Type','Updated_At']]);s.setFrozenRows(1);}return s;}
+function setMyWordCaptureType_(savedId,type){const id=String(savedId||'').trim();if(!id)return;const raw=String(type||'').trim().toUpperCase(),t=raw==='AUTO'?'AUTO':normalizeMyWordType_(raw),s=ensureMyWordTypesSheet_(),row=findRow_(s,1,id),vals=[id,t,new Date()];if(row>1)s.getRange(row,1,1,3).setValues([vals]);else s.appendRow(vals);}
+function captureMyWordTyped(payload){payload=payload||{};const result=captureMyWord(payload),captureType=String(payload.captureType||payload.type||'AUTO').trim().toUpperCase()==='AUTO'?'AUTO':normalizeMyWordType_(payload.captureType||payload.type);if(result&&result.id)setMyWordCaptureType_(result.id,captureType);return Object.assign({},result,{captureType});}
+function getMyWordCaptureTypes(){const s=ensureMyWordTypesSheet_();if(s.getLastRow()<2)return{};const out={};s.getRange(2,1,s.getLastRow()-1,3).getValues().forEach(r=>{const id=String(r[0]||'').trim(),raw=String(r[1]||'').trim();if(id)out[id]=raw.toUpperCase()==='AUTO'?'AUTO':normalizeMyWordType_(raw)});return out;}
+function getMyWordCaptureType_(savedId,row){const id=String(savedId||'').trim(),types=getMyWordCaptureTypes();return resolveMyWordType_(row||{},types[id]||'');}
+function getMyWordPracticeMeta_(){const bySaved=getMyWordCaptureTypes(),ids=[],typeMap={};myWordsRows_().filter(w=>truthy_(w.Active)).forEach(w=>{const qid=String(w.Practice_Question_ID||'').trim();if(!qid)return;ids.push(qid);typeMap[qid]=resolveMyWordType_(w,bySaved[String(w.Saved_ID||'')]||'');});return{ids,typeMap};}
+function getMyWordPracticeTypeMap_(){return getMyWordPracticeMeta_().typeMap;}
+function myWordTypeToNewPractice_(type){return({V:'VOC',SM:'SPELL',OWS:'OWS',PV:'PHRASAL',IP:'IDIOM',CU:'CU'})[normalizeMyWordType_(type)]||'VOC';}
+function myWordPracticeSpec_(type){const t=normalizeMyWordType_(type);return({V:{topic:'Vocabulary',questionType:'Meaning'},SM:{topic:'Spelling Mistakes',questionType:'Spelling'},OWS:{topic:'One Word Substitution',questionType:'One Word Substitution'},PV:{topic:'Phrasal Verbs',questionType:'Meaning'},IP:{topic:'Idioms & Phrases',questionType:'Meaning'},CU:{topic:'Grammar / Usage',questionType:'Concept / Usage'}})[t]||{topic:'Vocabulary',questionType:'Meaning'};}
+function getMyWordCaptureTypeInfo(){const types=getMyWordCaptureTypes();return myWordsRows_().filter(w=>truthy_(w.Active)).map(w=>{const selected=types[String(w.Saved_ID||'')]||'',type=resolveMyWordType_(w,selected);return{id:String(w.Saved_ID||''),type,label:MY_WORD_TYPE_LABELS[type],captureType:selected||'Legacy'};});}
