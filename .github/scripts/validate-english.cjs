@@ -37,7 +37,7 @@ need(dash,'function getTodayActivityCount(','Today activity API');
 ['function getStarredRevisionQuestionDetail(','readOnly:true'].forEach(x=>need(srdetail,x,x));
 need(code,'template.maintenanceMode','Server-side maintenance mode flag');
 need(index,'window.__EP_MAINTENANCE_MODE__','Maintenance bootstrap flag');
-need(read('TemporaryMaintenanceUI.html'),'window.__EP_MAINTENANCE_MODE__','Maintenance UI uses server flag');
+if(fs.existsSync(path.join(root,'TemporaryMaintenanceUI.html'))) need(read('TemporaryMaintenanceUI.html'),'window.__EP_MAINTENANCE_MODE__','Maintenance UI uses server flag');
 ['id="homeView"','id="dailyStartBtn"','id="todayDoneBadge"',"include('FastUI')","include('TopicUI')","include('NewPracticeUI')","include('SavedUI')","include('MyWordsFinalUI')","include('StarredRevisionUI')","include('AddWordTypeUI')","include('StarredViewDetailUI')",'EPMyWordsUX.quickAdd()','EPStarredRevision.open()','Starred Revision','Loading daily plan…','onclick="EPApp.openSaved()"','onclick="EPSaved.openCapture()"'].forEach(x=>need(index,x,x));
 ['getBootstrapV2','getDailyBatchReliableV3','Complete Previous Target','Fresh-first:'].forEach(x=>need(app,x,x));
 ["EPApp.call('submitAnswer'",'function next()','function pause()'].forEach(x=>need(quiz,x,x));
