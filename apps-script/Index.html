@@ -1,15 +1,92 @@
-[eval]:1
-process.stdout.write(require('fs').readFileSync(apps-script/Index.html,'utf8'))
-                                                ^
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="theme-color" content="#0d1117" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f5f7fb" media="(prefers-color-scheme: light)">
+  <?!= include('Styles'); ?>
+  <style>
+    html[data-theme="dark"]{color-scheme:dark;background:#0d1117}
+    html[data-theme="light"]{color-scheme:light;background:#f5f7fb}
+    :root{--ep-mobile-bottom-guard:max(12px,env(safe-area-inset-bottom))}
+    .quiz-actions{padding-bottom:var(--ep-mobile-bottom-guard)!important}
+    .quiz-wrap{padding-bottom:calc(170px + var(--ep-mobile-bottom-guard))!important}
+    .sheet-backdrop{box-sizing:border-box;padding-bottom:var(--ep-mobile-bottom-guard);background-color:rgba(10,18,35,.5)}
+    .sheet-backdrop>.sheet{margin-bottom:0}
+    @media(max-width:480px){
+      .quiz-actions{padding:8px 10px var(--ep-mobile-bottom-guard)!important}
+      .quiz-wrap{padding-bottom:calc(178px + var(--ep-mobile-bottom-guard))!important}
+      .quiz-nav{position:relative;z-index:2}
+      .quiz-nav .btn{min-height:52px!important}
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar"><div class="brand"><div><h1>English Mastery</h1><small>SSC English practice + revision</small></div><button id="themeBtn" class="btn ghost theme-btn" onclick="EPApp.toggleTheme()" aria-label="Toggle dark mode">☾</button></div></div>
+  <main id="main">
+    <section id="homeView" class="app-page content grid">
+      <div class="card hero"><div class="hero-top"><h2>Loading daily plan…</h2><span id="todayDoneBadge" class="today-done hidden">✓ 0 today</span></div><p>Finish your daily revision first, then use focused practice.</p><div class="daily-line"><span>Today's Goal</span><strong id="dailyProgress">— / 120</strong></div><div class="progressbar"><div id="dailyBar"></div></div><div id="dailyNote" class="hero-note"></div><div class="daily-controls"><button id="dailyStartBtn" class="btn primary" onclick="EPApp.startDirect('daily')">Loading daily plan…</button><button id="dailyResumeBtn" class="btn primary hidden" onclick="EPQuiz.resumeDaily()">Resume Daily Practice</button></div></div>
+      <div id="resumeCard" class="card hidden"><div class="row between"><div><b>Resume paused extra practice</b><div id="resumeText" class="muted"></div></div><button class="btn soft" onclick="EPQuiz.resumeOther()">Resume</button></div></div>
+      <div class="row between" style="align-items:center"><h3 class="section-title" style="margin:0">Quick Start</h3><button class="btn soft mini" onclick="EPMyWordsUX.quickAdd()">＋ Add Word</button></div>
+      <div class="grid">
+        <button class="btn ghost quick-btn accent-card" onclick="EPApp.openHindu()"><span>📰</span><span><b>The Hindu – Today</b><small id="hinduCount">Loading…</small></span></button>
+        <button class="btn ghost quick-btn" onclick="EPApp.openNewPractice()"><span>✨</span><span><b>New Practice</b><small>Recently added content by category</small></span></button>
+        <button class="btn ghost quick-btn" onclick="EPApp.pickCount('random')"><span>🎲</span><span><b>Random Practice</b><small>Any active non-mastered question</small></span></button>
+        <button class="btn ghost quick-btn" onclick="EPStarredRevision.open()"><span>⭐</span><span><b>Starred Revision</b><small>Day-wise focus · 10-day blocks · 30-day months</small></span></button>
+        <button class="btn ghost quick-btn" onclick="EPApp.pickCount('recall')"><span>↻</span><span><b>Recall Check</b><small id="recallCount">Seen-before content</small></span></button>
+      </div>
+    </section>
 
-ReferenceError: apps is not defined
-    at [eval]:1:49
-    at runScriptInThisContext (node:internal/vm:219:10)
-    at node:internal/process/execution:451:12
-    at [eval]-wrapper:6:24
-    at runScriptInContext (node:internal/process/execution:449:60)
-    at evalFunction (node:internal/process/execution:283:30)
-    at evalTypeScript (node:internal/process/execution:295:3)
-    at node:internal/main/eval_string:71:3
+    <section id="practiceView" class="app-page content hidden"><h2>Practice</h2><p class="muted">Choose a focused practice area.</p><div class="list-card" onclick="EPApp.openDemanded()"><b>🎯 Demanded Practice</b><div class="muted">Saved custom batches created for exactly what you want to practise</div></div><div class="list-card source-card" onclick="EPApp.openSources()"><b>📚 Source / PDF Practice</b><div class="muted">Handwritten notes, The Hindu, screenshots and named PDFs/sources</div></div><h3 class="section-title">Topic Practice</h3><div id="topicGrid" class="topic-grid"></div></section>
 
-Node.js v24.19.0
+    <section id="revisionView" class="app-page content hidden"><h2>Revision Centre</h2><p class="muted">Review only what needs attention.</p><div class="list"><div class="list-card" onclick="EPApp.pickCount('due')"><b>⏰ Due Today</b><div class="muted">Spaced revision</div></div><div class="list-card" onclick="EPApp.pickCount('weak')"><b>🔥 Weak / Wrong</b><div class="muted">Questions that need correction</div></div><div class="list-card" onclick="EPApp.pickCount('recall')"><b>↻ Seen Before</b><div class="muted">Repeated material from new sources</div></div><div class="list-card" onclick="EPApp.openSaved()"><b>🔖 My Saved</b><div class="muted">Starred questions and words you personally capture during practice</div></div><div class="list-card" onclick="EPApp.openMastered()"><b>✓ Mastered / Don't Repeat</b><div id="masteredCount" class="muted">Excluded from normal repetition</div></div></div></section>
+
+    <section id="libraryView" class="app-page content hidden"><h2>Library</h2><p class="muted">Your vocabulary, PDFs and saved learning areas.</p><div class="list"><div class="list-card" onclick="EPApp.openHindu()"><b>📰 The Hindu Vocabulary</b><div class="muted">Today's 10 words</div></div><div class="list-card" onclick="EPApp.openDemanded()"><b>🎯 Demanded Practice</b><div class="muted">Your saved custom study batches</div></div><div class="list-card" onclick="EPApp.openSources()"><b>📚 Sources / PDFs</b><div class="muted">Automatically grows as new material is added</div></div><div class="list-card" onclick="EPApp.pickCount('recall')"><b>↻ Recall Check</b><div class="muted">Previously seen concepts</div></div><div class="list-card" onclick="EPApp.openMastered()"><b>✓ Mastered</b><div class="muted">Restore excluded questions</div></div></div></section>
+
+    <section id="newView" class="app-page content hidden"><div class="subhead"><button class="btn ghost" onclick="EPApp.showTab('home')">← Back</button><div><h2>New Practice</h2><p id="newPracticeNote" class="muted">Recently added content grouped by category.</p></div></div><div id="newPracticeList" class="list"></div></section>
+    <section id="hinduView" class="app-page content hidden"><div class="subhead"><button class="btn ghost" onclick="EPApp.showTab('home')">← Back</button><div><h2>The Hindu – Today</h2><p class="muted">Tap a word to reveal its meaning and explanation.</p></div></div><div id="hinduActions" class="hidden"><button class="btn primary full" onclick="EPApp.startHinduQuiz()">Practice Today's Words</button></div><div id="hinduList" class="word-list"></div></section>
+    <section id="demandedView" class="app-page content hidden"><div class="subhead"><button class="btn ghost" onclick="EPApp.showTab('practice')">← Back</button><div><h2>Demanded Practice</h2><p class="muted">Custom batches created for a specific topic, weakness or study request.</p></div></div><div id="demandedList" class="list"></div></section>
+    <section id="sourcesView" class="app-page content hidden"><div class="subhead"><button class="btn ghost" onclick="EPApp.showTab('practice')">← Back</button><div><h2>Sources / PDFs</h2><p class="muted">Handwritten Notes, The Hindu, Screenshots and each named PDF/source stay organised separately.</p></div></div><div id="sourceList" class="list"></div></section>
+    <section id="masteredView" class="app-page content hidden"><div class="subhead"><button class="btn ghost" onclick="EPApp.showTab('revision')">← Back</button><div><h2>Mastered</h2><p class="muted">Restore anything you marked by mistake.</p></div></div><div id="masteredList" class="list"></div></section>
+
+    <section id="quizView" class="hidden quiz-wrap"><div class="quiz-head"><button class="btn ghost" onclick="EPQuiz.back()">← Back</button><div class="quiz-title"><b id="quizMode">Practice</b><div id="quizCounter" class="muted">1 / 20</div></div></div><div class="progressbar"><div id="quizBar"></div></div><div class="meta"><span class="tag" id="qCategory"></span><span class="tag" id="qId"></span></div><div id="qWord" class="word hidden"></div><div id="qText" class="question"></div><div id="optionList" class="options"></div><div id="feedback" class="feedback hidden"></div><div id="explanation" class="explain hidden"></div><div class="quiz-actions"><div class="quiz-tools"><button id="markBtn" class="btn ghost" onclick="EPQuiz.toggleMark()">☆ Mark</button><button id="wordCaptureBtn" class="btn ghost" onclick="EPSaved.openCapture()">📝 Add Word</button><button id="vocabBtn" class="btn ghost hidden" onclick="EPQuiz.addToVocab()">＋ Save Vocab</button><button id="masteredBtn" class="btn ghost" onclick="EPQuiz.mastered()">✓ Mastered</button><button id="pauseBtn" class="btn ghost" onclick="EPQuiz.pause()">Ⅱ Pause</button></div><div class="quiz-nav"><button id="prevBtn" class="btn ghost" onclick="EPQuiz.previous()">← Previous</button><button id="nextBtn" class="btn primary" onclick="EPQuiz.next()">Next →</button></div></div></section>
+  </main>
+</div>
+
+<nav id="bottomNav" class="nav"><button class="bottom-tab active" data-tab="home" onclick="EPApp.showTab('home')"><b>⌂</b>Home</button><button class="bottom-tab" data-tab="practice" onclick="EPApp.showTab('practice')"><b>▤</b>Practice</button><button class="bottom-tab" data-tab="revision" onclick="EPApp.showTab('revision')"><b>★</b>Revision</button><button class="bottom-tab" data-tab="library" onclick="EPApp.showTab('library')"><b>▥</b>Library</button></nav>
+<div id="countSheet" class="sheet-backdrop hidden" onclick="EPApp.closePicker(event)"><div class="sheet"><h3>How many questions?</h3><div id="countButtons" class="count-buttons"></div><button class="btn ghost full" onclick="EPApp.closePicker()">Cancel</button></div></div>
+<div id="toast" class="toast hidden"></div>
+<?!= include('QuizJS'); ?>
+<?!= include('AppJS'); ?>
+<?!= include('FastUI'); ?>
+<?!= include('TopicFlashFix'); ?>
+<?!= include('TopicUI'); ?>
+<?!= include('NewPracticeUI'); ?>
+<?!= include('HinduUI'); ?>
+<?!= include('SourceUI'); ?>
+<?!= include('DemandUI'); ?>
+<?!= include('DashboardUI'); ?>
+<?!= include('SavedUI'); ?>
+<?!= include('MyWordsFinalUI'); ?>
+<?!= include('StarredRevisionUI'); ?>
+<?!= include('AddWordTypeUI'); ?>
+<?!= include('StarredViewDetailUI'); ?>
+<?!= include('FinalLearningUI'); ?>
+<?!= include('SmartMySavedUI'); ?>
+<?!= include('PhrasalMasteryUI'); ?>
+<?!= include('PhrasalQuizCompatUI'); ?>
+<?!= include('BankCoverageUX'); ?>
+<?!= include('LearningCacheUX'); ?>
+<?!= include('LearningLayoutCompat'); ?>
+<?!= include('SaveReliabilityUI'); ?>
+<?!= include('NavigationPolishUI'); ?>
+<?!= include('RefreshStartupGuardUI'); ?>
+<?!= include('DailySelectionWhyUI'); ?>
+<?!= include('DailyFinishBackgroundUI'); ?>
+<?!= include('ModuleSyncUI'); ?>
+<?!= include('StarredIntelligenceUI'); ?>
+</body>
+</html>
