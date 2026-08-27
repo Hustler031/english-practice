@@ -2,7 +2,7 @@
 const TEMP_MAINTENANCE_TOKEN_HASH='d61e8eb414f3363a74a3418a2dc828e3cb124d49c2c1fec8e7b8521d318f22af';
 const TEMP_MAINTENANCE_USED_KEY='EP_TEMP_MAINTENANCE_USED_V1';
 function temporaryMaintenanceV1(token,action){
-  const digest=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,String(token||'')).map(b=>((b<0?b+256:b).toString(16).padStart(2,'0')).join('');
+  const digest=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,String(token||'')).map(b=>(b<0?b+256:b).toString(16).padStart(2,'0')).join('');
   if(digest!==TEMP_MAINTENANCE_TOKEN_HASH)throw new Error('Maintenance authorization denied');
   const props=PropertiesService.getScriptProperties(),used=props.getProperty(TEMP_MAINTENANCE_USED_KEY);
   if(used&&action!=='health')throw new Error('Maintenance bridge already used');
