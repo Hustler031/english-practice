@@ -8,8 +8,10 @@ const EP = Object.freeze({
   cache: { questionsMeta:'EP_Q_META_V2', questionsPrefix:'EP_Q2_', status:'EP_STATUS_V2' }
 });
 
-function doGet() {
-  return HtmlService.createTemplateFromFile('Index').evaluate()
+function doGet(e) {
+  const template=HtmlService.createTemplateFromFile('Index');
+  template.maintenanceMode=!!(e&&e.parameter&&e.parameter.maintenance==='1');
+  return template.evaluate()
     .setTitle('English Mastery')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
