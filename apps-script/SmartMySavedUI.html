@@ -2,7 +2,7 @@
 (()=>{
   const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   const CACHE_KEY='smartMySaved:snapshot:v2',DIRTY_KEY='ep:smartMySaved:dirty:v2',TTL=60000;
-  let snapshot=null,pendingMode='smart',legacy=null,refreshing=false;
+  let snapshot=null,pendingMode='smart',legacy=null,refreshing=false,starting=false;
   const readCache=()=>{const r=window.EPFast?.get?.(CACHE_KEY);return r&&r.data?{data:r.data,ts:Number(r.ts||0)}:null};
   const writeCache=data=>{snapshot=data;window.EPFast?.set?.(CACHE_KEY,{data,ts:Date.now()});try{localStorage.removeItem(DIRTY_KEY)}catch(e){}return data};
   const isDirty=()=>{try{return localStorage.getItem(DIRTY_KEY)==='1'}catch(e){return false}};
@@ -28,7 +28,15 @@
   function manage(){if(window.EPMyWordsUX?.open)EPMyWordsUX.open()}
   function viewHistory(scope,kind){if(legacy?.view)return legacy.view(scope,kind);EPApp.toast('Saved-word list is unavailable right now.')}
   function prepareSession(batchId){const opts={batchId};if(!EPQuiz.hasSavedSessionFor('mySavedRevision'))return true;if(EPQuiz.isSameRequested('mySavedRevision',opts)){EPQuiz.resumeOther();return false}if(!confirm('A paused extra practice set exists. Start this My Saved set and replace it?'))return false;EPQuiz.replaceSavedFor('mySavedRevision');return true}
-  async function launchBatch(fetcher,batchId,title,label){if(!prepareSession(batchId))return;EPApp.showPracticeLoading?.(label||'Starting My Saved Practice…');try{const qs=await fetcher();if(!qs.length){EPApp.hidePracticeLoading?.();EPApp.toast('No eligible saved-word questions in this section.');return}document.body.classList.add('quiz-active');$('bottomNav')?.classList.add('hidden');EPApp.hidePracticeLoading?.();EPQuiz.start(qs,{mode:'mySavedRevision',batchId,title,returnTab:'revision'})}catch(e){EPApp.hidePracticeLoading?.();EPApp.toast('Could not load My Saved revision: '+(e.message||e))}}
+  async function launchBatch(fetcher,batchId,title,label){
+    if(starting||!prepareSession(batchId))return;
+    starting=true;
+    EPApp.showPracticeLoading?.(label||'Preparing Smart Revision…');
+    // Let the loading overlay paint before the Apps Script call starts; otherwise a slow
+    // Smart-universe calculation looks like a frozen button.
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    try{const qs=await fetcher();if(!qs.length){EPApp.toast('No eligible saved-word questions in this section.');return}document.body.classList.add('quiz-active');$('bottomNav')?.classList.add('hidden');EPQuiz.start(qs,{mode:'mySavedRevision',batchId,title,returnTab:'revision'})}catch(e){EPApp.toast('Could not load My Saved revision: '+(e.message||e))}finally{EPApp.hidePracticeLoading?.();starting=false;}
+  }
   async function start(mode,count){const batchId=`smart-my-saved-${mode}-${count||'all'}`;return launchBatch(()=>EPApp.call('getSmartMySavedBatchV1',mode,count||20),batchId,mode==='smart'?'My Saved · Smart Revision':'My Saved · '+mode.replace(/^./,x=>x.toUpperCase()),mode==='weak'?'Starting Weak Saved Words…':mode==='difficult'?'Starting Difficult Saved Words…':mode==='starred'?'Starting Starred Saved Words…':mode==='random'?'Starting Random Saved Words…':'Starting My Saved Practice…')}
   async function startHistory(scope,kind,count,label){scope=scope||{};const from=Math.max(1,Number(scope.fromDay||1)),to=Math.max(from,Number(scope.toDay||from)),mode=String(kind||'all'),batchId=`saved-history-${from}-${to}-${mode}-${count||0}`;return launchBatch(()=>EPApp.call('getMySavedRevisionBatch',{fromDay:from,toDay:to},mode,count||0),batchId,'My Saved · '+String(label||`Days ${from}–${to}`),mode==='weak'?'Starting Weak Saved History…':'Starting Saved History…')}
   function back(){$('mySavedRevisionView')?.classList.add('hidden');EPApp.showTab('revision')}
