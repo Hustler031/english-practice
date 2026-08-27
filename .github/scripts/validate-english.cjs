@@ -13,6 +13,7 @@ const server=['Code.gs','DailyV2.gs','Demand.gs','NewPractice.gs','NewPracticeLi
 const front=['AppJS.html','QuizJS.html','FastUI.html','TopicUI.html','NewPracticeUI.html','HinduUI.html','SourceUI.html','DemandUI.html','DashboardUI.html','SavedUI.html','MyWordsFinalUI.html','StarredRevisionUI.html','AddWordTypeUI.html','StarredViewDetailUI.html'];
 server.forEach(f=>{try{new vm.Script(read(f),{filename:f});ok(`Server JavaScript syntax: ${f}`)}catch(e){fail(`Server JavaScript syntax failed in ${f}: ${e.message}`)}});
 front.forEach(f=>{try{const js=read(f).replace(/<\/?script[^>]*>/gi,'');new vm.Script(js,{filename:f});ok(`Frontend JavaScript syntax: ${f}`)}catch(e){fail(`Frontend JavaScript syntax failed in ${f}: ${e.message}`)}});
+if(fs.existsSync(path.join(root,'TemporaryMaintenance.gs'))){try{new vm.Script(read('TemporaryMaintenance.gs'),{filename:'TemporaryMaintenance.gs'});ok('Temporary maintenance server syntax')}catch(e){fail(`Temporary maintenance server syntax failed: ${e.message}`)}}
 let manifest={};try{manifest=JSON.parse(read('appsscript.json'));ok('appsscript.json is valid JSON')}catch(e){fail(e.message)}
 if(manifest.runtimeVersion==='V8')ok('Apps Script V8 runtime preserved');else fail('V8 runtime required');
 if(manifest.webapp?.access==='ANYONE')ok('Web app access preserved as ANYONE');else fail('webapp.access must be ANYONE');
