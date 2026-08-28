@@ -39,9 +39,6 @@ const EPFast=window.EPFast=(()=>{
   // One authoritative launch overlay lives in EPApp; FastUI only forwards legacy callers.
   function showQuizLoading(label){EPApp?.showPracticeLoading?.(label||'Loading Quiz…')}
   function hideQuizLoading(){EPApp?.hidePracticeLoading?.()}
-  function isQuizLaunch(el){if(el&&el.closest&&el.closest('#countButtons'))return true;const code=String(el?.getAttribute?.('onclick')||'');return /(startDirect\s*\(|startHinduQuiz\s*\(|startNewPractice\s*\(|startDemand(?:Managed|Batch)?\s*\(|startSource(?:Managed)?\s*\(|EPTopic\.start\s*\(|EPNew\.start\s*\(|EPSource\.start\s*\(|EPSaved\.startStarred\s*\()/i.test(code)}
-  function launchLabel(el){const txt=String(el?.textContent||'').replace(/\s+/g,' ').trim();if(/day\s*\d+/i.test(txt))return 'Loading '+txt.replace(/·.*$/,'').trim()+'…';if(/hindu/i.test(txt))return 'Loading The Hindu Quiz…';if(/starred/i.test(txt))return 'Loading Starred Questions…';if(el&&el.closest&&el.closest('#countButtons'))return 'Loading Practice…';return 'Loading Quiz…'}
-  function wireQuizLoading(){document.addEventListener('click',e=>{const el=e.target.closest('button,[role="button"],a');if(el&&isQuizLaunch(el)&&!el.disabled)showQuizLoading(launchLabel(el))},true);const q=document.getElementById('quizView');if(q)new MutationObserver(()=>{if(!q.classList.contains('hidden'))hideQuizLoading()}).observe(q,{attributes:true,attributeFilter:['class']});setTimeout(()=>{if(typeof EPApp!=='undefined'&&EPApp.toast&&!EPApp.__quizLoaderToastWired){EPApp.__quizLoaderToastWired=true;const old=EPApp.toast;EPApp.toast=function(){hideQuizLoading();return old.apply(this,arguments)}}},0)}
 
   const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   let words=[];
@@ -64,7 +61,7 @@ const EPFast=window.EPFast=(()=>{
   function wireOptimisticPromotion(){if(typeof EPSaved==='undefined'||!EPSaved.addToPractice||EPSaved.__optimisticPromotionWired)return;EPSaved.__optimisticPromotionWired=true;const original=EPSaved.addToPractice.bind(EPSaved);EPSaved.addToPractice=function(id){const btn=[...document.querySelectorAll('button')].find(b=>String(b.getAttribute('onclick')||'').includes(`EPSaved.addToPractice('${id}')`));const oldHtml=btn?.innerHTML;if(btn){btn.disabled=true;btn.classList.add('word-add-optimistic');btn.innerHTML='✓ Added to Practice'}const result=Promise.resolve(original(id));result.catch(()=>{if(btn){btn.disabled=false;btn.classList.remove('word-add-optimistic');btn.innerHTML=oldHtml||'Add to Practice'}});return result}}
   function polishDynamicUi(){wireOptimisticPromotion()}
   function init(){addPolishStyles();ensureWordsView();wireHomeSnapshot();const observer=new MutationObserver(()=>{clearTimeout(observer._t);observer._t=setTimeout(polishDynamicUi,30)});observer.observe(document.body,{childList:true,subtree:true});polishDynamicUi();setTimeout(ensureSavedStrip,500)}
-  document.addEventListener('DOMContentLoaded',()=>{init();setTimeout(wireQuizLoading,0);EPApp.deferAfterHome?.(()=>prefetch())});
+  document.addEventListener('DOMContentLoaded',()=>{init();EPApp.deferAfterHome?.(()=>prefetch())});
   window.EPMyWordsUX={open:openWords,review,add,back};
   return{get,set,drop,fetch,swr,prefetch,showQuizLoading,hideQuizLoading};
 })();
