@@ -1,0 +1,8 @@
+"use client";
+import Link from "next/link";
+import { useCallback,useEffect,useState } from "react";
+import QuizRunner from "@/components/quiz-runner";
+import { rpc } from "@/lib/supabase";
+import { useAuthGuard } from "@/lib/use-auth";
+type SetRow={id:string;name:string;count:number;weakStarted:number;notes?:string};
+export default function DemandPage(){const ready=useAuthGuard();const [rows,setRows]=useState<SetRow[]>([]);const [pick,setPick]=useState<{s:SetRow;mode:string}|null>(null);useEffect(()=>{if(ready)rpc<SetRow[]>("english_get_demand_sets").then(setRows)},[ready]);const load=useCallback(()=>pick?rpc<any[]>("english_get_demand_batch",{p_set_id:pick.s.id,p_mode:pick.mode,p_count:30}):Promise.resolve([]),[pick]);if(!ready)return <main className="center"><div className="muted">Checking session…</div></main>;if(pick)return <QuizRunner title={`${pick.s.name} · ${pick.mode}`} backHref="/english/demand" load={load}/>;return <main className="shell"><div className="topbar"><Link className="btn ghost" href="/english">← English</Link><div className="brand">Demand Sets</div></div><div className="grid">{rows.map(s=><div className="card stack" key={s.id}><div><h3>{s.name}</h3><div className="muted">{s.count} questions · {s.weakStarted} weak/started</div>{s.notes&&<div className="muted">{s.notes}</div>}</div><div className="row"><button className="btn" onClick={()=>setPick({s,mode:"weak"})}>weak</button><button className="btn" onClick={()=>setPick({s,mode:"random"})}>random</button><button className="btn" onClick={()=>setPick({s,mode:"all"})}>all</button></div></div>)}</div></main>}
