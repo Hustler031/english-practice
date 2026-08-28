@@ -21,6 +21,10 @@ const sms=read('SmartMySaved.gs'),pv=read('PhrasalMastery.gs'),smsui=read('Smart
 
 ['mySavedRevisionItemsV2_','performanceFactsV2_','learningProfileV2_','currentStarredMapV2_','centralDifficultMapV2_','currentMasteredMapV2_','statusMap_','getSmartMySavedHubV1','getSmartMySavedBatchV1','getSmartMySavedAuditV1'].forEach(x=>need(sms,x,`Smart My Saved reuses central primitive ${x}`));
 ['Persistent Weak','Weak','Fragile','Due Recall','Difficult','Never Revised','Coverage Rotation'].forEach(x=>need(sms,x,`Smart My Saved priority includes ${x}`));
+need(sms,'learningDueV3_(x.profile,today)','Smart My Saved automatic due state comes from central intelligence');
+need(sms,"if(x.due&&s==='Persistent Weak')return 8",'Smart My Saved gives PW urgency only when due');
+need(sms,"if(x.due&&s==='Weak')return 7",'Smart My Saved gives Weak urgency only when due');
+need(sms,"if(x.due&&s==='Fragile')return 6",'Smart My Saved gives Fragile urgency only when due');
 forbid(sms,'appendRow(','Smart My Saved does not write a second attempt system');
 forbid(sms,'insertSheet','Smart My Saved creates no schema');
 forbid(sms,'Daily_Quiz','Smart My Saved does not misuse Daily Quiz');
@@ -62,11 +66,24 @@ function routeLoadRegression(){
 }
 routeLoadRegression();
 
+function smartSavedDueRegression(){
+  try{
+    const ctx={console,Date,Set,Math};vm.createContext(ctx);vm.runInContext(sms,ctx,{filename:'SmartMySaved.gs'});
+    const base={profile:{state:'Persistent Weak'},due:false,difficult:false,neverRevised:false,daysSinceRevision:1,id:'A'};
+    if(vm.runInContext('smartMySavedTierV1_',ctx)(base)!==1)throw new Error('non-due Persistent Weak still receives automatic urgency');
+    if(vm.runInContext('smartMySavedTierV1_',ctx)(Object.assign({},base,{due:true}))!==8)throw new Error('due Persistent Weak lost urgency');
+    ok('Smart My Saved automatic ranking is central-due first while manual filters remain available');
+  }catch(e){fail('Smart My Saved due regression — '+e.message)}
+}
+smartSavedDueRegression();
+
 ['phrasalConceptKeyV1_','performanceFactsV2_','learningProfileV2_','currentStarredMapV2_','centralDifficultMapV2_','currentMasteredMapV2_','PHRASAL_DAILY_','getPhrasalMasteryHubV1','getPhrasalMasteryBatchV1','getPhrasalTodayBatchV1','getPhrasalHistoryBatchV1','getPhrasalMasteryAuditV1'].forEach(x=>need(pv,x,`Phrasal mastery contract ${x}`));
 ['Persistent Weak','Weak','Fragile','Due Retention','Difficult + Starred','Never / Under-revised','Longest Not Seen','Fresh Variant Check'].forEach(x=>need(pv,x,`Phrasal central priority includes ${x}`));
 need(pv,"groups[key]={conceptId:key,word:String(q.word||''),questions:[]}",'Phrasal groups evidence at Concept_ID level');
 need(pv,'phrasalConceptMasteredV1_(profile)','Phrasal concept mastery derives from aggregate central profile');
-need(pv,"profile.provenMastery)&&String(profile&&profile.state||'')==='Strong'",'Concept mastery requires proven spaced mastery and Strong state');
+need(pv,"profile.provenMastery)&&String(profile&&profile.state||'')==='Proven Mastered'",'Concept mastery requires central Proven Mastered state');
+need(pv,'learningDueV3_(profile,today)','Phrasal concept due state uses central intelligence');
+need(pv,"if(x.due&&s==='Persistent Weak')return 10",'Phrasal Smart gives PW urgency only when due');
 need(pv,'freshVariants=activeVariants.filter','New permanent variants are detected without rewriting question mastery');
 need(pv,'(!x.mastered||x.freshVariantCount>0)','A fresh variant can be checked without erasing concept mastery');
 need(pv,"EP_PHRASAL_MODULES=new Set(['phrasaldaily','phrasalrevision'])",'Phrasal history uses module tags in central Performance');
@@ -80,16 +97,18 @@ forbid(pv,'Daily_Quiz','Phrasal Daily/history stays out of Daily_Quiz');
 
 function conceptIntelligenceRegression(){
   try{
-    const ctx={console,Date,Set,Math};vm.createContext(ctx);vm.runInContext(learning,ctx,{filename:'LearningIntelligence.gs'});vm.runInContext(pv,ctx,{filename:'PhrasalMastery.gs'});
-    const mastered=vm.runInContext("phrasalConceptMasteredV1_(learningProfileV2_([{id:'PV_A',ts:new Date('2026-01-01T00:00:00Z'),correct:true},{id:'PV_B',ts:new Date('2026-01-03T00:00:00Z'),correct:true},{id:'PV_A',ts:new Date('2026-01-05T00:00:00Z'),correct:true}]))",ctx);
-    if(!mastered)throw new Error('aggregate multi-Question_ID spaced evidence did not master concept');
-    const freshStillMastered=vm.runInContext("phrasalConceptMasteredV1_(learningProfileV2_([{id:'PV_A',ts:new Date('2026-01-01T00:00:00Z'),correct:true},{id:'PV_B',ts:new Date('2026-01-03T00:00:00Z'),correct:true},{id:'PV_A',ts:new Date('2026-01-05T00:00:00Z'),correct:true}]))",ctx);
+    const ctx={console,Date,Set,Math};ctx.dateKey_=d=>{d=new Date(d);if(isNaN(d))return'';const p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`};vm.createContext(ctx);vm.runInContext(learning,ctx,{filename:'LearningIntelligence.gs'});vm.runInContext(pv,ctx,{filename:'PhrasalMastery.gs'});
+    const strongOnly=vm.runInContext("phrasalConceptMasteredV1_(learningProfileV2_([{id:'PV_A',ts:new Date('2026-01-01T00:00:00Z'),correct:true},{id:'PV_B',ts:new Date('2026-01-03T00:00:00Z'),correct:true},{id:'PV_A',ts:new Date('2026-01-05T00:00:00Z'),correct:true}]))",ctx);
+    if(strongOnly)throw new Error('three study-day successes were incorrectly treated as Proven Mastered');
+    const mastered=vm.runInContext("phrasalConceptMasteredV1_(learningProfileV2_([{id:'PV_A',ts:new Date('2026-01-01T00:00:00Z'),correct:true},{id:'PV_B',ts:new Date('2026-01-03T00:00:00Z'),correct:true},{id:'PV_A',ts:new Date('2026-01-05T00:00:00Z'),correct:true},{id:'PV_B',ts:new Date('2026-01-10T00:00:00Z'),correct:true}]))",ctx);
+    if(!mastered)throw new Error('later spaced fourth success did not prove concept mastery');
+    const freshStillMastered=vm.runInContext("phrasalConceptMasteredV1_(learningProfileV2_([{id:'PV_A',ts:new Date('2026-01-01T00:00:00Z'),correct:true},{id:'PV_B',ts:new Date('2026-01-03T00:00:00Z'),correct:true},{id:'PV_A',ts:new Date('2026-01-05T00:00:00Z'),correct:true},{id:'PV_B',ts:new Date('2026-01-10T00:00:00Z'),correct:true}]))",ctx);
     if(!freshStillMastered)throw new Error('adding an unattempted variant would erase concept mastery');
-    const reopened=vm.runInContext("phrasalConceptMasteredV1_(learningProfileV2_([{id:'PV_A',ts:new Date('2026-01-01T00:00:00Z'),correct:true},{id:'PV_B',ts:new Date('2026-01-03T00:00:00Z'),correct:true},{id:'PV_A',ts:new Date('2026-01-05T00:00:00Z'),correct:true},{id:'PV_C',ts:new Date('2026-01-07T00:00:00Z'),correct:false}]))",ctx);
+    const reopened=vm.runInContext("phrasalConceptMasteredV1_(learningProfileV2_([{id:'PV_A',ts:new Date('2026-01-01T00:00:00Z'),correct:true},{id:'PV_B',ts:new Date('2026-01-03T00:00:00Z'),correct:true},{id:'PV_A',ts:new Date('2026-01-05T00:00:00Z'),correct:true},{id:'PV_B',ts:new Date('2026-01-10T00:00:00Z'),correct:true},{id:'PV_C',ts:new Date('2026-01-12T00:00:00Z'),correct:false}]))",ctx);
     if(reopened)throw new Error('later spaced wrong evidence did not weaken/reopen concept');
     const immediateRetry=vm.runInContext("phrasalConceptMasteredV1_(learningProfileV2_([{id:'PV_A',ts:new Date('2026-01-01T00:00:00Z'),correct:true},{id:'PV_B',ts:new Date('2026-01-01T01:00:00Z'),correct:true},{id:'PV_C',ts:new Date('2026-01-01T02:00:00Z'),correct:true}]))",ctx);
     if(immediateRetry)throw new Error('immediate retries incorrectly counted as retention mastery');
-    ok('Concept_ID mastery uses aggregate spaced evidence, survives fresh insertion, and reopens on later wrong evidence');
+    ok('Concept_ID mastery requires Proven Mastered spacing, survives fresh insertion, and reopens on later wrong evidence');
   }catch(e){fail('Concept intelligence regression — '+e.message)}
 }
 conceptIntelligenceRegression();
@@ -144,4 +163,4 @@ need(batch,'existing.has(x.attemptId)','Batch deduplicates Attempt_ID');
 need(star,'getStarredIntelligenceBatch','Smart Starred implementation remains present and independent');
 
 if(process.exitCode){console.error('\nSmart My Saved / Phrasal audit-fix validation failed.');process.exit(process.exitCode)}
-console.log('\n✅ Smart My Saved + Phrasal audit-fix behavioural contracts passed.');
+console.log('\n✅ Smart My Saved + Phrasal central-due behavioural contracts passed.');
