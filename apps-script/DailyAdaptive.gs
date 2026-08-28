@@ -11,16 +11,16 @@ function getDailyBatchV3(){
 
 // Persisted Daily is a historical candidate list, not a second learning-state store.
 // Suppression is read-only: a stale candidate is neither served nor marked user-completed.
-function dailyCurrentRowsV5_(rows,all){const map=Object.fromEntries((all||[]).map(q=>[q.id,q])),facts=performanceFactsV2_(),profiles=learningProfilesV2_(facts),mastered=currentMasteredMapV2_(),stars=currentStarredMapV2_(),diff=centralDifficultMapV2_();return (rows||[]).filter(r=>{if(String(r.Status||'').toLowerCase()==='completed')return true;const id=String(r.Question_ID||'').trim(),q=map[id],key=dateKey_(r.Quiz_Date),p=profiles[id]||learningProfileV2_([]);return !!(q&&isActive_(q)&&!mastered[id]&&dailyPrimaryReasonV5_(q,p,key,stars,diff));});}
+function dailyCurrentRowsV5_(rows,all,currentKey){const map=Object.fromEntries((all||[]).map(q=>[q.id,q])),facts=performanceFactsV2_(),profiles=learningProfilesV2_(facts),mastered=currentMasteredMapV2_(),stars=currentStarredMapV2_(),diff=centralDifficultMapV2_(),key=currentKey||todayKey_();return (rows||[]).filter(r=>{if(String(r.Status||'').toLowerCase()==='completed')return true;const id=String(r.Question_ID||'').trim(),q=map[id],p=profiles[id]||learningProfileV2_([]);return !!(q&&isActive_(q)&&!mastered[id]&&dailyPrimaryReasonV5_(q,p,key,stars,diff));});}
 
 function ensureDailyAdaptiveV3_(all,target){
   target=Math.max(1,Number(target||120));const today=todayKey_(),s=sheet_(EP.sheets.daily),mastered=currentMasteredMapV2_(),props=PropertiesService.getScriptProperties();let rows=table_(EP.sheets.daily).filter(r=>String(r.Question_ID||'').trim());rows=normalizeDailyRowsV3_(rows,all,mastered,s);rows=syncDailyCompletionsV3_(rows,s);
   if(props.getProperty(EP_DAILY_ROTATION_REFRESH_V5)!=='1'){
     if(s.getLastRow()>1)s.getRange(2,1,s.getLastRow()-1,Math.max(7,s.getLastColumn())).clearContent();try{props.deleteProperty(EP_DAILY_RATIONALE_V4)}catch(e){}rows=createDailyAdaptiveV3_(all,target,today,s);props.setProperty(EP_DAILY_ROTATION_REFRESH_V5,'1');return {rows,info:dailyInfoAdaptiveV3_(rows,today,false,target)};
   }
-  rows=repairSkippedDailyDateV2_(rows,s,today);const batchDate=rows.length?dateKey_(rows[0].Quiz_Date):'';
-  if(batchDate&&batchDate!==today){const done=rows.filter(r=>String(r.Status||'').toLowerCase()==='completed').length;if(done<rows.length)return {rows,info:dailyInfoAdaptiveV3_(rows,batchDate,true,target)};archiveDailyV2_(rows,batchDate);if(s.getLastRow()>1)s.getRange(2,1,s.getLastRow()-1,Math.max(7,s.getLastColumn())).clearContent();const nextDate=addDaysKeyV2_(batchDate,1);rows=createDailyAdaptiveV3_(all,target,nextDate,s);return {rows,info:dailyInfoAdaptiveV3_(rows,nextDate,nextDate!==today,target)};}
-  if(batchDate===today&&rows.length)return {rows,info:dailyInfoAdaptiveV3_(rows,today,false,target)};rows=createDailyAdaptiveV3_(all,target,today,s);return {rows,info:dailyInfoAdaptiveV3_(rows,today,false,target)};
+  rows=repairSkippedDailyDateV2_(rows,s,today);const batchDate=rows.length?dateKey_(rows[0].Quiz_Date):'',currentRows=dailyCurrentRowsV5_(rows,all,today);
+  if(batchDate&&batchDate!==today){const pending=currentRows.some(r=>String(r.Status||'').toLowerCase()!=='completed');if(pending)return {rows:currentRows,info:dailyInfoAdaptiveV3_(currentRows,batchDate,true,target)};archiveDailyV2_(rows,batchDate);if(s.getLastRow()>1)s.getRange(2,1,s.getLastRow()-1,Math.max(7,s.getLastColumn())).clearContent();const nextDate=addDaysKeyV2_(batchDate,1);rows=createDailyAdaptiveV3_(all,target,nextDate,s);return {rows,info:dailyInfoAdaptiveV3_(rows,nextDate,nextDate!==today,target)};}
+  if(batchDate===today&&rows.length)return {rows:currentRows,info:dailyInfoAdaptiveV3_(currentRows,today,false,target)};rows=createDailyAdaptiveV3_(all,target,today,s);return {rows,info:dailyInfoAdaptiveV3_(rows,today,false,target)};
 }
 function normalizeDailyRowsV3_(rows,all,mastered,s){return rows;}
 function syncDailyCompletionsV3_(rows,s){
