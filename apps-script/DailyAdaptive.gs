@@ -23,19 +23,18 @@ function syncDailyCompletionsV3_(rows,s){
   if(!rows.length)return rows;const facts=performanceFactsV2_(),byId=facts.byId||{};rows.forEach((r,i)=>{if(String(r.Status||'').toLowerCase()==='completed')return;const id=String(r.Question_ID||'').trim(),key=dateKey_(r.Quiz_Date);if(!id||!key)return;const p=key.split('-').map(Number),start=new Date(p[0],p[1]-1,p[2],0,0,0,0),hit=(byId[id]||[]).some(a=>a.ts>=start&&String(a.module||'').toLowerCase()==='daily');if(hit){s.getRange(i+2,5).setValue('Completed');r.Status='Completed';}});return rows;
 }
 function adaptiveCategoryPenaltyV3_(cat,bank,profiles){const ids=bank.filter(q=>learningCategoryKeyV2_(q)===cat).map(q=>q.id),seen=ids.map(id=>profiles[id]).filter(Boolean);if(!seen.length)return .5;const weak=seen.filter(p=>p.state==='Weak'||p.state==='Persistent Weak').length,retN=seen.reduce((n,p)=>n+p.retentionAttempts,0),retC=seen.reduce((n,p)=>n+p.retentionCorrect,0),first=seen.filter(p=>p.firstCorrect).length/seen.length,ret=retN?retC/retN:.5;return Math.max(0,Math.min(1,(weak/seen.length)*.5+(1-first)*.25+(1-ret)*.25));}
-function dailyFlagEligibleV5_(p,key){if(!p||!p.attempts)return false;if(learningDueV3_(p,key))return true;const last=p.lastCheckpoint||p.lastAttempt;if(!(last instanceof Date)||isNaN(last))return false;const parts=String(key||todayKey_()).split('-').map(Number),end=new Date(parts[0],parts[1]-1,parts[2],23,59,59,999);return learningCalendarGapDaysV3_(last,end)>=3;}
 function dailyPrimaryReasonV5_(q,p,key,stars,diff){
   if(p.attempts===0&&isGenuineBankQuestionV2_(q))return 'Controlled New';
-  if(learningDueV3_(p,key)){
-    if(p.state==='Persistent Weak')return 'Persistent Weak';
-    if(p.state==='Weak')return 'Weak';
-    if(p.state==='Fragile')return 'Fragile';
-    if(p.state==='Learning')return 'Learning';
-    return 'Due Spaced Revision';
-  }
-  if(stars[q.id]&&p.attempts>0&&dailyFlagEligibleV5_(p,key))return 'Marked Review';
-  if(diff[q.id]&&p.attempts>0&&dailyFlagEligibleV5_(p,key))return 'Difficult Review';
-  return '';
+  // Automatic Daily has one absolute eligibility gate. Star/Difficult can
+  // boost a due item, never admit non-due material.
+  if(!learningDueV3_(p,key))return '';
+  if(p.state==='Persistent Weak')return 'Persistent Weak';
+  if(p.state==='Weak')return 'Weak';
+  if(p.state==='Fragile')return 'Fragile';
+  if(p.state==='Learning')return 'Learning';
+  if(stars[q.id])return 'Marked Review';
+  if(diff[q.id])return 'Difficult Review';
+  return 'Due Spaced Revision';
 }
 function dailyQuotaV5_(target){return {'Persistent Weak':Math.max(1,Math.floor(target*.22)),'Weak':Math.max(1,Math.floor(target*.18)),'Fragile':Math.max(1,Math.floor(target*.15)),'Due Spaced Revision':Math.max(1,Math.floor(target*.15)),'Learning':Math.max(1,Math.floor(target*.08)),'Marked Review':Math.max(1,Math.floor(target*.05)),'Difficult Review':Math.max(1,Math.floor(target*.05)),'Controlled New':Math.max(1,Math.floor(target*.10)),'Mixed Revision':Math.max(1,Math.floor(target*.02))};}
 function dailyHardCapV5_(target){return {'Persistent Weak':Math.max(1,Math.ceil(target*.30)),'Weak':Math.max(1,Math.ceil(target*.25)),'Fragile':Math.max(1,Math.ceil(target*.20)),'Due Spaced Revision':Math.max(1,Math.ceil(target*.25)),'Learning':Math.max(1,Math.ceil(target*.15)),'Marked Review':Math.max(1,Math.ceil(target*.10)),'Difficult Review':Math.max(1,Math.ceil(target*.10)),'Controlled New':Math.max(1,Math.ceil(target*.15)),'Mixed Revision':Math.max(1,Math.ceil(target*.05))};}

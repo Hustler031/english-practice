@@ -22,7 +22,7 @@ function sourceQuestionMatches_(q,key){
   if(wanted.indexOf('THE_HINDU::')===0)return d.key==='THE_HINDU'&&sourceDateKey_(q)===wanted.split('::')[1];
   return d.key===wanted;
 }
-function sourceWeak_(st){return ['weak','wrong'].includes(String(st&&st.status||'').toLowerCase())||Number(st&&st.wrong||0)>0;}
+function sourceWeak_(st){return typeof centralWeakStatusV3_==='function'?centralWeakStatusV3_(st):['persistent weak','weak','fragile'].includes(String(st&&st.status||'').toLowerCase());}
 
 function getSourceHub(){
   const all=allQuestions_(), status=statusMap_(), grouped={};

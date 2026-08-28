@@ -2,7 +2,7 @@ const EP_RETENTION_GAP_MS=24*60*60*1000;
 const EP_MAX_ACTIVE_ANSWER_SECONDS=180;
 const EP_PERFORMANCE_MODULE='Module';
 const EP_LEARNING_PROGRESS_KEY='EP_LEARNING_PROGRESS_SNAPSHOT_V2';
-const EP_LEARNING_MIGRATION_KEY='EP_LEARNING_STATUS_NORMALIZED_V3';
+const EP_LEARNING_MIGRATION_KEY='EP_LEARNING_STATUS_NORMALIZED_V4_MANUAL_MASTERED';
 const EP_LEARNING_DAY_MS=24*60*60*1000;
 
 function ensurePerformanceModuleColumn_(){
@@ -72,9 +72,19 @@ function learningIntervalDaysV3_(p){
 function learningNextReviewV3_(p){const raw=p&&(p.lastCheckpoint||p.lastAttempt),anchor=raw?new Date(raw):null,days=learningIntervalDaysV3_(p);return anchor&&!isNaN(anchor)&&days?new Date(anchor.getTime()+days*EP_LEARNING_DAY_MS):'';}
 function learningDueV3_(p,key){if(!p||!p.attempts)return false;const target=learningNextReviewV3_(p);if(!(target instanceof Date)||isNaN(target))return false;const parts=String(key||todayKey_()).split('-').map(Number),end=new Date(parts[0],parts[1]-1,parts[2],23,59,59,999);return target<=end;}
 function learningDaysOverdueV3_(p,key){if(!learningDueV3_(p,key))return 0;const next=learningNextReviewV3_(p),parts=String(key||todayKey_()).split('-').map(Number),end=new Date(parts[0],parts[1]-1,parts[2],23,59,59,999);return Math.max(0,Math.floor((end-next)/EP_LEARNING_DAY_MS));}
+function centralWeakStatusV3_(status){return ['persistent weak','weak','fragile'].includes(String(status&&status.status||status||'').trim().toLowerCase());}
+function learningDataIntegrityAuditV3_(){const seen={},duplicates=[];allQuestionsRaw_().forEach(q=>{if(!isActive_(q))return;const id=String(q.id||'').trim();if(!id)return;if(seen[id])duplicates.push(id);else seen[id]=true;});const facts=performanceFactsV2_(),known=new Set(allQuestionsRaw_().map(q=>String(q.id||'').trim())),orphans=[...new Set(facts.all.filter(a=>!known.has(String(a.id||'').trim())).map(a=>a.id))];return {ok:!duplicates.length,duplicateActiveQuestionIds:[...new Set(duplicates)],orphanPerformanceQuestionIds:orphans,orphanPerformanceAttemptCount:facts.all.filter(a=>!known.has(String(a.id||'').trim())).length};}
 
+function manualMasteredMapV3_(){
+  // Mastered_Log is the durable user-intent record. A derived status must not
+  // erase a user's explicit "do not automatically repeat" choice.
+  const out={},log=sheet_(EP.sheets.mastered);
+  if(log&&log.getLastRow()>1)log.getRange(2,1,log.getLastRow()-1,8).getValues().forEach(r=>{const id=String(r[0]||'').trim();if(id&&truthy_(r[7]))out[id]=true;});
+  return out;
+}
 function currentMasteredMapV2_(){
-  const out={},s=sheet_(EP.sheets.status);if(s.getLastRow()<2)return out;const vals=s.getDataRange().getValues(),h=vals[0].map(x=>String(x||'').trim().toLowerCase()),qi=h.indexOf('question_id'),mi=h.indexOf('mastered');
+  const out=manualMasteredMapV3_(),s=sheet_(EP.sheets.status);if(s.getLastRow()<2)return out;const vals=s.getDataRange().getValues(),h=vals[0].map(x=>String(x||'').trim().toLowerCase()),qi=h.indexOf('question_id'),mi=h.indexOf('mastered');
+  // Preserve old status-only manual records as a compatibility fallback.
   vals.slice(1).forEach(r=>{const id=String(r[qi>=0?qi:0]||'').trim();if(id&&truthy_(r[mi>=0?mi:16]))out[id]=true;});return out;
 }
 function currentStarredMapV2_(){
@@ -90,7 +100,7 @@ function writeStatusSummaryV2_(q,profile,markedOverride,facts){
   const id=q.id,meta=statusRowsV2_(id),s=meta.sheet,rows=meta.rows,h=meta.headers,idx=n=>h.indexOf(n),existing=rows.map(r=>s.getRange(r,1,1,h.length).getValues()[0]);
   const existingMastered=existing.some(r=>truthy_(r[idx('Mastered')>=0?idx('Mastered'):16])),masteredOn=(existing.map(r=>r[idx('Mastered_On')>=0?idx('Mastered_On'):17]).filter(Boolean).sort((a,b)=>new Date(b)-new Date(a))[0]||''),suppressed=(existing.map(r=>r[idx('Repeat_Suppressed_Until')>=0?idx('Repeat_Suppressed_Until'):18]).filter(Boolean)[0]||''),recall=Math.max(0,...existing.map(r=>Number(r[idx('Recall_Check_Count')>=0?idx('Recall_Check_Count'):19]||0)));
   const starMap=currentStarredMapV2_(),marked=markedOverride===undefined?!!starMap[id]:!!markedOverride,attempts=(facts&&facts.byId&&facts.byId[id])||performanceFactsV2_().byId[id]||[],validTimes=attempts.map(a=>Number(a.time||0)).filter(x=>x>0&&x<=EP_MAX_ACTIVE_ANSWER_SECONDS),avg=validTimes.length?validTimes.reduce((a,b)=>a+b,0)/validTimes.length:0,last=attempts.length?attempts[attempts.length-1]:null,markedCount=attempts.filter(a=>a.marked).length;
-  const masteredDate=masteredOn?new Date(masteredOn):null,failedAfterMastery=!!(existingMastered&&last&&masteredDate&&!isNaN(masteredDate)&&last.ts>masteredDate&&!last.correct),persistentAfterMastery=existingMastered&&profile.state==='Persistent Weak',mastered=existingMastered&&!failedAfterMastery&&!persistentAfterMastery;
+  const mastered=!!currentMasteredMapV2_()[id];
   const status=mastered?'Mastered':profile.state,next=mastered?'':learningNextReviewV3_(profile);
   const row=[id,profile.attempts,profile.correct,profile.wrong,profile.attempts?profile.correct/profile.attempts:0,markedCount,avg,last?last.ts:'',last?!!last.correct:'',last?Math.min(EP_MAX_ACTIVE_ANSWER_SECONDS,Math.max(0,Number(last.time||0))):0,marked,profile.correctStreak,status,next,q.topic||'',q.conceptId||'',mastered,mastered?masteredOn:'',mastered?suppressed:'',recall];
   let target=rows.length?rows[0]:s.getLastRow()+1;s.getRange(target,1,1,20).setValues([row]);if(rows.length>1)rows.slice(1).forEach(r=>s.getRange(r,1,1,20).clearContent());
@@ -102,8 +112,8 @@ function reconcileLearningStatusV3_(){
   const s=sheet_(EP.sheets.status),headers=s.getRange(1,1,1,Math.max(20,s.getLastColumn())).getValues()[0].slice(0,20).map(x=>String(x||'').trim()),existing=s.getLastRow()>1?s.getRange(2,1,s.getLastRow()-1,20).getValues():[],idx=n=>headers.indexOf(n),old={},order=[];
   existing.forEach(r=>{const id=String(r[idx('Question_ID')>=0?idx('Question_ID'):0]||'').trim();if(!id)return;if(!old[id]){old[id]=[];order.push(id)}old[id].push(r);});
   const facts=performanceFactsV2_(),profiles=learningProfilesV2_(facts),qmap=Object.fromEntries(allQuestions_().map(q=>[q.id,q])),stars=currentStarredMapV2_();Object.keys(facts.byId).forEach(id=>{if(qmap[id]&&!old[id])order.push(id)});
-  const rows=[];
-  order.forEach(id=>{const q=qmap[id];if(!q)return;const prior=old[id]||[],p=profiles[id]||learningProfileV2_([]),attempts=facts.byId[id]||[],last=attempts.length?attempts[attempts.length-1]:null,existingMastered=prior.some(r=>truthy_(r[idx('Mastered')>=0?idx('Mastered'):16])),masteredOn=(prior.map(r=>r[idx('Mastered_On')>=0?idx('Mastered_On'):17]).filter(Boolean).sort((a,b)=>new Date(b)-new Date(a))[0]||''),suppressed=(prior.map(r=>r[idx('Repeat_Suppressed_Until')>=0?idx('Repeat_Suppressed_Until'):18]).filter(Boolean)[0]||''),recall=Math.max(0,...prior.map(r=>Number(r[idx('Recall_Check_Count')>=0?idx('Recall_Check_Count'):19]||0))),masteredDate=masteredOn?new Date(masteredOn):null,failedAfterMastery=!!(existingMastered&&last&&masteredDate&&!isNaN(masteredDate)&&last.ts>masteredDate&&!last.correct),mastered=existingMastered&&!failedAfterMastery&&p.state!=='Persistent Weak',times=attempts.map(a=>Number(a.time||0)).filter(x=>x>0&&x<=EP_MAX_ACTIVE_ANSWER_SECONDS),avg=times.length?times.reduce((a,b)=>a+b,0)/times.length:0,obj={Question_ID:id,Attempts:p.attempts,Correct:p.correct,Wrong:p.wrong,Accuracy:p.attempts?p.correct/p.attempts:0,Marked_Count:attempts.filter(a=>a.marked).length,Avg_Time:avg,Last_Attempt:last?last.ts:'',Last_Result:last?!!last.correct:'',Last_Time:last?Math.min(EP_MAX_ACTIVE_ANSWER_SECONDS,Math.max(0,Number(last.time||0))):0,Last_Marked:!!stars[id],Correct_Streak:p.correctStreak,Status:mastered?'Mastered':p.state,Next_Review:mastered?'':learningNextReviewV3_(p),Topic:q.topic||'',Concept_ID:q.conceptId||'',Mastered:mastered,Mastered_On:mastered?masteredOn:'',Repeat_Suppressed_Until:mastered?suppressed:'',Recall_Check_Count:recall};rows.push(headers.map(k=>Object.prototype.hasOwnProperty.call(obj,k)?obj[k]:''));});
+  const rows=[],manual=manualMasteredMapV3_();
+  order.forEach(id=>{const q=qmap[id];if(!q)return;const prior=old[id]||[],p=profiles[id]||learningProfileV2_([]),attempts=facts.byId[id]||[],last=attempts.length?attempts[attempts.length-1]:null,existingMastered=prior.some(r=>truthy_(r[idx('Mastered')>=0?idx('Mastered'):16])),masteredOn=(prior.map(r=>r[idx('Mastered_On')>=0?idx('Mastered_On'):17]).filter(Boolean).sort((a,b)=>new Date(b)-new Date(a))[0]||''),suppressed=(prior.map(r=>r[idx('Repeat_Suppressed_Until')>=0?idx('Repeat_Suppressed_Until'):18]).filter(Boolean)[0]||''),recall=Math.max(0,...prior.map(r=>Number(r[idx('Recall_Check_Count')>=0?idx('Recall_Check_Count'):19]||0))),mastered=!!manual[id]||existingMastered,times=attempts.map(a=>Number(a.time||0)).filter(x=>x>0&&x<=EP_MAX_ACTIVE_ANSWER_SECONDS),avg=times.length?times.reduce((a,b)=>a+b,0)/times.length:0,obj={Question_ID:id,Attempts:p.attempts,Correct:p.correct,Wrong:p.wrong,Accuracy:p.attempts?p.correct/p.attempts:0,Marked_Count:attempts.filter(a=>a.marked).length,Avg_Time:avg,Last_Attempt:last?last.ts:'',Last_Result:last?!!last.correct:'',Last_Time:last?Math.min(EP_MAX_ACTIVE_ANSWER_SECONDS,Math.max(0,Number(last.time||0))):0,Last_Marked:!!stars[id],Correct_Streak:p.correctStreak,Status:mastered?'Mastered':p.state,Next_Review:mastered?'':learningNextReviewV3_(p),Topic:q.topic||'',Concept_ID:q.conceptId||'',Mastered:mastered,Mastered_On:mastered?(masteredOn||new Date()):'',Repeat_Suppressed_Until:mastered?suppressed:'',Recall_Check_Count:recall};rows.push(headers.map(k=>Object.prototype.hasOwnProperty.call(obj,k)?obj[k]:''));});
   if(s.getLastRow()>1)s.getRange(2,1,s.getLastRow()-1,20).clearContent();if(rows.length)s.getRange(2,1,rows.length,20).setValues(rows);try{CacheService.getScriptCache().remove(EP.cache.status)}catch(e){}return {rows:rows.length};
 }
 function ensureLearningStatusMigration_(){
