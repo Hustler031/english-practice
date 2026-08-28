@@ -18,6 +18,7 @@ on:
       - '.github/scripts/validate-smart-saved-phrasal.cjs'
       - '.github/scripts/validate-saved-owner-cache.cjs'
       - '.github/scripts/validate-phrasal-recall.cjs'
+      - '.github/scripts/validate-final-hardening.cjs'
       - '.github/workflows/validate-english-pr.yml'
 
 permissions:
@@ -60,3 +61,5 @@ jobs:
         run: node .github/scripts/validate-saved-owner-cache.cjs
       - name: Validate Phrasal Today’s 20 and Reverse Recall
         run: node .github/scripts/validate-phrasal-recall.cjs
+      - name: Validate final production hardening behaviour
+        run: node .github/scripts/validate-final-hardening.cjs
