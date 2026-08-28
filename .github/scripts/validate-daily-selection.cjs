@@ -14,7 +14,7 @@ try{new vm.Script(ui.replace(/<\/?script[^>]*>/gi,''),{filename:'DailySelectionW
   ["writeDailyRationaleV4_(batchDate",'New Daily batches freeze rationale at construction time'],
   ["dailyRationaleSnapshotV4_",'Existing active Daily batch can be repaired once without schema change'],
   ["s.getRange(2,1,out.length,7).setValues(out)",'Daily_Quiz schema remains seven existing columns'],
-  ["dailyInfoAdaptiveV3_(rows,batchDate,true,target)",'Carry-forward Daily batches retain adaptive mix metadata'],
+  ["dailyInfoAdaptiveV3_(currentRows,batchDate,true,target)",'Carry-forward Daily batches use current actionable mix metadata'],
   ["flaggedCount",'Hero mix has combined Starred/Difficult primary count'],
   ["learningCount",'Hero mix has Learning primary count'],
   ["mixedCount",'Hero mix has Mixed primary count'],

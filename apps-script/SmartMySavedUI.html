@@ -43,6 +43,6 @@
   function install(){legacy=window.EPMySavedRevision||{};legacy.open=open;legacy.back=back;window.EPMySavedRevision=legacy;if(typeof EPApp!=='undefined')EPApp.openSaved=open;const card=[...document.querySelectorAll('#revisionView .list-card')].find(x=>(x.textContent||'').includes('My Saved'));if(card){card.onclick=()=>EPApp.openSaved();card.innerHTML='<b>🔖 My Saved Words</b><div class="muted">Smart Revision · Weak · Difficult · Starred · Random · Practice All</div>'}}
   window.EPSmartMySaved={open,pick,closePicker,run,start,startAll,startHistory,viewHistory,manage,back,refresh,markDirty,render};
   install();
-  document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>refresh(false),1200));
+  document.addEventListener('DOMContentLoaded',()=>EPApp.deferAfterHome?.(()=>refresh(false)));
 })();
 </script>

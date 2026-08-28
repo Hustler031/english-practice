@@ -63,3 +63,5 @@ jobs:
         run: node .github/scripts/validate-phrasal-recall.cjs
       - name: Validate final production hardening behaviour
         run: node .github/scripts/validate-final-hardening.cjs
+      - name: Validate focused boot cleanup behaviour
+        run: node .github/scripts/validate-boot-cleanup.cjs

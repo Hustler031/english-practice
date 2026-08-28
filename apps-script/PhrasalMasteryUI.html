@@ -39,6 +39,6 @@
   // Compatibility markers for pre-upgrade static validators; no active UI path uses the old 15 label.
   // Today's 15
   // EPApp.showPracticeLoading?.("Starting Today's 15 Phrasal Verbs…")
-  document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>refresh(false),1600));
+  document.addEventListener('DOMContentLoaded',()=>EPApp.deferAfterHome?.(()=>refresh(false)));
 })();
 </script>
