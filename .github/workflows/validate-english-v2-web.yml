@@ -1,0 +1,31 @@
+name: Validate English V2 Web
+
+on:
+  push:
+    branches: [english-v2-supabase]
+    paths:
+      - 'web-v2/**'
+      - '.github/workflows/validate-english-v2-web.yml'
+  pull_request:
+    paths:
+      - 'web-v2/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web-v2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web-v2/package-lock.json
+      - run: npm install --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_build_placeholder
