@@ -1,183 +1,24 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { rpc } from "@/lib/supabase";
 import { makeDisplayOptions, type DisplayOption } from "@/lib/options";
+import AddWordSheet from "@/components/add-word-sheet";
 
-type Question={id:string;category?:string;topic?:string;subtopic?:string;word?:string;question:string;options:{key:string;text:string}[];correctKey?:string;questionType?:string;explanation?:string;tip?:string;usageNote?:string;example?:string;memoryAid?:string;related?:string;source?:string;sourcePage?:string;starred?:boolean;difficult?:boolean;mastered?:boolean};
+type Question={id:string;category?:string;topic?:string;subtopic?:string;word?:string;question:string;options:{key:string;text:string}[];correctKey?:string;questionType?:string;explanation?:string;tip?:string;usageNote?:string;example?:string;memoryAid?:string;related?:string;source?:string;sourcePage?:string;starred?:boolean;mastered?:boolean};
 type Props={title:string;backHref:string;load:()=>Promise<Question[]>;module?:string;emptyText?:string};
-
 export default function QuizRunner({title,backHref,load,module="practice",emptyText="No questions are available for this selection."}:Props){
-  const [items,setItems]=useState<Question[]>([]);
-  const [idx,setIdx]=useState(0);
-  const [selected,setSelected]=useState("");
-  const [result,setResult]=useState<{correct:boolean;correctCanonicalKey:string}|null>(null);
-  const [loading,setLoading]=useState(true);
-  const [busy,setBusy]=useState(false);
-  const [error,setError]=useState("");
-  const started=useRef(Date.now());
-  const optionCache=useRef(new Map<string,DisplayOption[]>());
-
-  useEffect(()=>{
-    let live=true;
-    setLoading(true);
-    optionCache.current.clear();
-    load()
-      .then(x=>{if(live){setItems(Array.isArray(x)?x:[]);setIdx(0);started.current=Date.now();}})
-      .catch((e:any)=>live&&setError(e.message))
-      .finally(()=>live&&setLoading(false));
-    return()=>{live=false};
-  },[load]);
-
-  const q=items[idx];
-  const options=useMemo(()=>{
-    if(!q)return[];
-    const hit=optionCache.current.get(q.id);
-    if(hit)return hit;
-    const made=makeDisplayOptions(q.questionType,q.options||[]);
-    optionCache.current.set(q.id,made);
-    return made;
-  },[q?.id,q?.questionType,q?.options]);
-
-  const correctDisplayKey=result?options.find(o=>o.canonicalKey===result.correctCanonicalKey)?.key||result.correctCanonicalKey:"";
-
-  function move(next:number){
-    setIdx(next);
-    setSelected("");
-    setResult(null);
-    setError("");
-    started.current=Date.now();
-  }
-
-  async function answer(option:DisplayOption){
-    if(!q||result||busy)return;
-    setSelected(option.key);
-    setBusy(true);
-    try{
-      const out=await rpc<any>("english_submit_answer",{
-        p_question_id:q.id,
-        p_selected_key:option.canonicalKey,
-        p_time_seconds:Math.min(180,(Date.now()-started.current)/1000),
-        p_marked_revision:!!q.starred,
-        p_attempt_id:`v2-${q.id}-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
-        p_module:module
-      });
-      setResult({correct:!!out.is_correct,correctCanonicalKey:String(out.correct_key||q.correctKey||"")});
-    }catch(e:any){
-      setError(e.message);
-    }finally{
-      setBusy(false);
-    }
-  }
-
-  async function setFlag(kind:"starred"|"difficult"){
-    if(!q)return;
-    const next=!q[kind];
-    setItems(a=>a.map((x,i)=>i===idx?{...x,[kind]:next}:x));
-    try{
-      await rpc(
-        kind==="starred"?"english_set_starred":"english_set_difficult",
-        kind==="starred"?{p_question_id:q.id,p_starred:next}:{p_question_id:q.id,p_difficult:next}
-      );
-    }catch(e:any){
-      setItems(a=>a.map((x,i)=>i===idx?{...x,[kind]:!next}:x));
-      setError(e.message);
-    }
-  }
-
-  if(loading)return <main className="center"><div className="muted">Loading {title}…</div></main>;
-
-  if(!items.length)return (
-    <main className="shell quiz">
-      <div className="quiz-top">
-        <Link className="btn ghost" href={backHref}>← Back</Link>
-        <div className="quiz-title"><div className="brand">{title}</div></div>
-        <div />
-      </div>
-      <div className="empty-state">
-        <div className="eyebrow">Nothing queued</div>
-        <h2>{title}</h2>
-        <p className="muted">{error||emptyText}</p>
-      </div>
-    </main>
-  );
-
-  if(!q)return <main className="shell"><div className="error-box">Question position is unavailable.</div></main>;
-
-  return (
-    <main className="shell quiz">
-      <div className="quiz-top">
-        <Link className="btn ghost" href={backHref}>← Back</Link>
-        <div className="quiz-title">
-          <div className="brand">{title}</div>
-          <div className="quiz-count">Question {idx+1} of {items.length}</div>
-        </div>
-        <div className="pill">{Math.round(((idx+1)/items.length)*100)}%</div>
-      </div>
-
-      <div className="progress"><span style={{width:`${((idx+1)/items.length)*100}%`}}/></div>
-
-      <section className="card quiz-card" style={{marginTop:14}}>
-        <div className="quiz-meta">
-          <span className="pill">{q.category||q.topic||"Practice"}</span>
-          {q.subtopic&&<span className="pill">{q.subtopic}</span>}
-          {q.source&&<span className="pill">{q.source}</span>}
-          <span className="spacer"/>
-          <button className={`btn ${q.starred?"warn":"ghost"}`} onClick={()=>setFlag("starred")} aria-pressed={!!q.starred}>
-            {q.starred?"★ Starred":"☆ Star"}
-          </button>
-          <button className={`btn ${q.difficult?"warn":"ghost"}`} onClick={()=>setFlag("difficult")} aria-pressed={!!q.difficult}>
-            {q.difficult?"! Difficult":"Mark difficult"}
-          </button>
-        </div>
-
-        <div className="question-area">
-          {q.word&&<div className="question-word">{q.word}</div>}
-          <div className="question">{q.question}</div>
-        </div>
-
-        <div className="options">
-          {options.map(o=>{
-            let cls="option";
-            if(selected===o.key)cls+=" selected";
-            if(result&&o.canonicalKey===result.correctCanonicalKey)cls+=" correct";
-            if(result&&selected===o.key&&o.canonicalKey!==result.correctCanonicalKey)cls+=" wrong";
-            return (
-              <button key={o.key} className={cls} onClick={()=>answer(o)} disabled={!!result||busy}>
-                <span className="option-key">{o.key}</span>
-                <span>{o.text}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {error&&<div className="result-wrap"><div className="error-box">{error}</div></div>}
-
-        {result&&(
-          <div className="result-wrap">
-            <div className={`result-head ${result.correct?"good-result":"bad-result"}`} style={{color:result.correct?"var(--good)":"var(--bad)"}}>
-              <span className="result-dot"/>
-              <strong>{result.correct?"Correct":"Incorrect"}</strong>
-              <span className="spacer"/>
-              <span className="pill">Answer {correctDisplayKey}</span>
-            </div>
-            <div className="explanation">
-              {q.explanation||"No explanation available."}
-              {q.example?`\n\nExample: ${q.example}`:""}
-              {q.usageNote?`\n\nUsage: ${q.usageNote}`:""}
-              {q.tip?`\n\nTip: ${q.tip}`:""}
-              {q.memoryAid?`\n\nMemory aid: ${q.memoryAid}`:""}
-            </div>
-          </div>
-        )}
-
-        <div className="quiz-nav">
-          <button className="btn" disabled={idx===0} onClick={()=>move(idx-1)}>← Previous</button>
-          <span className="spacer"/>
-          <button className="btn primary" disabled={idx===items.length-1} onClick={()=>move(idx+1)}>Next →</button>
-        </div>
-      </section>
-    </main>
-  );
+ const router=useRouter();const [items,setItems]=useState<Question[]>([]);const [idx,setIdx]=useState(0);const [selected,setSelected]=useState("");const [result,setResult]=useState<{correct:boolean;correctCanonicalKey:string}|null>(null);const [loading,setLoading]=useState(true);const [busy,setBusy]=useState(false);const [error,setError]=useState("");const started=useRef(Date.now());const optionCache=useRef(new Map<string,DisplayOption[]>());
+ useEffect(()=>{let live=true;setLoading(true);optionCache.current.clear();load().then(x=>{if(live){setItems(Array.isArray(x)?x:[]);setIdx(0);started.current=Date.now();}}).catch((e:any)=>live&&setError(e.message)).finally(()=>live&&setLoading(false));return()=>{live=false};},[load]);
+ const q=items[idx];const options=useMemo(()=>{if(!q)return[];const hit=optionCache.current.get(q.id);if(hit)return hit;const made=makeDisplayOptions(q.questionType,q.options||[]);optionCache.current.set(q.id,made);return made;},[q?.id,q?.questionType,q?.options]);const correctDisplayKey=result?options.find(o=>o.canonicalKey===result.correctCanonicalKey)?.key||result.correctCanonicalKey:"";
+ function move(next:number){setIdx(next);setSelected("");setResult(null);setError("");started.current=Date.now();window.scrollTo({top:0,behavior:"smooth"});}
+ async function answer(option:DisplayOption){if(!q||result||busy)return;setSelected(option.key);setBusy(true);try{const out=await rpc<any>("english_submit_answer",{p_question_id:q.id,p_selected_key:option.canonicalKey,p_time_seconds:Math.min(180,(Date.now()-started.current)/1000),p_marked_revision:!!q.starred,p_attempt_id:`v2-${q.id}-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,p_module:module});setResult({correct:!!out.is_correct,correctCanonicalKey:String(out.correct_key||q.correctKey||"")});}catch(e:any){setError(e.message);}finally{setBusy(false);}}
+ async function toggleMark(){if(!q)return;const next=!q.starred;setItems(a=>a.map((x,i)=>i===idx?{...x,starred:next}:x));try{await rpc("english_set_starred",{p_question_id:q.id,p_starred:next});}catch(e:any){setItems(a=>a.map((x,i)=>i===idx?{...x,starred:!next}:x));setError(e.message);}}
+ async function mastered(){if(!q||!window.confirm("Mark this as Mastered / Don't Repeat? You can restore it later."))return;try{await rpc("english_set_mastered",{p_question_id:q.id,p_mastered:true,p_require_proven:false});setItems(a=>a.map((x,i)=>i===idx?{...x,mastered:true}:x));if(idx<items.length-1)move(idx+1);else router.push(backHref);}catch(e:any){setError(e.message);}}
+ if(loading)return <main className="center"><div className="muted">Loading {title}…</div></main>;
+ if(!items.length)return <main className="shell quiz"><div className="quiz-top"><Link className="btn ghost" href={backHref}>← Back</Link><div className="quiz-title"><div className="brand">{title}</div></div><div /></div><div className="empty-state"><h2>{title}</h2><p className="muted">{error||emptyText}</p></div></main>;
+ if(!q)return <main className="shell"><div className="error-box">Question position is unavailable.</div></main>;
+ return <main className="shell quiz quiz-with-tools"><div className="quiz-top"><Link className="btn ghost" href={backHref}>← Back</Link><div className="quiz-title"><div className="brand">{title}</div><div className="quiz-count">{idx+1} / {items.length}</div></div><div /></div><div className="progress"><span style={{width:`${((idx+1)/items.length)*100}%`}}/></div><section className="quiz-card"><div className="quiz-meta"><span className="pill">{q.category||q.topic||"English"}</span>{q.subtopic&&<span className="pill">{q.subtopic}</span>}</div><div className="question-area">{q.word&&<div className="question-word">{q.word}</div>}<div className="question">{q.question}</div></div><div className="options">{options.map(o=>{let cls="option";if(selected===o.key)cls+=" selected";if(result&&o.canonicalKey===result.correctCanonicalKey)cls+=" correct";if(result&&selected===o.key&&o.canonicalKey!==result.correctCanonicalKey)cls+=" wrong";return <button key={o.key} className={cls} onClick={()=>answer(o)} disabled={!!result||busy}><span className="option-key">{o.key}</span><span>{o.text}</span></button>;})}</div>{error&&<div className="result-wrap"><div className="error-box">{error}</div></div>}{result&&<div className="result-wrap"><div className={`result-head ${result.correct?"good-result":"bad-result"}`} style={{color:result.correct?"var(--ok)":"var(--bad)"}}><span className="result-dot"/><strong>{result.correct?"Correct":"Incorrect"}</strong><span className="spacer"/><span className="pill">Answer {correctDisplayKey}</span></div><div className="explanation">{q.explanation||"No explanation available."}{q.example?`\n\nExample: ${q.example}`:""}{q.usageNote?`\n\nUsage: ${q.usageNote}`:""}{q.tip?`\n\nTip: ${q.tip}`:""}{q.memoryAid?`\n\nRemember: ${q.memoryAid}`:""}</div></div>}</section><div className="quiz-tools"><button className={`btn ghost ${q.starred?"warn":""}`} onClick={toggleMark}>{q.starred?"★ Marked":"☆ Mark"}</button><AddWordSheet questionId={q.id} initialWord={q.word||""} source={title} label="📝 Add Word"/><button className="btn ghost" onClick={mastered}>✓ Mastered</button><button className="btn ghost" onClick={()=>router.push(backHref)}>Ⅱ Pause</button></div><div className="quiz-nav"><button className="btn ghost" disabled={idx===0} onClick={()=>move(idx-1)}>← Previous</button><button className="btn primary" onClick={()=>idx<items.length-1?move(idx+1):router.push(backHref)}>{idx===items.length-1?"Finish":"Next →"}</button></div></main>;
 }
