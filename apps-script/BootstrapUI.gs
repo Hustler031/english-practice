@@ -10,6 +10,5 @@ function getEnglishUiBootstrap(){
   safe('demandStats',()=>getDemandHubStats());
   safe('hinduToday',()=>getHinduToday());
   safe('hinduProgress',()=>getHinduPracticeProgressCentral());
-  safe('progressSnapshot',()=>getLearningProgressSnapshot());
   return out;
 }
