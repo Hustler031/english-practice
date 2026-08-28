@@ -1,5 +1,5 @@
 function topicStarted_(st){return Number(st&&st.attempts||0)>0;}
-function topicWeak_(st){return ['weak','wrong'].includes(String(st&&st.status||'').toLowerCase())||Number(st&&st.wrong||0)>0;}
+function topicWeak_(st){return typeof centralWeakStatusV3_==='function'?centralWeakStatusV3_(st):['persistent weak','weak','fragile'].includes(String(st&&st.status||'').toLowerCase());}
 function topicNew_(st){return !topicStarted_(st);}
 
 function getTopicPracticeHub(){
