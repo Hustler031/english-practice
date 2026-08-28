@@ -16,8 +16,10 @@ export function useAuthGuard() {
       if (!data.session) router.replace("/login");
       else setReady(true);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) router.replace("/login");
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!active) return;
+      if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && session) setReady(true);
+      if (event === "SIGNED_OUT") router.replace("/login");
     });
     return () => { active = false; sub.subscription.unsubscribe(); };
   }, [router]);
