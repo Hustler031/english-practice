@@ -1,0 +1,1 @@
+alter function legacy.finalize_english_behavior_import(uuid) set search_path = pg_catalog, legacy, english, auth, extensions;

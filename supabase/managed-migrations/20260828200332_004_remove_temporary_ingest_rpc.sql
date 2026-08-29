@@ -1,0 +1,1 @@
+drop function if exists public._migration_ingest_legacy_rows(jsonb);
