@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import QuizRunner from "@/components/quiz-runner";
-import { rpc } from "@/lib/supabase";
+import { rpc, subscribeRpcFresh } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
 import { EnglishLoading } from "@/components/english-frame";
 import "./mywords-parity.css";
@@ -22,7 +22,7 @@ export default function SavedPage(){
  const ready=useAuthGuard(),router=useRouter();const [hub,setHub]=useState<Hub|null>(null);const [pick,setPick]=useState<Pick|null>(null);const [pendingMode,setPendingMode]=useState<string|null>(null);const [manage,setManage]=useState(false);const [rows,setRows]=useState<Saved[]>([]);const [detail,setDetail]=useState<Saved|null>(null);const [editing,setEditing]=useState<string|null>(null);const [error,setError]=useState("");
  async function refreshHub(){setHub(await rpc<Hub>("english_get_saved_revision_hub"));}
  async function refreshRows(){setRows(await rpc<Saved[]>("english_get_saved_items"));}
- useEffect(()=>{if(ready)refreshHub().catch((e:any)=>setError(e.message));},[ready]);
+ useEffect(()=>{if(!ready)return;const offHub=subscribeRpcFresh<Hub>("english_get_saved_revision_hub",undefined,setHub);const offRows=subscribeRpcFresh<Saved[]>("english_get_saved_items",undefined,setRows);refreshHub().catch((e:any)=>setError(e.message));return()=>{offHub();offRows();};},[ready]);
  const load=useCallback(()=>{if(!pick)return Promise.resolve([]);if(pick.date)return rpc<any[]>("english_get_saved_history_batch",{p_date:pick.date,p_mode:pick.mode,p_count:pick.count});return rpc<any[]>("english_get_saved_revision_batch",{p_mode:pick.mode,p_count:pick.count});},[pick]);
  async function openManage(){setManage(true);setDetail(null);if(!rows.length)try{await refreshRows();}catch(e:any){setError(e.message);}}
  async function changeType(id:string,next:string){setRows(a=>a.map(x=>x.id===id?{...x,captureType:next}:x));try{await rpc("english_set_saved_item_type",{p_saved_id:id,p_capture_type:next});await refreshRows();}catch(e:any){setError(e.message);await refreshRows();}}
