@@ -2,7 +2,7 @@
 
 Project: `hytehindbmjdwcfptsic`
 
-This manifest tracks the managed Supabase execution ledger for English V2. The live ledger currently contains **51 migrations**.
+This manifest tracks the managed Supabase execution ledger for English V2. The live ledger currently contains **54 migrations**.
 
 | Version | Migration | Repository mirror |
 |---|---|---|
@@ -57,12 +57,17 @@ This manifest tracks the managed Supabase execution ledger for English V2. The l
 | 20260829040216 | english_starred_selection_signal_parity | exact mirror |
 | 20260829040726 | english_central_intelligence_finalization | exact mirror |
 | 20260829040854 | english_hindu_user_state_isolation | exact mirror |
+| 20260829042238 | english_saved_generated_provenance_owner | exact mirror |
+| 20260829042302 | english_saved_generated_runtime_isolation | exact mirror |
+| 20260829042511 | english_owner_isolation_health_finalization | exact mirror |
 
 ## Current runtime closure
 
 From `20260828210556` onward, the complete English V2 runtime migration sequence is represented in `supabase/managed-migrations/`. The only intentional portability exception is `20260828211355`, whose repository mirror removes the concrete single-user UUID and resolves the user at runtime.
 
-The finalization migrations add category-aware Daily intelligence, durable selection rationale, actionable Daily counts, module-level progress intelligence, old-app day/10-day/30-day revision hierarchy, authenticated-only RPC writes, health/reconciliation checks, top-level Central Intelligence, Smart central revision, and strict user-state isolation from shared canonical content.
+The finalization migrations add category-aware Daily intelligence, durable selection rationale, actionable Daily counts, module-level progress intelligence, old-app day/10-day/30-day revision hierarchy, authenticated-only RPC writes, health/reconciliation checks, top-level Central Intelligence, Smart central revision, strict user-state isolation from shared canonical content, and owner-scoped Saved-generated question provenance across Daily/Topic/New/Source/Revision/Phrasal practice pools.
+
+Saved-generated questions now carry an explicit owner in `english.question_origins`; foreign generated questions are hidden from direct reads and RPC payloads, generic mutation RPCs reject them, shared practice sets cannot contain private generated questions, and health checks detect any invisible-state or ownership leakage.
 
 The earlier foundation/import migrations remain recoverable from Supabase's managed ledger and the immutable migration/legacy snapshots. `supabase/migrations/20260829_001_english_behavior_parity.sql` is a consolidated historical repository artifact and must not be mistaken for the exact pre-runtime managed ledger.
 
