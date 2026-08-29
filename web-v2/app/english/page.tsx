@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { rpc } from "@/lib/supabase";
+import { rpc, subscribeRpcFresh } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
 import AddWordSheet from "@/components/add-word-sheet";
 import { EnglishLoading } from "@/components/english-frame";
@@ -46,9 +46,10 @@ export default function EnglishHome() {
   useEffect(()=>{
     if(!ready)return;
     let alive=true;
+    const unsubscribe=subscribeRpcFresh<HomeSnapshot>("english_get_home_snapshot",undefined,x=>{if(alive)setSnapshot(x)});
     rpc<HomeSnapshot>("english_get_home_snapshot").then(x=>{if(alive)setSnapshot(x)}).catch((e:any)=>{if(alive)setError(e.message)});
     setPaused(readPausedQuiz());
-    return()=>{alive=false};
+    return()=>{alive=false;unsubscribe();};
   },[ready]);
 
   if(!ready)return <EnglishLoading text="Checking session…"/>;
