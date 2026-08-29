@@ -2,7 +2,7 @@
 
 Project: `hytehindbmjdwcfptsic`
 
-This manifest tracks the managed Supabase execution ledger for English V2. The live ledger currently contains **55 migrations**.
+This manifest tracks the managed Supabase execution ledger for English V2. The live ledger currently contains **56 migrations**.
 
 | Version | Migration | Repository mirror |
 |---|---|---|
@@ -61,12 +61,13 @@ This manifest tracks the managed Supabase execution ledger for English V2. The l
 | 20260829042302 | english_saved_generated_runtime_isolation | exact mirror |
 | 20260829042511 | english_owner_isolation_health_finalization | exact mirror |
 | 20260829063737 | english_preview_final_polish_backend | exact mirror |
+| 20260829064811 | english_ui_intelligence_centralization | exact mirror |
 
 ## Current runtime closure
 
 The managed execution sequence is now represented in `supabase/managed-migrations/` from the first foundation migration through the current backend-finalization migration. `20260828211355` is the sole intentional portability exception: its repository form removes the concrete live owner UUID and resolves the user at runtime instead of publishing an account identifier.
 
-The finalization migrations add category-aware Daily intelligence, durable selection rationale, actionable Daily counts, module-level progress intelligence, old-app day/10-day/30-day revision hierarchy, authenticated-only RPC writes, health/reconciliation checks, top-level Central Intelligence, Smart central revision, strict user-state isolation from shared canonical content, owner-scoped Saved-generated question provenance across practice pools, a consolidated cached Home snapshot, canonical Hindu question serving/submission, and covering indexes for the hottest English learning relationships.
+The finalization migrations add category-aware Daily intelligence, durable selection rationale, actionable Daily counts, module-level progress intelligence, old-app day/10-day/30-day revision hierarchy, authenticated-only RPC writes, health/reconciliation checks, top-level Central Intelligence, Smart central revision, strict user-state isolation from shared canonical content, owner-scoped Saved-generated question provenance across practice pools, a consolidated cached Home snapshot, canonical Hindu question serving/submission, covering indexes for the hottest English learning relationships, backend-owned Saved study-day metadata, and backend Starred guidance so explanatory intelligence can stay aligned with selection logic.
 
 Saved-generated questions carry an explicit owner in `english.question_origins`; foreign generated questions are hidden from direct reads and RPC payloads, generic mutation RPCs reject them, shared practice sets cannot contain private generated questions, and health checks detect invisible-state or ownership leakage.
 
