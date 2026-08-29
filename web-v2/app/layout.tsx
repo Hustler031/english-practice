@@ -6,6 +6,7 @@ import "./starred-parity.css";
 import "./remaining-parity.css";
 import "./hindu-parity.css";
 import "./mobile-parity-fixes.css";
+import "./final-polish.css";
 
 export const metadata: Metadata = {
   title: "Revision Platform",
@@ -19,9 +20,12 @@ export const viewport: Viewport = {
   interactiveWidget: "resizes-content",
 };
 
+const themeBoot = `try{const t=localStorage.getItem('english-theme');document.documentElement.dataset.theme=t==='light'?'light':'dark'}catch(e){document.documentElement.dataset.theme='dark'}`;
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: themeBoot }} /></head>
       <body>{children}</body>
     </html>
   );
