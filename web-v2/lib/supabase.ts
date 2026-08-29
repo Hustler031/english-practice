@@ -13,6 +13,7 @@ const OUTBOX_KEY = "ep:v2:answer-outbox:v1";
 const QUESTION_KEY_STORE = "ep:v2:question-correct-keys:v1";
 const CACHE_MAX_AGE = 12 * 60 * 60 * 1000;
 const BACKOFF = [1000, 2500, 5000, 15000, 30000, 60000];
+const PRODUCTION_SUPABASE_HOST = "hytehindbmjdwcfptsic.supabase.co";
 
 type RpcArgs = Record<string, unknown>;
 type CacheEntry<T = unknown> = { at: number; name: string; args: RpcArgs; data: T };
@@ -23,6 +24,33 @@ const answerLocks = new Map<string, { at: number; result: unknown }>();
 let questionKeys: Record<string, string> | null = null;
 
 function browserReady() { return typeof window !== "undefined"; }
+function isLoopbackHost(hostname: string) {
+  const host = String(hostname || "").toLowerCase();
+  return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
+}
+function isReadOnlyRpc(name: string) {
+  return name === "english_dashboard_summary" || name === "english_resume_daily" || name.startsWith("english_get_") || name === "english_hindu_progress";
+}
+export function localProductionSafetyMode() {
+  if (!browserReady() || !isLoopbackHost(window.location.hostname)) return false;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!url) return false;
+  try { return new URL(url).hostname.toLowerCase() === PRODUCTION_SUPABASE_HOST; }
+  catch { return false; }
+}
+function localMutationResult<T = unknown>(name: string, args?: RpcArgs): T {
+  const input = args ?? {};
+  if (name === "english_submit_answer" || name === "english_submit_hindu_answer") {
+    const selected = String(input.p_selected_key ?? "").toUpperCase();
+    const correctKey = correctKeyFor(name, input);
+    const correct = !!correctKey && selected === correctKey;
+    const attemptId = String(input.p_attempt_id ?? "").trim() || makeAttemptId(String(input.p_question_id ?? input.p_hindu_id ?? "Q"));
+    return (name === "english_submit_hindu_answer"
+      ? { ok: true, dry_run: true, queued: false, durable: false, correct, correctKey, correct_key: correctKey, attemptId }
+      : { ok: true, dry_run: true, queued: false, durable: false, is_correct: correct, correct_key: correctKey, attempt_id: attemptId }) as T;
+  }
+  return { ok: true, dry_run: true, local_only: true } as T;
+}
 function stableArgs(args?: RpcArgs) {
   const src = args ?? {};
   return Object.keys(src).sort().reduce<Record<string, unknown>>((out, key) => { out[key] = src[key]; return out; }, {});
@@ -114,6 +142,7 @@ function scheduleFlush(ms = 0) {
   wakeTimer = setTimeout(() => { void flushAnswerOutbox(); }, Math.max(0, ms));
 }
 async function networkRpc<T = unknown>(name: string, args?: RpcArgs): Promise<T> {
+  if (localProductionSafetyMode() && !isReadOnlyRpc(name)) return localMutationResult<T>(name, args);
   const { data, error } = await supabaseBrowser().rpc(name, args ?? {});
   if (error) throw error;
   indexQuestionKeys(data);
@@ -158,7 +187,7 @@ async function flushAnswerOutbox() {
       const result = await networkRpc(item.name, item.args);
       writeOutbox(readOutbox().filter(x => x.id !== item.id));
       try { window.dispatchEvent(new CustomEvent("ep:answer-durable", { detail: { id: item.id, name: item.name, result } })); } catch { /* ignore */ }
-      scheduleCacheRefresh();
+      if (!localProductionSafetyMode()) scheduleCacheRefresh();
     } catch {
       const latest = readOutbox();
       const hit = latest.find(x => x.id === item.id);
@@ -224,6 +253,7 @@ export function supabaseBrowser(): SupabaseClient {
 
 export async function rpc<T = unknown>(name: string, args?: RpcArgs): Promise<T> {
   wireReliability();
+  if (localProductionSafetyMode() && !isReadOnlyRpc(name)) return localMutationResult<T>(name, args);
   if (name === "english_submit_answer" || name === "english_submit_hindu_answer") return queueAnswer<T>(name, args);
 
   if (isCacheableRead(name)) {
@@ -283,5 +313,5 @@ export async function prefetchEnglishCore() {
   }));
 }
 
-export function pendingAnswerSaves() { return readOutbox().length; }
-export function flushPendingAnswers() { scheduleFlush(0); }
+export function pendingAnswerSaves() { return localProductionSafetyMode() ? 0 : readOutbox().length; }
+export function flushPendingAnswers() { if (!localProductionSafetyMode()) scheduleFlush(0); }
