@@ -1,11 +1,14 @@
 "use client";
 
+export type PausedQuizAnswer = { selected:string; correct:boolean; correctCanonicalKey:string };
 export type PausedQuizSession = {
   title: string;
   backHref: string;
   module: string;
   index: number;
   questions: unknown[];
+  answers?: Record<string, PausedQuizAnswer>;
+  revealedRecall?: string[];
   savedAt: number;
 };
 
