@@ -20,6 +20,15 @@ type HomeSnapshot={ok:boolean;studyDay:number;summary:Summary;intelligence:Intel
 
 const quick = [["📰", "The Hindu – Today", "Today's vocabulary", "/english/hindu?return=/english", "hindu"], ["🔖", "My Saved Words", "Personal Smart Revision", "/english/saved", "saved"], ["↗", "Phrasal Verb", "Smart revision + Today's batch", "/english/phrasal", "phrasal"], ["★", "Starred Revision", "Central Starred Intelligence", "/english/starred", "starred"], ["◫", "Bank Coverage", "Optional unseen-bank exposure", "/english/bank", "bank"]] as const;
 
+function fallbackStudyDay(){
+  try{
+    const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Kolkata",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
+    const get=(type:string)=>Number(parts.find(p=>p.type===type)?.value||0);
+    const today=Date.UTC(get("year"),get("month")-1,get("day"));
+    const dayOne=Date.UTC(2026,7,14);
+    return Math.max(1,Math.floor((today-dayOne)/86400000)+1);
+  }catch{return 1;}
+}
 function recommendationHref(rec?:Recommendation){
   if(!rec)return "/english/revision";
   if(rec.route==="daily")return "/english/daily";
@@ -46,15 +55,16 @@ export default function EnglishHome() {
   useEffect(()=>{
     if(!ready)return;
     let alive=true;
-    const unsubscribe=subscribeRpcFresh<HomeSnapshot>("english_get_home_snapshot",undefined,x=>{if(alive)setSnapshot(x)});
-    rpc<HomeSnapshot>("english_get_home_snapshot").then(x=>{if(alive)setSnapshot(x)}).catch((e:any)=>{if(alive)setError(e.message)});
+    const accept=(x:HomeSnapshot)=>{if(alive){setSnapshot(x);setError("");}};
+    const unsubscribe=subscribeRpcFresh<HomeSnapshot>("english_get_home_snapshot",undefined,accept);
+    rpc<HomeSnapshot>("english_get_home_snapshot").then(accept).catch((e:any)=>{if(alive)setError(e.message)});
     setPaused(readPausedQuiz());
     return()=>{alive=false;unsubscribe();};
   },[ready]);
 
   if(!ready)return <EnglishLoading text="Checking session…"/>;
   const data=snapshot?.summary,phrasal=snapshot?.phrasal,bank=snapshot?.bank,saved=snapshot?.saved,starred=snapshot?.starred,hinduCount=snapshot?.hindu?.length??null;
-  const total=data?.daily_total??0,completed=data?.daily_completed??0,percent=total?Math.min(100,Math.round((completed/total)*100)):0,dayNo=snapshot?.studyDay??1;
+  const total=data?.daily_total??0,completed=data?.daily_completed??0,percent=total?Math.min(100,Math.round((completed/total)*100)):0,dayNo=snapshot?.studyDay??fallbackStudyDay();
   const rec=snapshot?.intelligence?.recommended;
   const status=(accent:string)=>{
     if(accent==="hindu")return hinduCount===null?"…":`${hinduCount} today`;
