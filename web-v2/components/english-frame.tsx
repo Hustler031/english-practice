@@ -30,12 +30,25 @@ export function EnglishFrame({ children, tab }: { children: ReactNode; tab?: Tab
   const active = tab ?? tabForPath(pathname);
   const [theme, setTheme] = useState<Theme>("dark");
   const [pendingSaves, setPendingSaves] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("english-theme");
     const next: Theme = saved === "light" ? "light" : "dark";
     setTheme(next);
     document.documentElement.dataset.theme = next;
+
+    // Remove the one-shot cache-buster from the visible URL after a hard refresh.
+    // It has already done its job by forcing a fresh document request.
+    try {
+      const current = new URL(window.location.href);
+      if (current.searchParams.has("_refresh")) {
+        current.searchParams.delete("_refresh");
+        const clean = `${current.pathname}${current.search}${current.hash}`;
+        window.history.replaceState(window.history.state, "", clean);
+      }
+    } catch { /* best effort */ }
+
     const warm = () => { void prefetchEnglishCore(); };
     const refreshPending = () => setPendingSaves(pendingAnswerSaves());
     warm();refreshPending();
@@ -61,6 +74,36 @@ export function EnglishFrame({ children, tab }: { children: ReactNode; tab?: Tab
     window.localStorage.setItem("english-theme", next);
   }
 
+  async function hardRefresh() {
+    if (refreshing) return;
+    setRefreshing(true);
+
+    // Clear only disposable app read caches. Keep auth, theme, paused quizzes,
+    // answer outbox and every user-state key intact.
+    try {
+      const keys: string[] = [];
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const key = window.localStorage.key(i);
+        if (key?.startsWith("ep:v2:rpc-cache:")) keys.push(key);
+      }
+      keys.forEach(key => window.localStorage.removeItem(key));
+    } catch { /* best effort */ }
+
+    // If this origin ever gains a service-worker/cache-storage layer, clear it too.
+    try {
+      if ("caches" in window) {
+        const names = await window.caches.keys();
+        await Promise.allSettled(names.map(name => window.caches.delete(name)));
+      }
+    } catch { /* best effort */ }
+
+    // A unique document URL forces Chrome/Vercel to re-fetch the HTML. New Next.js
+    // deployments then reference their new hashed JS/CSS chunks automatically.
+    const target = new URL(window.location.href);
+    target.searchParams.set("_refresh", Date.now().toString());
+    window.location.replace(target.toString());
+  }
+
   return (
     <div className="english-app">
       <header className="english-header">
@@ -71,6 +114,7 @@ export function EnglishFrame({ children, tab }: { children: ReactNode; tab?: Tab
         <div className="header-controls">
           {pendingSaves>0&&<span className="sync-pill" title="Answers are stored locally and syncing in the background"><i/>Syncing {pendingSaves}</span>}
           <button className="control-icon theme-toggle" type="button" aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} onClick={toggleTheme}>{theme === "dark" ? "☀" : "☾"}</button>
+          <button className={`control-icon hard-refresh ${refreshing ? "refreshing" : ""}`} type="button" aria-label="Hard refresh app" title="Refresh app and cached data" onClick={() => void hardRefresh()} disabled={refreshing}>↻</button>
         </div>
       </header>
       <div className="english-content">{children}</div>
