@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
-import { prefetchEnglishCore } from "@/lib/supabase";
+import { pendingAnswerSaves, prefetchEnglishCore } from "@/lib/supabase";
 
 type Tab = "home" | "practice" | "revision" | "library" | "progress";
 type Theme = "dark" | "light";
@@ -29,6 +29,7 @@ export function EnglishFrame({ children, tab }: { children: ReactNode; tab?: Tab
   const pathname = usePathname();
   const active = tab ?? tabForPath(pathname);
   const [theme, setTheme] = useState<Theme>("dark");
+  const [pendingSaves, setPendingSaves] = useState(0);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("english-theme");
@@ -36,12 +37,21 @@ export function EnglishFrame({ children, tab }: { children: ReactNode; tab?: Tab
     setTheme(next);
     document.documentElement.dataset.theme = next;
     const warm = () => { void prefetchEnglishCore(); };
-    warm();
-    const timer = window.setInterval(warm, 120000);
-    const onVisible = () => { if (!document.hidden) warm(); };
+    const refreshPending = () => setPendingSaves(pendingAnswerSaves());
+    warm();refreshPending();
+    const warmTimer = window.setInterval(warm, 120000);
+    const saveTimer = window.setInterval(refreshPending, 800);
+    const onVisible = () => { if (!document.hidden) { warm();refreshPending(); } };
+    const onDurable = () => refreshPending();
     window.addEventListener("online", warm);
+    window.addEventListener("ep:answer-durable", onDurable as EventListener);
     document.addEventListener("visibilitychange", onVisible);
-    return () => { window.clearInterval(timer); window.removeEventListener("online", warm); document.removeEventListener("visibilitychange", onVisible); };
+    return () => {
+      window.clearInterval(warmTimer);window.clearInterval(saveTimer);
+      window.removeEventListener("online", warm);
+      window.removeEventListener("ep:answer-durable", onDurable as EventListener);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
   function toggleTheme() {
@@ -59,12 +69,13 @@ export function EnglishFrame({ children, tab }: { children: ReactNode; tab?: Tab
           <span>SSC English practice + revision</span>
         </Link>
         <div className="header-controls">
+          {pendingSaves>0&&<span className="sync-pill" title="Answers are stored locally and syncing in the background"><i/>Syncing {pendingSaves}</span>}
           <button className="control-icon theme-toggle" type="button" aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} onClick={toggleTheme}>{theme === "dark" ? "☀" : "☾"}</button>
         </div>
       </header>
       <div className="english-content">{children}</div>
       <nav className="english-nav" aria-label="English navigation">
-        {tabs.map((item) => <Link key={item.id} href={item.href} className={`english-nav-item ${active === item.id ? "active" : ""}`} aria-current={active === item.id ? "page" : undefined}><b>{item.icon}</b><span>{item.label}</span></Link>)}
+        {tabs.map((item) => <Link key={item.id} href={item.href} className={`english-nav-item ${active === item.id ? "active":""}`} aria-current={active === item.id ? "page" : undefined}><b>{item.icon}</b><span>{item.label}</span></Link>)}
       </nav>
     </div>
   );
