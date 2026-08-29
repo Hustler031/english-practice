@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import QuizRunner from "@/components/quiz-runner";
 import { EnglishLoading } from "@/components/english-frame";
-import { rpc } from "@/lib/supabase";
+import { rpc, subscribeRpcFresh } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
 
 type HistoryRow={type:string;label:string;fromDay:number;toDay:number;generated:number;practised:number;date?:string};
@@ -18,7 +18,7 @@ export default function PhrasalPage(){
  const [pick,setPick]=useState<Pick|null>(null);
  const [pendingMode,setPendingMode]=useState<string|null>(null);
  const [error,setError]=useState("");
- useEffect(()=>{if(ready)rpc<Hub>("english_get_phrasal_hub").then(setHub).catch((e:any)=>setError(e.message));},[ready]);
+ useEffect(()=>{if(!ready)return;const off=subscribeRpcFresh<Hub>("english_get_phrasal_hub",undefined,setHub);rpc<Hub>("english_get_phrasal_hub").then(setHub).catch((e:any)=>setError(e.message));return off;},[ready]);
  const load=useCallback(()=>{if(!pick)return Promise.resolve([]);if(pick.kind==="today")return rpc<any[]>("english_get_phrasal_today");if(pick.kind==="history")return rpc<any[]>("english_get_phrasal_history_batch",{p_from_day:pick.fromDay,p_to_day:pick.toDay});return rpc<any[]>("english_get_phrasal_batch",{p_mode:pick.mode,p_count:pick.count||20});},[pick]);
  const history=useMemo(()=>{
   const rows=[...(hub?.history||[])];
