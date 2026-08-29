@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { ReactNode, useState } from "react";
-import { supabaseBrowser } from "@/lib/supabase";
+import { usePathname } from "next/navigation";
+import { ReactNode, useEffect, useState } from "react";
 
 type Tab = "home" | "practice" | "revision" | "library" | "progress";
+type Theme = "dark" | "light";
 
 const tabs: { id: Tab; href: string; icon: string; label: string }[] = [
   { id: "home", href: "/english", icon: "⌂", label: "Home" },
@@ -16,9 +16,6 @@ const tabs: { id: Tab; href: string; icon: string; label: string }[] = [
 ];
 
 function tabForPath(pathname: string): Tab {
-  // The active tab follows the route the user is actually viewing. Keep the
-  // top-level roots explicit so /english/practice and /english/revision can
-  // never fall through to Home.
   if (pathname === "/english" || pathname.startsWith("/english/daily") || pathname.startsWith("/english/resume")) return "home";
   if (pathname === "/english/practice" || /\/(new|topics|sources|demand|bank)(?:\/|$)/.test(pathname)) return "practice";
   if (pathname === "/english/revision" || /\/(starred|difficult|phrasal)(?:\/|$)/.test(pathname)) return "revision";
@@ -29,13 +26,21 @@ function tabForPath(pathname: string): Tab {
 
 export function EnglishFrame({ children, tab }: { children: ReactNode; tab?: Tab }) {
   const pathname = usePathname();
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
   const active = tab ?? tabForPath(pathname);
+  const [theme, setTheme] = useState<Theme>("dark");
 
-  async function signOut() {
-    await supabaseBrowser().auth.signOut();
-    router.replace("/login");
+  useEffect(() => {
+    const saved = window.localStorage.getItem("english-theme");
+    const next: Theme = saved === "light" ? "light" : "dark";
+    setTheme(next);
+    document.documentElement.dataset.theme = next;
+  }, []);
+
+  function toggleTheme() {
+    const next: Theme = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    document.documentElement.dataset.theme = next;
+    window.localStorage.setItem("english-theme", next);
   }
 
   return (
@@ -46,9 +51,7 @@ export function EnglishFrame({ children, tab }: { children: ReactNode; tab?: Tab
           <span>SSC English practice + revision</span>
         </Link>
         <div className="header-controls">
-          <Link href="/" className="control-icon" aria-label="All subjects">⌘</Link>
-          <button className="control-icon" aria-label="Settings" aria-expanded={open} onClick={() => setOpen((v) => !v)}>⚙</button>
-          {open && <div className="settings-popover"><button onClick={signOut}>Sign out</button></div>}
+          <button className="control-icon theme-toggle" type="button" aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} onClick={toggleTheme}>{theme === "dark" ? "☀" : "☾"}</button>
         </div>
       </header>
       <div className="english-content">{children}</div>
