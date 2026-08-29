@@ -18,6 +18,7 @@ type HistoryGroup={key:string;label:string;rows:History[];fromDay:number;toDay:n
 type ManualStats={starred:number;mastered:number;focus:number;difficult:number};
 type BrowseRow={id?:string;question_id?:string;word?:string;question?:string;starredDay?:number;mastered?:boolean;status?:string;source?:string};
 type RotationStats={weakExact:number;learningExact:number;newCount:number;dueWeak:number;days7Plus:number;days14Plus:number;recent24h:number};
+type Guidance={rotationPriority:string;focus:string;recommendation:string;dueWeak:number;due:number;neverRevised:number;days7Plus:number;days14Plus:number};
 type SmartComposition={total:number;persistentWeak:number;weakFragile:number;due:number;difficult:number;learning:number;coverageRotation:number};
 type SmartPlan={count:number;composition:SmartComposition};
 const smartModes=[
@@ -41,6 +42,7 @@ export default function StarredPage(){
  const [smartScopeKey,setSmartScopeKey]=useState("all");
  const [smartHub,setSmartHub]=useState<Hub|null>(null);
  const [rotation,setRotation]=useState<RotationStats|null>(null);
+ const [guidance,setGuidance]=useState<Guidance|null>(null);
  const [smartPlan,setSmartPlan]=useState<SmartPlan|null>(null);
  const [smartLoading,setSmartLoading]=useState(false);
  const [smartInfo,setSmartInfo]=useState<string|null>(null);
@@ -59,7 +61,8 @@ export default function StarredPage(){
   Promise.all([
    rpc<Hub>("english_get_starred_hub",scopeArgs),
    rpc<RotationStats>("english_get_starred_rotation_stats",scopeArgs),
-  ]).then(([h,r])=>{if(alive){setSmartHub(h);setRotation(r)}}).catch((e:any)=>{if(alive)setError(e.message||String(e))}).finally(()=>{if(alive)setSmartLoading(false)});
+   rpc<Guidance>("english_get_starred_guidance",scopeArgs),
+  ]).then(([h,r,g])=>{if(alive){setSmartHub(h);setRotation(r);setGuidance(g)}}).catch((e:any)=>{if(alive)setError(e.message||String(e))}).finally(()=>{if(alive)setSmartLoading(false)});
   return()=>{alive=false};
  },[ready,smart,scopeArgs]);
 
@@ -82,12 +85,14 @@ export default function StarredPage(){
 
  const ss=smartHub?.stats||hub?.stats;
  const sa=smartHub?.available||hub?.available;
+ const sizeChoices=smartHub?.sizes?.length?smartHub.sizes:hub?.sizes?.length?hub.sizes:[10,20,30,50];
  const active=Number(ss?.active||0),revised=Number(ss?.revised||0),coverage=active?Math.round(revised*1000/active)/10:0;
  const weakExact=rotation?.weakExact??Math.max(0,Number(ss?.weak||0)-Number(ss?.persistentWeak||0)-Number(ss?.fragile||0));
  const learningExact=rotation?.learningExact??Number(ss?.learning||0),newCount=rotation?.newCount??0,dueWeak=rotation?.dueWeak??0;
- const rotationPriority=getRotationPriority(active,Number(ss?.neverRevised||0),Number(rotation?.days14Plus??ss?.longOverdue??0),Number(rotation?.days7Plus||0));
- const focus=getFocus(dueWeak,Number(ss?.due||0),rotationPriority);
- const recommendation=getRecommendation(dueWeak,Number(ss?.due||0),Number(ss?.neverRevised||0),rotationPriority);
+ const fallbackPriority=getRotationPriority(active,Number(ss?.neverRevised||0),Number(rotation?.days14Plus??ss?.longOverdue??0),Number(rotation?.days7Plus||0));
+ const rotationPriority=guidance?.rotationPriority||fallbackPriority;
+ const focus=guidance?.focus||getFocus(dueWeak,Number(ss?.due||0),rotationPriority);
+ const recommendation=guidance?.recommendation||getRecommendation(dueWeak,Number(ss?.due||0),Number(ss?.neverRevised||0),rotationPriority);
  const startSmart=(mode:string,label:string)=>setPick({mode:mode.toLowerCase(),label:`Starred · ${label}`,count:smartSize,fromDay:smartScope.all?undefined:smartScope.fromDay,toDay:smartScope.all?undefined:smartScope.toDay});
 
  return <section className="starred-parity-page">
@@ -103,7 +108,7 @@ export default function StarredPage(){
    <section className="si-recommended">
     <div className="si-title-row"><div><h2>Recommended Now — {smartPlan?.count??0}</h2><p><b>Focus:</b> {focus}</p></div><span className="tag">{smartScope.label}</span><InfoButton label="Why this Smart set?" onClick={()=>setSmartInfo("recommended")}/></div>
     <div className="si-counts">{smartPlan?<CompositionChips c={smartPlan.composition}/>:<span className="si-chip">Preparing recommendation…</span>}</div>
-    <div className="si-size-row">{[10,20,30,50].map(n=><button key={n} className={`btn ghost mini ${smartSize===n?"active":""}`} onClick={()=>setSmartSize(n)}>{n}</button>)}</div>
+    <div className="si-size-row">{sizeChoices.map(n=><button key={n} className={`btn ghost mini ${smartSize===n?"active":""}`} onClick={()=>setSmartSize(n)}>{n}</button>)}</div>
     <button className="btn primary full-width" disabled={!smartPlan?.count||smartLoading} onClick={()=>startSmart("smart","Recommended")}>Start Recommended {smartPlan?.count??0}</button>
    </section>
 
@@ -120,7 +125,7 @@ export default function StarredPage(){
    </section>
   </>}
 
-  {pending?<div className="sheet-backdrop" onClick={()=>setPending(null)}><div className="sheet" onClick={e=>e.stopPropagation()}><h3>{pending.label}</h3><div className="count-buttons">{[10,20,50,100].map(n=><button key={n} onClick={()=>{const p=pending;setPending(null);runManual(p.scope,p.mode,n,`Starred Revision · ${p.label}`)}}>{n}</button>)}</div><button className="btn ghost full-width" onClick={()=>setPending(null)}>Cancel</button></div></div>:null}
+  {pending?<div className="sheet-backdrop" onClick={()=>setPending(null)}><div className="sheet" onClick={e=>e.stopPropagation()}><h3>{pending.label}</h3><div className="count-buttons">{Array.from(new Set([...sizeChoices,100])).map(n=><button key={n} onClick={()=>{const p=pending;setPending(null);runManual(p.scope,p.mode,n,`Starred Revision · ${p.label}`)}}>{n}</button>)}</div><button className="btn ghost full-width" onClick={()=>setPending(null)}>Cancel</button></div></div>:null}
   {smartInfo?<div className="sheet-backdrop" onClick={()=>setSmartInfo(null)}><div className="sheet" onClick={e=>e.stopPropagation()}><div className="row between"><h3 style={{margin:0}}>{infoCopy(smartInfo,recommendation).title}</h3><button className="btn ghost mini" onClick={()=>setSmartInfo(null)}>Close</button></div><p className="si-info-copy">{infoCopy(smartInfo,recommendation).body}</p></div></div>:null}
  </section>;
 }
