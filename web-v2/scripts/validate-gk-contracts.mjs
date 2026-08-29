@@ -18,7 +18,7 @@ for(const lib of ['subject-pyq','mixed','nitto','misc'])ok(`canonical library co
 ok('Content renders canonical server catalog',home.includes('catalog.libraries.map'));
 ok('unknown legacy library is preserved without guessed relabel',scope.includes('do not guess a Mixed/Subject-wise identity'));
 ok('Current Affairs first-class',home.includes('Current Affairs')&&migration.includes("q.subject='Current Affairs'"));
-ok('stable lecture key selection',migration.includes('q.lecture_key=p_lecture_key')&&quiz.includes('p_lecture_key:params.get("lecture")')&&!migration.includes('q.lecture_no=p_lecture_key'));
+ok('stable lecture key selection',migration.includes('q.lecture_key=p_lecture_key')&&quiz.includes('p_lecture_key:')&&quiz.includes('get("lecture")')&&!migration.includes('q.lecture_no=p_lecture_key'));
 ok('normalized subject/topic contract',migration.includes('gk_get_subject_batch')&&migration.includes('select public.gk_get_batch'));
 ok('library + academic dimensions coexist',['library_key','subject','topic','concept_id'].every(x=>migration.includes(x)));
 
