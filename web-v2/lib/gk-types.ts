@@ -27,6 +27,10 @@ export type GkSubject={subject:string;total:number;main:number;rapidRecall:numbe
 export type GkCurrentCategory={category:string;count:number;minDate?:string;maxDate?:string};
 export type GkDemandSet={demandId:string;title:string;kind?:string;count:number;lastUsed?:string};
 export type GkCatalog={ok:boolean;libraries:GkLibrary[];lectures:GkLecture[];subjects:GkSubject[];currentAffairs:GkCurrentCategory[];demandSets:GkDemandSet[]};
+export type GkStarredGroup={label:string;ageFrom:number;ageTo:number;count:number;health:{persistentWeak:number;weakFragile:number;due:number;difficult:number;healthy:number}};
+export type GkStarredHub={ok:boolean;summary:{starred:number;focus:number;difficult:number;mastered:number;due:number;never_revised:number};groups:GkStarredGroup[]};
+export type GkDemandWeakTopic={concept_id:string;subject:string;topic:string;persistent_weak:number;weak:number;retention_accuracy:number};
+export type GkOnDemandHub={ok:boolean;stats:{weak:number;guessed:number;difficult:number;longUnseen:number};weakTopics:GkDemandWeakTopic[];myDemandSets:GkDemandSet[]};
 export type GkProgress={
  ok:boolean;overview:Record<string,number>;knowledgeHealth:Array<{state:string;count:number}>;
  subjectMastery:Array<{subject:string;total:number;exposed:number;weak:number;mastered:number;retentionAccuracy:number}>;
