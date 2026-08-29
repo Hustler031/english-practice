@@ -10,7 +10,7 @@ import { readPausedQuiz, type PausedQuizSession } from "@/lib/quiz-session";
 
 type Summary = { total_active:number; attempted:number; mastered:number; starred:number; difficult:number; daily_total:number; daily_completed:number };
 type PhrasalHub={today:{ready:boolean;count:number};stats:{due:number}};type BankHub={coverage:number;exposed:number;total:number};type SavedHub={stats:{saved:number;due:number}};
-const quick = [["📰", "The Hindu – Today", "Today's vocabulary", "/english/hindu", "hindu"], ["🔖", "My Saved Words", "Personal Smart Revision", "/english/saved", "saved"], ["↗", "Phrasal Verb", "Smart revision + Today's batch", "/english/phrasal", "phrasal"], ["★", "Starred Revision", "Central Starred Intelligence", "/english/starred", "starred"], ["◫", "Bank Coverage", "Optional unseen-bank exposure", "/english/bank", "bank"]] as const;
+const quick = [["📰", "The Hindu – Today", "Today's vocabulary", "/english/hindu?return=/english", "hindu"], ["🔖", "My Saved Words", "Personal Smart Revision", "/english/saved", "saved"], ["↗", "Phrasal Verb", "Smart revision + Today's batch", "/english/phrasal", "phrasal"], ["★", "Starred Revision", "Central Starred Intelligence", "/english/starred", "starred"], ["◫", "Bank Coverage", "Optional unseen-bank exposure", "/english/bank", "bank"]] as const;
 
 export default function EnglishHome() {
   const ready=useAuthGuard();const [data,setData]=useState<Summary|null>(null);const [phrasal,setPhrasal]=useState<PhrasalHub|null>(null);const [bank,setBank]=useState<BankHub|null>(null);const [saved,setSaved]=useState<SavedHub|null>(null);const [error,setError]=useState("");const [paused,setPaused]=useState<PausedQuizSession|null>(null);
