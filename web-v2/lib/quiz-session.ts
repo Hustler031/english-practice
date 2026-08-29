@@ -1,6 +1,6 @@
 "use client";
 
-export type PausedQuizAnswer = { selected:string; correct:boolean; correctCanonicalKey:string };
+export type PausedQuizAnswer = { selectedCanonicalKey:string; correct:boolean; correctCanonicalKey:string };
 export type PausedQuizSession = {
   title: string;
   backHref: string;
