@@ -6,6 +6,7 @@ import QuizRunner from "@/components/quiz-runner";
 import { rpc } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
 import { EnglishLoading } from "@/components/english-frame";
+import "./mywords-parity.css";
 
 type Saved={id:string;word:string;meaning:string;context:string;status:string;practiceQuestionId:string;gptStatus:string;captureType:string;resolvedType:string;created:string;partOfSpeech?:string;synonyms?:string;antonyms?:string;example?:string;explanation?:string;question?:string;optionA?:string;optionB?:string;optionC?:string;optionD?:string;correctOption?:string};
 type Stats={saved:number;eligible:number;controlledNew:number;neverRevised:number;due:number;weak:number;difficult:number;starred:number;mastered:number};
@@ -51,19 +52,24 @@ function ManageSaved({rows,error,editing,setEditing,onBack,onOpen,onType}:{rows:
  return <div className="saved-parity-page saved-manage-page">
   <section className="saved-subhead"><button className="btn ghost saved-back" onClick={onBack}>← Back</button><div><h1>My Words</h1><p>Every word you save appears here automatically.</p></div></section>
   {error&&<div className="error-box">{error}</div>}
-  <div className="mywords-list">{rows.map(item=><article className="myword-row" key={item.id} onClick={()=>onOpen(item)} role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")onOpen(item)}}><div className="myword-copy"><b>{item.word}</b><small>{/pending/i.test(item.gptStatus||"")?"Pending enrichment":"In Practice"} · {shortDate(item.created)}</small>{editing===item.id&&<div className="capture-types myword-types" onClick={e=>e.stopPropagation()}>{types.map(next=><button key={next} className={`capture-type ${item.captureType===next?"selected":""}`} onClick={()=>void onType(item.id,next)}>{next==="IP"?"I/P":next}</button>)}</div>}</div><button className="btn ghost myword-edit" onClick={e=>{e.stopPropagation();setEditing(editing===item.id?null:item.id)}}>Edit</button></article>)}</div>
+  <div className="mywords-final-list">{rows.map(item=><article className="mywords-final-row" key={item.id} onClick={()=>onOpen(item)} role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")onOpen(item)}}><div><b>{item.word}</b><div className="mywords-final-status">{/pending/i.test(item.gptStatus||"")?"Pending enrichment":"In Practice"} · {shortDate(item.created)}</div>{editing===item.id&&<div className="capture-types myword-types" onClick={e=>e.stopPropagation()}>{types.map(next=><button key={next} className={`capture-type ${item.captureType===next?"selected":""}`} onClick={()=>void onType(item.id,next)}>{next==="IP"?"I/P":next}</button>)}</div>}</div><button className="btn ghost mini" onClick={e=>{e.stopPropagation();setEditing(editing===item.id?null:item.id)}}>Edit</button></article>)}</div>
  </div>;
 }
 
 function SavedDetail({item,onBack}:{item:Saved;onBack:()=>void}){
- const options=[["A",item.optionA],["B",item.optionB],["C",item.optionC],["D",item.optionD]].filter(([,text])=>!!text);const correct=String(item.correctOption||"").trim().toUpperCase();
+ const options:[[string,string|undefined],[string,string|undefined],[string,string|undefined],[string,string|undefined]]=[["A",item.optionA],["B",item.optionB],["C",item.optionC],["D",item.optionD]];const correct=String(item.correctOption||"").trim().toUpperCase().replace(/[^A-D].*$/,"").charAt(0);
+ const block=(label:string,value?:string)=>!String(value||"").trim()?null:<div className="myword-detail-block"><small>{label}</small><div>{value}</div></div>;
  return <div className="saved-parity-page saved-detail-page">
-  <section className="saved-subhead saved-detail-head"><button className="btn ghost saved-back" onClick={onBack}>← My Words</button><div><h1>{item.word}</h1><p>GPT enrichment · view only</p></div></section>
-  <article className="saved-detail-card"><h2>{item.word}</h2><div className="saved-detail-type">{item.partOfSpeech||item.resolvedType||"Saved item"}</div>
-   {(item.meaning||item.context)&&<section><h3>Meaning</h3><p>{item.meaning||item.context}</p></section>}
-   {item.question&&<section><h3>Practice question</h3><h4>{item.question}</h4><div className="saved-detail-options">{options.map(([key,text])=><div key={key} className={`saved-detail-option ${correct===key?"correct":""}`}><b>{key}.</b> {text}</div>)}</div></section>}
-   {item.explanation&&<section><h3>Explanation</h3><p>{item.explanation}</p></section>}
-   {item.example&&<section><h3>Example</h3><p>{item.example}</p></section>}
+  <section className="saved-subhead mywords-detail-head"><button className="btn ghost saved-back" onClick={onBack}>← My Words</button><div><h1>{item.word}</h1><p>GPT enrichment · view only</p></div></section>
+  <article className="myword-detail-card">
+   <div><div className="myword-detail-word">{item.word}</div>{(item.partOfSpeech||item.resolvedType)&&<div className="myword-detail-type">{item.partOfSpeech||item.resolvedType}</div>}</div>
+   {block("Meaning",item.meaning||item.context)}
+   {item.question&&<div className="myword-detail-block"><small>Practice question</small><div className="myword-detail-question">{item.question}</div><div className="myword-detail-options">{options.map(([key,text])=>text?<div key={key} className={`myword-detail-option ${correct===key?"correct":""}`}><b>{key}.</b> {text}</div>:null)}</div></div>}
+   {block("Explanation",item.explanation)}
+   {block("Example",item.example)}
+   {block("Synonyms",item.synonyms)}
+   {block("Antonyms",item.antonyms)}
+   {block("Context",item.context)}
   </article>
  </div>;
 }
