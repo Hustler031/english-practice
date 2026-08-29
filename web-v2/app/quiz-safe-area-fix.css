@@ -1,0 +1,9 @@
+/* Keep the quiz utility row fully above Previous / Next on mobile.
+   The nav is taller than 68px once padding/borders/safe-area are included. */
+.quiz-tools{
+  bottom:calc(76px + env(safe-area-inset-bottom));
+}
+.quiz-with-tools,
+.quiz{
+  padding-bottom:calc(190px + env(safe-area-inset-bottom));
+}
