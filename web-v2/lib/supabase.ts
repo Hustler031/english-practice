@@ -29,7 +29,7 @@ function isLoopbackHost(hostname: string) {
   return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
 }
 function isReadOnlyRpc(name: string) {
-  return name === "english_dashboard_summary" || name === "english_resume_daily" || name.startsWith("english_get_") || name === "english_hindu_progress";
+  return name === "english_dashboard_summary" || name.startsWith("english_get_") || name === "english_hindu_progress";
 }
 export function localProductionSafetyMode() {
   if (!browserReady() || !isLoopbackHost(window.location.hostname)) return false;
@@ -37,6 +37,9 @@ export function localProductionSafetyMode() {
   if (!url) return false;
   try { return new URL(url).hostname.toLowerCase() === PRODUCTION_SUPABASE_HOST; }
   catch { return false; }
+}
+function localSafeReadRpc(name: string) {
+  return localProductionSafetyMode() && name === "english_resume_daily" ? "english_get_daily_current" : name;
 }
 function localMutationResult<T = unknown>(name: string, args?: RpcArgs): T {
   const input = args ?? {};
@@ -253,21 +256,22 @@ export function supabaseBrowser(): SupabaseClient {
 
 export async function rpc<T = unknown>(name: string, args?: RpcArgs): Promise<T> {
   wireReliability();
-  if (localProductionSafetyMode() && !isReadOnlyRpc(name)) return localMutationResult<T>(name, args);
+  const effectiveName = localSafeReadRpc(name);
+  if (localProductionSafetyMode() && !isReadOnlyRpc(effectiveName)) return localMutationResult<T>(name, args);
   if (name === "english_submit_answer" || name === "english_submit_hindu_answer") return queueAnswer<T>(name, args);
 
-  if (isCacheableRead(name)) {
-    const cached = readCache<T>(name, args);
+  if (isCacheableRead(effectiveName)) {
+    const cached = readCache<T>(effectiveName, args);
     if (cached !== undefined) {
-      void networkRpc<T>(name, args).then(fresh => { writeCache(name, args, fresh); publishFresh(name, args, fresh); }).catch(() => {});
+      void networkRpc<T>(effectiveName, args).then(fresh => { writeCache(effectiveName, args, fresh); publishFresh(effectiveName, args, fresh); }).catch(() => {});
       return cached;
     }
-    const fresh = await networkRpc<T>(name, args);
-    writeCache(name, args, fresh);
+    const fresh = await networkRpc<T>(effectiveName, args);
+    writeCache(effectiveName, args, fresh);
     return fresh;
   }
 
-  const result = await networkRpc<T>(name, args);
+  const result = await networkRpc<T>(effectiveName, args);
   if (/^english_(set_|save_|add_|promote_|update_|start_|reconcile_)/.test(name)) scheduleCacheRefresh();
   return result;
 }
@@ -288,9 +292,10 @@ export async function prefetchEnglishCore() {
   if (!browserReady()) return;
   const { data } = await supabaseBrowser().auth.getSession();
   if (!data.session) return;
+  const dailyRead = localSafeReadRpc("english_resume_daily");
   const reads: Array<[string, RpcArgs | undefined]> = [
     ["english_get_home_snapshot", undefined],
-    ["english_resume_daily", undefined],
+    [dailyRead, undefined],
     ["english_get_revision_hub", undefined],
     ["english_get_new_practice_hub", undefined],
     ["english_get_topic_hub", undefined],

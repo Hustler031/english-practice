@@ -14,6 +14,7 @@ import "./navigation-home-fixes.css";
 import "./quiz-mobile-dock-meta-fix.css";
 import "./quiz-context-polish.css";
 import "./module-hierarchy-polish.css";
+import "./predeploy-polish.css";
 
 export const metadata: Metadata = {
   title: "English Mastery",
