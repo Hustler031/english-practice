@@ -3,6 +3,8 @@ import "./globals.css";
 import "./parity.css";
 import "./phrasal-parity.css";
 import "./starred-parity.css";
+import "./remaining-parity.css";
+import "./hindu-parity.css";
 
 export const metadata: Metadata = {
   title: "Revision Platform",

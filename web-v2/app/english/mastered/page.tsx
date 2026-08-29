@@ -1,0 +1,8 @@
+"use client";
+import Link from "next/link";
+import { useEffect,useState } from "react";
+import { EnglishLoading } from "@/components/english-frame";
+import { rpc } from "@/lib/supabase";
+import { useAuthGuard } from "@/lib/use-auth";
+type Row={id:string;question_id:string;word?:string;question?:string;status?:string;topic?:string;source?:string};
+export default function MasteredPage(){const ready=useAuthGuard();const[rows,setRows]=useState<Row[]>([]);const[error,setError]=useState("");async function refresh(){setRows(await rpc<Row[]>("english_get_mastered_items"))}useEffect(()=>{if(ready)refresh().catch((e:any)=>setError(e.message))},[ready]);async function restore(id:string){try{await rpc("english_set_mastered",{p_question_id:id,p_mastered:false,p_require_proven:false});setRows(x=>x.filter(r=>(r.question_id||r.id)!==id))}catch(e:any){setError(e.message)}}if(!ready)return <EnglishLoading text="Checking session…"/>;return <div className="legacy-subpage"><div className="legacy-subhead"><Link className="btn ghost legacy-back" href="/english/revision">← Back</Link><div><h1>Mastered</h1><p>Restore anything you marked by mistake.</p></div></div>{error&&<div className="error-box">{error}</div>}<div className="legacy-list">{rows.length?rows.map(r=>{const id=r.question_id||r.id;return <article className="mastered-row" key={id}><div><b>{r.word||r.question||id}</b>{r.word&&r.question?<div className="legacy-muted">{r.question}</div>:null}<small>{r.status||"Mastered"}{r.topic?` · ${r.topic}`:""}</small></div><button className="btn ghost mini" onClick={()=>void restore(id)}>Restore</button></article>}):<div className="empty-copy">No mastered questions.</div>}</div></div>}
