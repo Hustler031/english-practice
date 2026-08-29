@@ -5,7 +5,7 @@ import { rpc } from "@/lib/supabase";
 
 const types = ["AUTO", "V", "SM", "OWS", "PV", "IP"];
 
-export default function AddWordSheet({ questionId = "", initialWord = "", source = "Manual capture", label = "＋ Add Word" }: { questionId?: string; initialWord?: string; source?: string; label?: string }) {
+export default function AddWordSheet({ questionId = "", initialWord = "", questionText = "", source = "Manual capture", label = "＋ Add Word" }: { questionId?: string; initialWord?: string; questionText?: string; source?: string; label?: string }) {
   const [open, setOpen] = useState(false);
   const [word, setWord] = useState(initialWord);
   const [type, setType] = useState("AUTO");
@@ -19,9 +19,10 @@ export default function AddWordSheet({ questionId = "", initialWord = "", source
     if (!word.trim()) return;
     setBusy(true); setMessage("");
     try {
-      // Quiz context is deliberately attached through the origin Question_ID.  A second
-      // visible context field made the in-quiz capture flow needlessly repetitive.
-      await rpc("english_save_word", { p_word: word.trim(), p_context: "", p_question_id: questionId, p_capture_type: type, p_module: "web-v2", p_source: source });
+      // Keep one visible capture box. When launched from a quiz, preserve the
+      // encounter automatically through both the originating Question_ID and
+      // its question text, matching the Apps Script capture behaviour.
+      await rpc("english_save_word", { p_word: word.trim(), p_context: questionText.trim(), p_question_id: questionId, p_capture_type: type, p_module: "web-v2", p_source: source });
       setMessage("Saved");
       setTimeout(() => setOpen(false), 350);
     } catch (error: any) { setMessage(error.message || "Could not save"); }
