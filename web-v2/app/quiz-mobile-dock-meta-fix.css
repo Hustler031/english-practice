@@ -1,68 +1,18 @@
-/* Mobile quiz dock + metadata placement hotfix.
-   Keep Category + Question ID visible on the left; learning state sits beside the info icon.
-   Raise the utility dock by the full nav + Android safe-area height so neither row is pushed/clipped. */
+/* Final mobile quiz dock + metadata + theme compatibility.
+   Category and Question ID stay on the left; learning state stays beside info.
+   All fixed docks and archive surfaces derive from theme tokens so light/dark remain coherent. */
 
-.quiz-meta{
-  flex-wrap:nowrap!important;
-  min-width:0;
-}
-.quiz-meta>.pill:nth-child(2){
-  display:inline-flex!important;
-  min-width:0;
-  max-width:42vw;
-  overflow:hidden;
-  text-overflow:ellipsis;
-}
-.quiz-meta>.pill:not(.learning-chip){order:1}
-.quiz-meta .learning-chip{
-  order:2;
-  margin-left:auto!important;
-  flex:0 0 auto;
-}
-.quiz-meta .intel-button{
-  order:3;
-  margin-left:0!important;
-  flex:0 0 auto;
-}
+.quiz-meta{flex-wrap:nowrap!important;min-width:0}.quiz-meta>.pill:nth-child(2){display:inline-flex!important;min-width:0;max-width:42vw;overflow:hidden;text-overflow:ellipsis}.quiz-meta>.pill:not(.learning-chip){order:1}.quiz-meta .learning-chip{order:2;margin-left:auto!important;flex:0 0 auto}.quiz-meta .intel-button{order:3;margin-left:0!important;flex:0 0 auto}
 
-/* Hindu payloads treat a missing learning-state as New (same rule as its info sheet). */
-main:has(.hindu-quiz-tools) .quiz-meta:not(:has(.learning-chip))::before{
-  content:"New";
-  order:2;
-  margin-left:auto;
-  display:inline-flex;
-  align-items:center;
-  white-space:nowrap;
-  padding:3px 7px;
-  border:1px solid #4b6090;
-  border-radius:999px;
-  background:#18233a;
-  color:#a9c4ff;
-  font-size:10px;
-  font-weight:850;
-  line-height:1.1;
-}
-main:has(.hindu-quiz-tools) .quiz-meta:not(:has(.learning-chip)) .intel-button{margin-left:0!important}
+main:has(.hindu-quiz-tools) .quiz-meta:not(:has(.learning-chip))::before{content:"New";order:2;margin-left:auto;display:inline-flex;align-items:center;white-space:nowrap;padding:3px 7px;border:1px solid color-mix(in srgb,var(--primary) 42%,var(--line));border-radius:999px;background:color-mix(in srgb,var(--primary) 10%,var(--card));color:color-mix(in srgb,var(--primary) 82%,var(--text));font-size:10px;font-weight:850;line-height:1.1}main:has(.hindu-quiz-tools) .quiz-meta:not(:has(.learning-chip)) .intel-button{margin-left:0!important}
 
-/* The nav is ~76px plus the device bottom inset. Keep the utility row fully above it. */
-.quiz-nav{
-  bottom:0!important;
-}
-.quiz-tools{
-  bottom:calc(76px + env(safe-area-inset-bottom))!important;
-}
-.quiz-with-tools,
-.quiz{
-  padding-bottom:calc(196px + env(safe-area-inset-bottom))!important;
-}
-.hindu-quiz-tools{
-  grid-template-columns:repeat(5,minmax(0,1fr))!important;
-}
+/* Treat the bottom nav as a measured fixed dock. The utility row starts above the
+   complete nav surface; no dark browser-safe-area assumption is baked in. */
+.quiz-nav{bottom:0!important;min-height:72px!important;padding-bottom:max(10px,calc(8px + env(safe-area-inset-bottom)))!important;background:color-mix(in srgb,var(--card) 97%,transparent)!important;border-color:var(--line)!important;color:var(--text)!important}.quiz-tools{bottom:calc(72px + env(safe-area-inset-bottom))!important;background:color-mix(in srgb,var(--card) 97%,transparent)!important;border-color:var(--line)!important;color:var(--text)!important}.quiz-with-tools,.quiz{padding-bottom:calc(202px + env(safe-area-inset-bottom))!important}.hindu-quiz-tools{grid-template-columns:repeat(5,minmax(0,1fr))!important}
+.quiz-nav .btn,.quiz-tools .btn,.quiz-tools button{color:var(--text)!important}.quiz-tools .btn.warn{color:var(--warn)!important}.quiz-tools .btn.good{color:var(--ok)!important}.quiz-tools .btn.danger{color:var(--bad)!important}.quiz-nav .btn.primary{background:var(--primary)!important;color:#fff!important;border-color:var(--primary)!important}.quiz-nav .btn:disabled,.quiz-tools .btn:disabled,.quiz-tools button:disabled{opacity:.45!important}
 
-@media(max-width:420px){
-  .quiz-meta{gap:5px!important}
-  .quiz-meta>.pill:nth-child(2){max-width:36vw;font-size:9px!important;padding-left:6px!important;padding-right:6px!important}
-  .quiz-tools{padding:6px 5px!important;gap:3px!important}
-  .quiz-tools .btn,.quiz-tools button{min-height:48px!important}
-  .hindu-quiz-tools .btn,.hindu-quiz-tools button{font-size:9px!important;line-height:1.05!important}
-}
+/* Remove the remaining hard-coded dark islands that made light mode look half dark. */
+.source-group-note,.practice-more-chips span,.revision-metrics span,.intel-grid span,.sheet-close,.capture-type,.bc-chip{background:var(--card-2)!important;border-color:var(--line)!important;color:var(--muted)!important}.legacy-back{background:var(--card)!important;border-color:var(--line)!important;color:var(--text)!important}.legacy-card,.legacy-row,.legacy-sheet,.legacy-browse-item,.option{background:var(--card)!important;color:var(--text)!important}.legacy-actions .btn{background:var(--card-2)!important;color:var(--text)!important}.legacy-actions .btn:disabled{color:var(--muted)!important}.add-word-backdrop,.sheet-backdrop,.pause-backdrop{color:var(--text)}
+:root[data-theme="light"] .add-word-backdrop,:root[data-theme="light"] .sheet-backdrop,:root[data-theme="light"] .pause-backdrop{background:rgba(24,34,48,.32)!important}:root[data-theme="light"] .english-header{background:color-mix(in srgb,var(--bg) 96%,transparent)!important}:root[data-theme="light"] body,:root[data-theme="light"] .english-app{background:var(--bg)!important;color:var(--text)!important}
+
+@media(max-width:420px){.quiz-meta{gap:5px!important}.quiz-meta>.pill:nth-child(2){max-width:36vw;font-size:9px!important;padding-left:6px!important;padding-right:6px!important}.quiz-tools{padding:6px 5px!important;gap:3px!important}.quiz-tools .btn,.quiz-tools button{min-height:48px!important}.hindu-quiz-tools .btn,.hindu-quiz-tools button{font-size:9px!important;line-height:1.05!important}.quiz-nav{min-height:76px!important}.quiz-tools{bottom:calc(76px + env(safe-area-inset-bottom))!important}.quiz-with-tools,.quiz{padding-bottom:calc(206px + env(safe-area-inset-bottom))!important}}
