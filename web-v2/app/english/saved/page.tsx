@@ -19,7 +19,16 @@ function shortDate(value:string){const d=new Date(value);return Number.isNaN(d.g
 function savedStatus(item:Saved){if(String(item.practiceQuestionId||"").trim())return "In Practice";const g=String(item.gptStatus||"").trim().toLowerCase();if(g==="ready")return "Ready";if(/review|error|fail|invalid/.test(g))return "Needs Review";return "Pending";}
 
 export default function SavedPage(){
- const ready=useAuthGuard(),router=useRouter();const [hub,setHub]=useState<Hub|null>(null);const [pick,setPick]=useState<Pick|null>(null);const [pendingMode,setPendingMode]=useState<string|null>(null);const [manage,setManage]=useState(false);const [rows,setRows]=useState<Saved[]>([]);const [detail,setDetail]=useState<Saved|null>(null);const [editing,setEditing]=useState<string|null>(null);const [error,setError]=useState("");
+ const ready=useAuthGuard(),router=useRouter();
+ const [hub,setHub]=useState<Hub|null>(null);
+ const [pick,setPick]=useState<Pick|null>(null);
+ const [pendingMode,setPendingMode]=useState<string|null>(null);
+ const [manage,setManage]=useState(false);
+ const [rows,setRows]=useState<Saved[]>([]);
+ const [detail,setDetail]=useState<Saved|null>(null);
+ const [editing,setEditing]=useState<string|null>(null);
+ const [error,setError]=useState("");
+
  async function refreshHub(){setHub(await rpc<Hub>("english_get_saved_revision_hub"));}
  async function refreshRows(){setRows(await rpc<Saved[]>("english_get_saved_items"));}
  useEffect(()=>{if(!ready)return;const offHub=subscribeRpcFresh<Hub>("english_get_saved_revision_hub",undefined,setHub);const offRows=subscribeRpcFresh<Saved[]>("english_get_saved_items",undefined,setRows);refreshHub().catch((e:any)=>setError(e.message));return()=>{offHub();offRows();};},[ready]);
@@ -27,22 +36,33 @@ export default function SavedPage(){
  async function openManage(){setManage(true);setDetail(null);if(!rows.length)try{await refreshRows();}catch(e:any){setError(e.message);}}
  async function changeType(id:string,next:string){setRows(a=>a.map(x=>x.id===id?{...x,captureType:next}:x));try{await rpc("english_set_saved_item_type",{p_saved_id:id,p_capture_type:next});await refreshRows();}catch(e:any){setError(e.message);await refreshRows();}}
  const history=useMemo(()=>[...(hub?.history||[])].map(h=>({...h,day:Number(h.day||0)})).filter(h=>h.date&&h.day).sort((a,b)=>b.day-a.day),[hub]);
- const currentDay=Math.max(1,Number(hub?.currentDay||1)),blockStart=Math.floor((currentDay-1)/10)*10+1;
- const currentRows=history.filter(h=>h.day>=blockStart&&h.day<=blockStart+9),older=history.filter(h=>h.day<blockStart),olderBlocks=Array.from(new Set(older.map(h=>Math.floor((h.day-1)/10)*10+1))).sort((a,b)=>b-a);
+
  if(!ready)return <EnglishLoading text="Checking session…"/>;
  if(pick)return <QuizRunner title={pick.label} backHref="/english/saved" load={load} module="mySavedRevision" onExit={()=>setPick(null)}/>;
  if(detail)return <SavedDetail item={detail} onBack={()=>setDetail(null)}/>;
  if(manage)return <ManageSaved rows={rows} error={error} editing={editing} setEditing={setEditing} onBack={()=>{setManage(false);setEditing(null)}} onOpen={setDetail} onType={changeType}/>;
+
  const s=hub?.stats,a=hub?.available,sizeChoices=hub?.sizes?.length?hub.sizes:[10,20,30,50];
  const runMode=(mode:string,count:number)=>setPick({mode,label:`My Saved · ${modes.find(x=>x[2]===mode)?.[1]||mode}`,count});
- const historyCard=(h:History&{day:number})=><div className="sms-history" key={h.date}><div className="sms-history-head"><div><b>Day {h.day}</b><div>{h.saved} saved · {h.eligible} active · {h.weak} weak · {h.mastered} mastered</div></div><span>›</span></div><div className="sms-history-actions"><button className="btn ghost mini" onClick={()=>h.date&&setPick({mode:"all",date:h.date,label:`My Saved · Day ${h.day}`,count:100})}>View</button><button className="btn soft mini" disabled={!h.eligible} onClick={()=>h.date&&setPick({mode:"all",date:h.date,label:`My Saved · Day ${h.day}`,count:100})}>Practice</button><button className="btn soft mini" disabled={!h.weak} onClick={()=>h.date&&setPick({mode:"weak",date:h.date,label:`My Saved · Day ${h.day} · Weak`,count:20})}>Weak</button></div></div>;
- return <div className="saved-parity-page">
-  <section className="saved-subhead"><button className="btn ghost saved-back" onClick={()=>router.push("/english/revision")}>← Back</button><div><h1>My Saved Words</h1><p>Personal revision powered by your central learning history.</p></div></section>
-  <div className="saved-manage-line"><button className="btn ghost mini" onClick={()=>void openManage()}>Manage Saved Words</button></div>
+ const smartAvailable=Number(a?.smart||0),smartCount=Math.max(1,Math.min(20,smartAvailable||20));
+ const latestHistory=history[0],olderHistory=history.slice(1);
+ const historyActions=(h:History&{day:number})=><div className="sms-history-actions"><button className="btn ghost mini" onClick={()=>h.date&&setPick({mode:"all",date:h.date,label:`My Saved · Day ${h.day}`,count:100})}>View</button><button className="btn soft mini" disabled={!h.eligible} onClick={()=>h.date&&setPick({mode:"all",date:h.date,label:`My Saved · Day ${h.day}`,count:100})}>Practice</button><button className="btn soft mini focus-weak" disabled={!h.weak} onClick={()=>h.date&&setPick({mode:"weak",date:h.date,label:`My Saved · Day ${h.day} · Weak`,count:20})}>Weak</button></div>;
+
+ return <div className="saved-parity-page saved-priority-page">
+  <section className="saved-subhead saved-subhead-actions"><button className="btn ghost saved-back" onClick={()=>router.push("/english/revision")}>← Back</button><div><h1>My Saved Words</h1><p>Personal revision powered by your central learning history.</p></div><button className="btn ghost mini saved-manage-button" onClick={()=>void openManage()}>Manage</button></section>
   {error&&<div className="error-box">{error}</div>}
-  <section className="sms-card"><div className="sms-card-head"><div><b>🧠 Smart Revision</b><p>Central intelligence + stronger coverage rotation for words you personally saved.</p></div><span className="pill">{s?.eligible??0} active</span></div><div className="sms-metrics"><div><b>{s?.saved??0}</b><small>Saved</small></div><div><b>{s?.neverRevised??0}</b><small>Never Revised</small></div><div><b>{s?.due??0}</b><small>Due</small></div><div><b>{s?.mastered??0}</b><small>Mastered</small></div></div><div className="sms-actions">{modes.map(([icon,label,mode])=>{const n=Number(a?.[mode as keyof typeof a]||0);return <button key={mode} className="btn soft mini" disabled={!n} onClick={()=>mode==="all"?runMode("all",100):setPendingMode(mode)}>{icon}<br/>{label}{n?` (${n})`:""}</button>})}</div><div className="sms-cache-note">Cached first · refreshes silently in background</div></section>
+
+  <section className="sms-card saved-smart-card">
+   <div className="saved-smart-main"><div><span className="saved-smart-kicker">Smart Revision</span><div className="saved-due-number"><strong>{s?.due??"—"}</strong><span>Due now</span></div></div><button className="btn primary saved-smart-cta" disabled={!smartAvailable} onClick={()=>runMode("smart",smartCount)}>Start Smart Revision</button></div>
+   <div className="saved-stat-strip"><span><b>{s?.saved??0}</b> Saved</span><span><b>{s?.controlledNew??0}</b> New</span><span className="is-due"><b>{s?.due??0}</b> Due</span><span><b>{s?.mastered??0}</b> Mastered</span></div>
+   <div className="saved-lane-label">Focus lanes</div>
+   <div className="saved-focus-lanes"><button className="btn soft mini focus-weak" disabled={!a?.weak} onClick={()=>setPendingMode("weak")}>Weak <b>{a?.weak||0}</b></button><button className="btn soft mini focus-difficult" disabled={!a?.difficult} onClick={()=>setPendingMode("difficult")}>Difficult <b>{a?.difficult||0}</b></button><button className="btn soft mini focus-starred" disabled={!a?.starred} onClick={()=>setPendingMode("starred")}>Starred <b>{a?.starred||0}</b></button></div>
+   <div className="saved-browse-actions"><span>Browse</span><button className="btn ghost mini" disabled={!a?.random} onClick={()=>setPendingMode("random")}>Random</button><button className="btn ghost mini" disabled={!a?.all} onClick={()=>runMode("all",100)}>Practice All</button></div>
+  </section>
+
   <h2 className="saved-history-title">Saved History</h2>
-  <div className="saved-history-list">{currentRows.map(historyCard)}{olderBlocks.map(start=>{const block=older.filter(h=>h.day>=start&&h.day<=start+9);return <details className="sms-history-fold" key={start}><summary>Days {start}–{start+9}<span>›</span></summary><div>{block.map(historyCard)}</div></details>})}{!history.length&&<div className="empty-copy">No enriched saved words are in practice yet.</div>}</div>
+  <div className="saved-history-list">{latestHistory?<article className="sms-history sms-history-latest"><div className="sms-history-head"><div><b>Day {latestHistory.day}</b><div>{latestHistory.saved} saved · {latestHistory.eligible} active · {latestHistory.weak} weak · {latestHistory.mastered} mastered</div></div><span>Latest</span></div>{historyActions(latestHistory)}</article>:<div className="empty-copy">No enriched saved words are in practice yet.</div>}{olderHistory.map(h=><details className="sms-history-day-fold" key={h.date||h.day}><summary><span><b>Day {h.day}</b><small>{h.saved} saved · {h.eligible} active · {h.weak} weak</small></span><i>›</i></summary><div>{historyActions(h)}</div></details>)}</div>
+
   {pendingMode&&<div className="sheet-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setPendingMode(null)}}><section className="add-word-sheet"><div className="sheet-heading"><div><strong>{pendingMode==="smart"?"Smart Revision":`${pendingMode[0].toUpperCase()+pendingMode.slice(1)} · choose questions`}</strong></div></div><div className="saved-count-buttons">{sizeChoices.map(n=><button className="btn soft" key={n} onClick={()=>{runMode(pendingMode,n);setPendingMode(null)}}>{n}</button>)}</div><button className="btn ghost full-width" onClick={()=>setPendingMode(null)}>Cancel</button></section></div>}
  </div>;
 }

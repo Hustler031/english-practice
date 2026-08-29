@@ -2,7 +2,7 @@
   "name": "English Mastery",
   "short_name": "English",
   "id": "/english",
-  "start_url": "/english",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],

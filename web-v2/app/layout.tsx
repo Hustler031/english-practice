@@ -10,6 +10,11 @@ import "./mobile-parity-fixes.css";
 import "./final-polish.css";
 import "./quiz-safe-area-fix.css";
 import "./final-batch.css";
+import "./navigation-home-fixes.css";
+import "./quiz-mobile-dock-meta-fix.css";
+import "./quiz-context-polish.css";
+import "./module-hierarchy-polish.css";
+import "./predeploy-polish.css";
 
 export const metadata: Metadata = {
   title: "English Mastery",
