@@ -4,38 +4,43 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "./supabase";
 
-let authReady = false;
+let authReady: boolean | null = null;
 let authCheck: Promise<boolean> | null = null;
 
 function ensureSession() {
-  if (authReady) return Promise.resolve(true);
+  if (authReady === true) return Promise.resolve(true);
   if (authCheck) return authCheck;
-  authCheck = supabaseBrowser().auth.getSession().then(({ data }) => {
+  authCheck = supabaseBrowser().auth.getSession().then(({ data, error }) => {
+    if (error) throw error;
     authReady = !!data.session;
     return authReady;
+  }).catch(() => {
+    authReady = false;
+    return false;
   }).finally(() => { authCheck = null; });
   return authCheck;
 }
 
 export function useAuthGuard() {
   const router = useRouter();
-  const [ready, setReady] = useState(authReady);
+  const [ready, setReady] = useState(authReady === true);
 
   useEffect(() => {
     const supabase = supabaseBrowser();
     let active = true;
-    if (!authReady) ensureSession().then(ok => {
+
+    void ensureSession().then(ok => {
       if (!active) return;
+      setReady(ok);
       if (!ok) router.replace("/login");
-      else setReady(true);
     });
-    else setReady(true);
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (!active) return;
-      if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") && session) {
+      if (session && (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION" || event === "USER_UPDATED")) {
         authReady = true;
         setReady(true);
+        return;
       }
       if (event === "SIGNED_OUT") {
         authReady = false;
