@@ -18,7 +18,7 @@ export default function BankCoveragePage(){
   useEffect(()=>{if(ready)rpc<Hub>("english_get_bank_coverage_hub").then(setHub).catch((e:any)=>setError(e.message));},[ready]);
   const load=useCallback(()=>pick?rpc<any[]>("english_get_bank_coverage_batch",{p_category:pick.id,p_count:10}):Promise.resolve([]),[pick]);
   if(!ready)return <EnglishLoading text="Checking session…"/>;
-  if(pick)return <QuizRunner title={`Bank Coverage · ${pick.name}`} backHref="/english/bank" load={load} module="bankCoverage" emptyText="No genuinely unseen questions remain in this category."/>;
+  if(pick)return <QuizRunner title={`Bank Coverage · ${pick.name}`} backHref="/english/bank" load={load} module="bankCoverage" emptyText="No genuinely unseen questions remain in this category." onExit={()=>setPick(null)}/>;
   return <>
     <section className="page-intro"><h1>Bank Coverage</h1><p>Optional first-pass exposure. Up to 10 genuinely unseen questions per category.</p></section>
     {error&&<div className="error-box">{error}</div>}
