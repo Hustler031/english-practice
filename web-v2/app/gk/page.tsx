@@ -7,12 +7,11 @@ import { useAuthGuard } from "@/lib/use-auth";
 import { readGkPaused, type GkPausedSession } from "@/lib/gk-session";
 import styles from "./gk.module.css";
 
-type Summary={total:number;eligibleTotal:number;exposed:number;coverage:number;starred:number;difficult:number;guessed:number;flagged:number;weak:number;due:number;retentionAccuracy:number;main:number;rapidRecall:number;eligibleMain:number;eligibleRapidRecall:number};
+type Summary={total:number;eligibleTotal:number;exposed:number;eligibleExposed:number;coverage:number;starred:number;difficult:number;guessed:number;flagged:number;weak:number;due:number;retentionAccuracy:number;main:number;rapidRecall:number;eligibleMain:number;eligibleRapidRecall:number};
 type Snapshot={ok:boolean;summary:Summary;recommended?:{mode:string;count:number;reason:string}};
 type Lecture={lectureKey:string;lectureNo?:string|number;contentType?:string;title?:string;date?:string;sourceFile?:string;status?:string;total:number;main:number;rapidRecall:number;attempted:number;weak:number};
 type Topic={topic:string;total:number;main:number;rapidRecall:number;attempted:number;weak:number};
 type SubjectHub={subject:string;total:number;main:number;rapidRecall:number;attempted:number;weak:number;topics:Topic[]};
-type Lane="MAIN"|"RAPID";
 type QuizParams=Record<string,string|number|undefined>;
 
 const quiz=(params:QuizParams)=>{const q=new URLSearchParams();Object.entries(params).forEach(([k,v])=>{if(v!==undefined&&v!=="")q.set(k,String(v));});return `/gk/quiz?${q.toString()}`;};
@@ -24,7 +23,7 @@ export default function GkHome(){
  useEffect(()=>{if(!ready)return;let alive=true;const accept=(x:Snapshot)=>{if(alive&&x?.ok!==false){setSnapshot(x);setError(false);}};const off=subscribeGkFresh<Snapshot>("gk_get_home_snapshot",undefined,accept);gkRpc<Snapshot>("gk_get_home_snapshot").then(accept).catch(()=>alive&&setError(true));setPaused(readGkPaused());return()=>{alive=false;off();};},[ready]);
  useEffect(()=>{if(!ready||!showContent||lectures.length)return;gkRpc<Lecture[]>("gk_get_content_hub").then(x=>setLectures(Array.isArray(x)?x:[])).catch(()=>setError(true));},[ready,showContent,lectures.length]);
  useEffect(()=>{if(!ready||!showSubjects||subjects.length)return;gkRpc<SubjectHub[]>("gk_get_subject_hub").then(x=>setSubjects(Array.isArray(x)?x:[])).catch(()=>setError(true));},[ready,showSubjects,subjects.length]);
- const s=snapshot?.summary,unseen=Math.max(0,(s?.eligibleTotal??0)-(s?.exposed??0)),rec=snapshot?.recommended,topLectures=useMemo(()=>lectures.slice(0,12),[lectures]),topSubjects=useMemo(()=>subjects.slice(0,12),[subjects]);
+ const s=snapshot?.summary,unseen=Math.max(0,(s?.eligibleTotal??0)-(s?.eligibleExposed??0)),rec=snapshot?.recommended,topLectures=useMemo(()=>lectures.slice(0,12),[lectures]),topSubjects=useMemo(()=>subjects.slice(0,12),[subjects]);
  if(!ready)return <main className={styles.shell}><div className="loading-copy">Checking session…</div></main>;
  return <main className={styles.shell}>
   <div className={styles.top}><div><Link href="/" className={styles.back}>‹ Revision</Link><div className={styles.title}><strong>GK</strong><span>General Knowledge revision</span></div></div></div>
@@ -44,7 +43,7 @@ export default function GkHome(){
    <QuickRow icon="◆" title="Difficult" sub="Your personal Difficult marks" count={s?.difficult??0} mode="difficult"/>
    <QuickRow icon="🔥" title="Weak Knowledge" sub="Persistent Weak · Weak · Fragile" count={s?.weak??0} mode="weak"/>
    <QuickRow icon="★" title="Starred Revision" sub="Questions you deliberately saved" count={s?.starred??0} mode="starred"/>
-   <QuickRow icon="◌" title="Recall Check" sub="Seen-before knowledge for reinforcement" count={s?.exposed??0} mode="recall"/>
+   <QuickRow icon="◌" title="Recall Check" sub="Seen-before knowledge for reinforcement" count={s?.eligibleExposed??0} mode="recall"/>
    <QuickRow icon="?" title="Guessed" sub="Unconfirmed guessed knowledge" count={s?.guessed??0} mode="guessed"/>
   </div></section>
 
@@ -56,6 +55,6 @@ export default function GkHome(){
   {showSubjects&&<div className={styles.subjectList} style={{marginTop:9}}>{topSubjects.length?topSubjects.map(x=><details key={x.subject} className={styles.subjectCard}><summary><span><b>{x.subject}</b><small>{x.topics?.length||0} topics · {x.attempted} attempted · {x.weak} weak</small></span><span className={styles.count}>{x.total} ▾</span></summary><div className={styles.subjectLanes}><span>Whole subject</span><LaneButtons base={{source:'subject',subject:x.subject,title:x.subject}} main={x.main} rapid={x.rapidRecall}/></div><div className={styles.topicList}>{(x.topics||[]).map(t=><div className={styles.topicRow} key={`${x.subject}:${t.topic}`}><span><b>{t.topic}</b><small>{t.attempted} attempted · {t.weak} weak</small></span><LaneButtons base={{source:'subject',subject:x.subject,topic:t.topic,title:`${x.subject} · ${t.topic}`}} main={t.main} rapid={t.rapidRecall}/></div>)}</div></details>):<div className={styles.notice}>Loading subject/topic hierarchy…</div>}</div>}
   </section>
 
-  <section className={styles.section}><div className={styles.sectionHead}><h2>Knowledge snapshot</h2><span>Migrated personal history</span></div><div className={styles.overview}><div className={styles.pill}><b>{s?.exposed??'—'}</b><span>Attempted</span></div><div className={styles.pill}><b>{s?.starred??'—'}</b><span>Starred</span></div><div className={styles.pill}><b>{s?.difficult??'—'}</b><span>Difficult</span></div><div className={styles.pill}><b>{s?.guessed??'—'}</b><span>Guessed</span></div></div></section>
+  <section className={styles.section}><div className={styles.sectionHead}><h2>Knowledge snapshot</h2><span>Migrated personal history</span></div><div className={styles.overview}><div className={styles.pill}><b>{s?.eligibleExposed??'—'}</b><span>Active seen</span></div><div className={styles.pill}><b>{s?.starred??'—'}</b><span>Starred</span></div><div className={styles.pill}><b>{s?.difficult??'—'}</b><span>Difficult</span></div><div className={styles.pill}><b>{s?.guessed??'—'}</b><span>Guessed</span></div></div></section>
  </main>;
 }
