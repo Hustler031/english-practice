@@ -1,1 +1,4 @@
-{}
+{
+  "/gk/quiz/page": "app/gk/quiz/page.js",
+  "/gk/page": "app/gk/page.js"
+}
