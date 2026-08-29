@@ -30,8 +30,6 @@ export default function QuizRunner({ title, backHref, load, module="practice", e
   async function answerCanonical(canonicalKey:string){
     if(!q||answer||busy)return;
     const localCorrectKey=String(q.correctKey||"").toUpperCase();
-    // Apps Script paints the answer before its async save completes. Keep that
-    // tactile behaviour here; the server result can correct the canonical key.
     setAnswers(a=>({...a,[q.id]:{selectedCanonicalKey:canonicalKey,correct:canonicalKey===localCorrectKey,correctCanonicalKey:localCorrectKey}}));
     setBusy(true);setError("");
     try{const out=await rpc<any>("english_submit_answer",{p_question_id:q.id,p_selected_key:canonicalKey,p_time_seconds:Math.min(180,(Date.now()-started.current)/1000),p_marked_revision:!!q.starred,p_attempt_id:`v2-${q.id}-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,p_module:module});const correctKey=String(out.correct_key||localCorrectKey).toUpperCase();setAnswers(a=>({...a,[q.id]:{selectedCanonicalKey:canonicalKey,correct:!!out.is_correct,correctCanonicalKey:correctKey}}));}
@@ -76,6 +74,19 @@ function displayAwareText(text:string,options:DisplayOption[]){
   .replace(/(^|[\s—–;,])([A-D])(?=\s*:)/g,(_all,prefix,key)=>`${prefix}${map.get(String(key).toUpperCase())||key}`);
  return mapped.replace(/\.\s+\./g,".");
 }
-function Explanation({q,options}:{q:Question;options:DisplayOption[]}){const sections:Array<[string,string|undefined,string?]>=[["Explanation",q.explanation],["Example",q.example],["Usage",q.usageNote],["Tip",q.tip,"tip"],["Remember",q.memoryAid],["Related",q.related]];return <div className="explanation">{sections.filter(([,text])=>text).map(([heading,text,kind])=><div className={kind?"tipbox":""} key={heading}><h3>{heading}</h3><p><Emphasised text={displayAwareText(text||"",options)} q={q}/></p></div>)}</div>}
+
+function explanationParts(text:string){
+  const clean=String(text||"").replace(/\s+/g," ").trim();
+  if(!clean)return [];
+  const labels=/\b(Correct answer|Meaning|Why correct|Why it is correct|Distractors|Why others are wrong|Example|Exam trap|Memory|Remember|Usage|Tip)\s*:\s*/gi;
+  const matches=[...clean.matchAll(labels)];
+  if(!matches.length)return [{label:"",text:clean}];
+  const out:{label:string;text:string}[]=[];
+  if((matches[0].index||0)>0){const lead=clean.slice(0,matches[0].index).trim();if(lead)out.push({label:"",text:lead});}
+  matches.forEach((m,i)=>{const start=(m.index||0)+m[0].length,end=i+1<matches.length?(matches[i+1].index||clean.length):clean.length;const body=clean.slice(start,end).trim();if(body)out.push({label:String(m[1]),text:body});});
+  return out;
+}
+function StructuredExplanationText({text,q}:{text:string;q:Question}){const parts=explanationParts(text);return <div className="explanation-copy">{parts.map((part,index)=><div className="explanation-line" key={`${part.label}-${index}`}>{part.label&&<b className="explanation-label">{part.label}</b>}<span><Emphasised text={part.text} q={q}/></span></div>)}</div>}
+function Explanation({q,options}:{q:Question;options:DisplayOption[]}){const sections:Array<[string,string|undefined,string?]>=[["Explanation",q.explanation],["Example",q.example],["Usage",q.usageNote],["Tip",q.tip,"tip"],["Remember",q.memoryAid],["Related",q.related]];return <div className="explanation">{sections.filter(([,text])=>text).map(([heading,text,kind])=><div className={kind?"tipbox":""} key={heading}><h3>{heading}</h3><StructuredExplanationText text={displayAwareText(text||"",options)} q={q}/></div>)}</div>}
 function Emphasised({text,q}:{text:string;q:Question}){const terms=[q.word,"rather than","unlike","refers to"].filter((x):x is string=>!!x&&x.length>2);const matcher=new RegExp(`(${terms.map(x=>x.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).join("|")})`,"gi");return <>{text.split(matcher).map((part,index)=>terms.some(t=>part.toLowerCase()===t.toLowerCase())?<strong key={index}>{part}</strong>:<Fragment key={index}>{part}</Fragment>)}</>}
 function QuestionIntelligence({q,module,onClose}:{q:Question;module:string;onClose:()=>void}){const reason=q.selectionReason||q.reason||q.status||"Selected for this practice set";return <div className="sheet-backdrop" role="dialog" aria-modal="true" aria-label="Question intelligence" onMouseDown={e=>{if(e.target===e.currentTarget)onClose();}}><section className="add-word-sheet intelligence-sheet"><div className="sheet-heading"><div><strong>Question Intelligence</strong><span>Why this question is in this session.</span></div><button className="control-icon" onClick={onClose} aria-label="Close" type="button">×</button></div><div className="intelligence-list"><div><span>Learning state</span><b>{q.status||"Not available"}</b></div><div><span>Selection</span><b>{reason}</b></div>{typeof q.attempts==="number"&&<div><span>Attempts</span><b>{q.attempts} · {q.correct??0} correct · {q.wrong??0} wrong</b></div>}{q.nextReview&&<div><span>Next review</span><b>{q.nextReview}</b></div>}<div><span>Module</span><b>{module}</b></div></div></section></div>}
