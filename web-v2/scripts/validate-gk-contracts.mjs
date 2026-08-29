@@ -26,7 +26,10 @@ ok('durable GK answer outbox exists',transport.includes('answer-outbox:v1')&&tra
 ok('outbox retries on reconnect',transport.includes('addEventListener("online"')&&transport.includes('BACKOFF'));
 ok('GK private cache is authenticated-user scoped',transport.includes('active-user')&&transport.includes('session?.user?.id'));
 ok('pause stores exact ordered questions and answers',quiz.includes('questions:qs')&&quiz.includes('answers')&&session.includes('questions:unknown[]'));
-ok('resume restores stored lane',quiz.includes('lane:paused.lane')&&quiz.includes('mode:paused.mode'));
+ok('resume restores stored lane and mode',/lane:\s*(?:stored|paused)\.lane/.test(quiz)&&/mode:\s*(?:stored|paused)\.mode/.test(quiz));
+ok('same quiz URL refresh restores exact stored sequence',quiz.includes('stored.query===window.location.search')&&quiz.includes('setQs(stored.questions as Q[])'));
+ok('GK session is persisted continuously',quiz.includes('saveGkPaused({title:meta.title')&&quiz.includes('[qs,index,answers,loading,meta]'));
+ok('GK reuses proven English PauseSheet',quiz.includes('PauseSheet')&&quiz.includes('onSave={exitPaused}'));
 ok('quiz exposes Star Difficult Flag Note',quiz.includes('★ Star')&&quiz.includes('◆ Difficult')&&quiz.includes('⚑ Flag')&&quiz.includes('▤ Note'));
 ok('answer RPC is canonical',quiz.includes('gk_submit_answer'));
 ok('mutations use canonical GK RPCs',quiz.includes('gk_set_starred')&&quiz.includes('gk_set_difficult')&&quiz.includes('gk_set_flag')&&quiz.includes('gk_save_note'));
