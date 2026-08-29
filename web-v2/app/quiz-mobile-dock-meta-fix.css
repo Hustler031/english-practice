@@ -1,0 +1,68 @@
+/* Mobile quiz dock + metadata placement hotfix.
+   Keep Category + Question ID visible on the left; learning state sits beside the info icon.
+   Raise the utility dock by the full nav + Android safe-area height so neither row is pushed/clipped. */
+
+.quiz-meta{
+  flex-wrap:nowrap!important;
+  min-width:0;
+}
+.quiz-meta>.pill:nth-child(2){
+  display:inline-flex!important;
+  min-width:0;
+  max-width:42vw;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.quiz-meta>.pill:not(.learning-chip){order:1}
+.quiz-meta .learning-chip{
+  order:2;
+  margin-left:auto!important;
+  flex:0 0 auto;
+}
+.quiz-meta .intel-button{
+  order:3;
+  margin-left:0!important;
+  flex:0 0 auto;
+}
+
+/* Hindu payloads treat a missing learning-state as New (same rule as its info sheet). */
+main:has(.hindu-quiz-tools) .quiz-meta:not(:has(.learning-chip))::before{
+  content:"New";
+  order:2;
+  margin-left:auto;
+  display:inline-flex;
+  align-items:center;
+  white-space:nowrap;
+  padding:3px 7px;
+  border:1px solid #4b6090;
+  border-radius:999px;
+  background:#18233a;
+  color:#a9c4ff;
+  font-size:10px;
+  font-weight:850;
+  line-height:1.1;
+}
+main:has(.hindu-quiz-tools) .quiz-meta:not(:has(.learning-chip)) .intel-button{margin-left:0!important}
+
+/* The nav is ~76px plus the device bottom inset. Keep the utility row fully above it. */
+.quiz-nav{
+  bottom:0!important;
+}
+.quiz-tools{
+  bottom:calc(76px + env(safe-area-inset-bottom))!important;
+}
+.quiz-with-tools,
+.quiz{
+  padding-bottom:calc(196px + env(safe-area-inset-bottom))!important;
+}
+.hindu-quiz-tools{
+  grid-template-columns:repeat(5,minmax(0,1fr))!important;
+}
+
+@media(max-width:420px){
+  .quiz-meta{gap:5px!important}
+  .quiz-meta>.pill:nth-child(2){max-width:36vw;font-size:9px!important;padding-left:6px!important;padding-right:6px!important}
+  .quiz-tools{padding:6px 5px!important;gap:3px!important}
+  .quiz-tools .btn,.quiz-tools button{min-height:48px!important}
+  .hindu-quiz-tools .btn,.hindu-quiz-tools button{font-size:9px!important;line-height:1.05!important}
+}
