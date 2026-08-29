@@ -1,7 +1,6 @@
-/* Local visual trial: subtle blue-tinted explanation cards + stronger English header. */
+/* Subtle blue-tinted explanation cards + stronger English header. */
 
-/* Explanation: keep the current typography/highlights, but give each learning block
-   a restrained blue-black surface so the long answer does not read as one flat page. */
+/* Explanation: keep sections distinct without making long reading feel bright or heavy. */
 .quiz .explanation{
   display:grid!important;
   gap:9px!important;
@@ -14,26 +13,43 @@
 .quiz .explanation .tipbox{
   margin:0!important;
   padding:12px 13px!important;
-  border:1px solid color-mix(in srgb,var(--primary) 13%,var(--line))!important;
+  border:1px solid color-mix(in srgb,var(--primary) 10%,var(--line))!important;
   border-radius:14px!important;
   background:linear-gradient(145deg,
-    color-mix(in srgb,var(--primary) 5%,var(--card)) 0%,
-    color-mix(in srgb,var(--primary) 2.5%,var(--card)) 100%)!important;
-  box-shadow:inset 0 1px 0 color-mix(in srgb,var(--primary) 5%,transparent)!important;
+    color-mix(in srgb,var(--primary) 3.5%,var(--card)) 0%,
+    color-mix(in srgb,var(--primary) 1.5%,var(--card)) 100%)!important;
+  box-shadow:inset 0 1px 0 color-mix(in srgb,var(--primary) 3%,transparent)!important;
 }
 .quiz .explanation>div:first-child{
-  border-top:1px solid color-mix(in srgb,var(--primary) 13%,var(--line))!important;
+  border-top:1px solid color-mix(in srgb,var(--primary) 10%,var(--line))!important;
 }
 .quiz .explanation h3{
   margin:0 0 7px!important;
+  color:color-mix(in srgb,var(--text) 91%,var(--muted))!important;
   font-size:12.5px!important;
+  font-weight:850!important;
+}
+.quiz .explanation p,
+.quiz .explanation-copy,
+.quiz .explanation-line,
+.quiz .explanation-line>span{
+  color:color-mix(in srgb,var(--text) 82%,var(--muted))!important;
+  font-weight:500!important;
+  line-height:1.62!important;
+}
+.quiz .explanation-label{
+  color:color-mix(in srgb,var(--text) 88%,var(--muted))!important;
+  font-weight:850!important;
+}
+.quiz .explanation strong,
+.quiz .explanation .explain-keyword{
   font-weight:900!important;
 }
 .quiz .explanation .tipbox{
-  border-color:color-mix(in srgb,var(--primary) 18%,var(--line))!important;
+  border-color:color-mix(in srgb,var(--primary) 14%,var(--line))!important;
   background:linear-gradient(145deg,
-    color-mix(in srgb,var(--primary) 7%,var(--card)) 0%,
-    color-mix(in srgb,var(--primary) 3%,var(--card)) 100%)!important;
+    color-mix(in srgb,var(--primary) 5%,var(--card)) 0%,
+    color-mix(in srgb,var(--primary) 2%,var(--card)) 100%)!important;
 }
 
 /* English Mastery row: slightly taller, heavier and more deliberate. */
@@ -75,6 +91,6 @@
 :root[data-theme="light"] .quiz .explanation>div,
 :root[data-theme="light"] .quiz .explanation .tipbox{
   background:linear-gradient(145deg,
-    color-mix(in srgb,var(--primary) 4%,var(--card)) 0%,
-    color-mix(in srgb,var(--primary) 1.5%,var(--card)) 100%)!important;
+    color-mix(in srgb,var(--primary) 3%,var(--card)) 0%,
+    color-mix(in srgb,var(--primary) 1%,var(--card)) 100%)!important;
 }
