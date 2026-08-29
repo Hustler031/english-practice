@@ -6,14 +6,33 @@ import { supabaseBrowser } from "./supabase";
 
 let authReady = false;
 let authCheck: Promise<boolean> | null = null;
+const AUTH_BOOT_TIMEOUT_MS = 8000;
 
 function ensureSession() {
   if (authReady) return Promise.resolve(true);
   if (authCheck) return authCheck;
-  authCheck = supabaseBrowser().auth.getSession().then(({ data }) => {
-    authReady = !!data.session;
-    return authReady;
-  }).finally(() => { authCheck = null; });
+  authCheck = (async () => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const sessionRequest = supabaseBrowser().auth.getSession();
+      const result = await Promise.race([
+        sessionRequest,
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error("Authentication bootstrap timed out.")), AUTH_BOOT_TIMEOUT_MS);
+        }),
+      ]);
+      authReady = !!result.data.session;
+      return authReady;
+    } catch {
+      // A failed or unavailable session check must resolve to the safe,
+      // unauthenticated path so protected pages cannot remain in limbo.
+      authReady = false;
+      return false;
+    } finally {
+      if (timer) clearTimeout(timer);
+      authCheck = null;
+    }
+  })();
   return authCheck;
 }
 
