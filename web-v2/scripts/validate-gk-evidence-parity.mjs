@@ -4,7 +4,9 @@ import path from 'node:path';
 const root=process.cwd();
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 const migration=read('../supabase/managed-migrations/20260830025000_gk_v2_evidence_parity.sql');
+const concepts=read('../supabase/managed-migrations/20260830030000_gk_v2_concept_routes.sql');
 const home=read('app/gk/page.tsx');
+const quiz=read('app/gk/quiz/page.tsx');
 const types=read('lib/gk-types.ts');
 let failed=0;
 const ok=(name,condition)=>condition?console.log(`✓ ${name}`):(console.error(`✗ ${name}`),failed++);
@@ -23,6 +25,19 @@ ok('Starred Health restores focus/difficult/mastered',migration.includes("'starr
 ok('Difficult resolution restores old semantics',migration.includes("'resolvedStrong'")&&migration.includes("'needsFocus'"));
 ok('derived state is reconciled from raw attempts/exposures',migration.includes('perform gk.refresh_question_state(r.user_id,r.question_id)')&&migration.includes('select user_id,question_id from gk.attempts')&&migration.includes('select user_id,question_id from gk.exposures'));
 ok('correction RPCs remain authenticated-only',migration.includes('from public, anon')&&migration.includes('to authenticated'));
+
+// Exact academic concept routing must remain a wrapper around the one central selector.
+ok('exact concept batch delegates to central selector',concepts.includes('public.gk_get_batch(p_mode,100,p_lane,s.subject,s.topic,null,null,null,null,null)'));
+ok('concept batch filters canonical concept_id exactly',concepts.includes("item->>'concept_id'=p_concept_id"));
+ok('concept catalog reports Main Rapid Weak New and Mastered', ['main','rapidRecall','weak','unseen','mastered'].every(x=>concepts.includes(`'${x}'`)));
+ok('concept RPCs authenticated-only',concepts.includes('from public, anon')&&concepts.includes('to authenticated'));
+ok('quiz routes concept query through exact wrapper',quiz.includes('gk_get_concept_batch')&&quiz.includes('p_concept_id:concept'));
+ok('academic UI exposes exact concepts',home.includes('Subject → Topic → exact Concept')&&home.includes('Exact concepts')&&home.includes('concept:c.conceptId'));
+ok('Weak Concepts route by canonical concept id',home.includes('concept:x.conceptId')&&home.includes('Practise concept'));
+ok('topic New supports Main Rapid Mixed',home.includes('mode:"new",subject:s.subject,topic:t.topic')&&home.includes('StyleLinks'));
+ok('Current Affairs exposes All 1M 3M 6M',home.includes('{label:"All"}')&&home.includes('{label:"1 Month",months:1}')&&home.includes('{label:"3 Months",months:3}')&&home.includes('{label:"6 Months",months:6}'));
+ok('Current Affairs freshness supports Smart Random New',home.includes('mode:"current_smart"')&&home.includes('mode:"current_random"')&&home.includes('mode:"new",lane:"MIXED",count:20,subject:"Current Affairs",months:w.months'));
+ok('GK tab reads are scoped instead of home-wide fanout',home.includes('if(tab==="content")')&&home.includes('if(tab==="practice")')&&home.includes('if(tab==="demand")')&&home.includes('if(tab==="progress")')&&!/Promise\.allSettled\(\[gkRpc<GkHomeSnapshot>[\s\S]*gk_get_progress/.test(home));
 
 // First-attempt metric must count one first result per question, not all attempts.
 const attempts=[
