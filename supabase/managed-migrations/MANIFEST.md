@@ -2,7 +2,7 @@
 
 Project: `hytehindbmjdwcfptsic`
 
-The following versions are present in the Supabase managed migration ledger, in execution order:
+This manifest tracks the managed Supabase execution ledger for English V2. The live ledger currently contains **51 migrations**.
 
 | Version | Migration | Repository mirror |
 |---|---|---|
@@ -35,11 +35,35 @@ The following versions are present in the Supabase managed migration ledger, in 
 | 20260828213734 | english_phrasal_concept_engine | exact mirror |
 | 20260828213831 | english_phrasal_mastery_batch_rpc | exact mirror |
 | 20260828213939 | english_phrasal_mastery_hub_rpcs | exact mirror |
+| 20260829002305 | english_progress_demand_bank_parity | exact mirror |
+| 20260829002527 | english_central_starred_saved_intelligence | exact mirror |
+| 20260829002559 | english_saved_history_batch | exact mirror |
+| 20260829003100 | english_central_revision_selection | exact mirror |
+| 20260829003403 | english_hindu_central_state_payload | exact mirror |
+| 20260829020331 | english_starred_hub_current_day | exact mirror |
+| 20260829025357 | english_starred_manual_parity_counts | exact mirror |
+| 20260829025434 | english_starred_manual_items_rpc | exact mirror |
+| 20260829030252 | english_starred_rotation_read_stats | exact mirror |
+| 20260829030331 | english_starred_rotation_read_stats_due_weak | exact mirror |
+| 20260829031226 | english_remaining_module_parity_reads | exact mirror |
+| 20260829031244 | english_mastered_restore_read | exact mirror |
+| 20260829031328 | english_bank_coverage_detail_review_parity | exact mirror |
+| 20260829031556 | english_bank_coverage_today_items_parity | exact mirror |
+| 20260829031637 | english_bank_coverage_seen_batch_parity | exact mirror |
+| 20260829035529 | english_daily_intelligence_finalization | exact mirror |
+| 20260829035704 | english_progress_intelligence_finalization | exact mirror |
+| 20260829035855 | english_revision_hierarchy_parity | exact mirror |
+| 20260829040040 | english_security_health_and_user_state_finalization | exact mirror |
+| 20260829040216 | english_starred_selection_signal_parity | exact mirror |
+| 20260829040726 | english_central_intelligence_finalization | exact mirror |
+| 20260829040854 | english_hindu_user_state_isolation | exact mirror |
 
-## Repository mirror rule
+## Current runtime closure
 
-The managed Supabase ledger above is the exact record of what has executed. Repository SQL is materialized from that ledger, not reconstructed from memory. The V2 runtime layer from `20260828210556` onward is now fully represented in `supabase/managed-migrations/`; the Hindu recovery mirror intentionally replaces the concrete single-user UUID with a runtime single-user guard so an account identifier is not committed to this public repository.
+From `20260828210556` onward, the complete English V2 runtime migration sequence is represented in `supabase/managed-migrations/`. The only intentional portability exception is `20260828211355`, whose repository mirror removes the concrete single-user UUID and resolves the user at runtime.
 
-The earlier foundation/import migrations remain recoverable from Supabase's managed ledger and the migration/legacy snapshots, while `supabase/migrations/20260829_001_english_behavior_parity.sql` remains the earlier consolidated repository artifact. It must not be mistaken for the exact pre-runtime managed ledger.
+The finalization migrations add category-aware Daily intelligence, durable selection rationale, actionable Daily counts, module-level progress intelligence, old-app day/10-day/30-day revision hierarchy, authenticated-only RPC writes, health/reconciliation checks, top-level Central Intelligence, Smart central revision, and strict user-state isolation from shared canonical content.
 
-No V2 cutover may rely on an unversioned manual production SQL change.
+The earlier foundation/import migrations remain recoverable from Supabase's managed ledger and the immutable migration/legacy snapshots. `supabase/migrations/20260829_001_english_behavior_parity.sql` is a consolidated historical repository artifact and must not be mistaken for the exact pre-runtime managed ledger.
+
+**Rule:** no V2 cutover may rely on an unversioned manual SQL change. GPT enrichment/scheduling is intentionally outside this backend-finalization ledger and remains deferred.
