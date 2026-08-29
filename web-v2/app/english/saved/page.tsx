@@ -10,13 +10,11 @@ import "./mywords-parity.css";
 
 type Saved={id:string;word:string;meaning:string;context:string;status:string;practiceQuestionId:string;gptStatus:string;captureType:string;resolvedType:string;created:string;partOfSpeech?:string;synonyms?:string;antonyms?:string;example?:string;explanation?:string;question?:string;optionA?:string;optionB?:string;optionC?:string;optionD?:string;correctOption?:string};
 type Stats={saved:number;eligible:number;controlledNew:number;neverRevised:number;due:number;weak:number;difficult:number;starred:number;mastered:number};
-type History={date:string|null;label:string;saved:number;eligible:number;controlledNew:number;due:number;weak:number;difficult:number;mastered:number};
-type Hub={stats:Stats;available:{smart:number;weak:number;difficult:number;starred:number;random:number;all:number};sizes:number[];history:History[]};
+type History={date:string|null;day?:number;label:string;saved:number;eligible:number;controlledNew:number;due:number;weak:number;difficult:number;mastered:number};
+type Hub={currentDay?:number;stats:Stats;available:{smart:number;weak:number;difficult:number;starred:number;random:number;all:number};sizes:number[];history:History[]};
 type Pick={mode:string;label:string;date?:string|null;count:number};
 const types=["AUTO","V","SM","OWS","PV","IP"];
 const modes=[["🧠","Smart Revision","smart"],["🔥","Weak","weak"],["⚡","Difficult","difficult"],["⭐","Starred","starred"],["🎲","Random","random"],["▶","Practice All","all"]] as const;
-const DAY1=Date.UTC(2026,7,14);
-function dayNumber(date:string|null){if(!date)return 0;const d=new Date(date);if(Number.isNaN(d.getTime()))return 0;return Math.max(1,Math.floor((Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate())-DAY1)/86400000)+1)}
 function shortDate(value:string){const d=new Date(value);return Number.isNaN(d.getTime())?value:d.toLocaleDateString("en-CA",{timeZone:"Asia/Kolkata"});}
 function savedStatus(item:Saved){if(String(item.practiceQuestionId||"").trim())return "In Practice";const g=String(item.gptStatus||"").trim().toLowerCase();if(g==="ready")return "Ready";if(/review|error|fail|invalid/.test(g))return "Needs Review";return "Pending";}
 
@@ -28,8 +26,8 @@ export default function SavedPage(){
  const load=useCallback(()=>{if(!pick)return Promise.resolve([]);if(pick.date)return rpc<any[]>("english_get_saved_history_batch",{p_date:pick.date,p_mode:pick.mode,p_count:pick.count});return rpc<any[]>("english_get_saved_revision_batch",{p_mode:pick.mode,p_count:pick.count});},[pick]);
  async function openManage(){setManage(true);setDetail(null);if(!rows.length)try{await refreshRows();}catch(e:any){setError(e.message);}}
  async function changeType(id:string,next:string){setRows(a=>a.map(x=>x.id===id?{...x,captureType:next}:x));try{await rpc("english_set_saved_item_type",{p_saved_id:id,p_capture_type:next});await refreshRows();}catch(e:any){setError(e.message);await refreshRows();}}
- const history=useMemo(()=>[...(hub?.history||[])].map(h=>({...h,day:dayNumber(h.date)})).filter(h=>h.date&&h.day).sort((a,b)=>b.day-a.day),[hub]);
- const currentDay=Math.max(1,Math.floor((Date.now()-DAY1)/86400000)+1),blockStart=Math.floor((currentDay-1)/10)*10+1;
+ const history=useMemo(()=>[...(hub?.history||[])].map(h=>({...h,day:Number(h.day||0)})).filter(h=>h.date&&h.day).sort((a,b)=>b.day-a.day),[hub]);
+ const currentDay=Math.max(1,Number(hub?.currentDay||1)),blockStart=Math.floor((currentDay-1)/10)*10+1;
  const currentRows=history.filter(h=>h.day>=blockStart&&h.day<=blockStart+9),older=history.filter(h=>h.day<blockStart),olderBlocks=Array.from(new Set(older.map(h=>Math.floor((h.day-1)/10)*10+1))).sort((a,b)=>b-a);
  if(!ready)return <EnglishLoading text="Checking session…"/>;
  if(pick)return <QuizRunner title={pick.label} backHref="/english/saved" load={load} module="mySavedRevision" onExit={()=>setPick(null)}/>;
@@ -58,7 +56,7 @@ function ManageSaved({rows,error,editing,setEditing,onBack,onOpen,onType}:{rows:
 }
 
 function SavedDetail({item,onBack}:{item:Saved;onBack:()=>void}){
- const options:[[string,string|undefined],[string,string|undefined],[string,string|undefined],[string,string|undefined]]=[["A",item.optionA],["B",item.optionB],["C",item.optionC],["D",item.optionD]];const correct=String(item.correctOption||"").trim().toUpperCase().replace(/[^A-D].*$/,"").charAt(0);
+ const options:[[string,string|undefined],[string,string|undefined],[string,string|undefined],[string,string|undefined],[string,string|undefined]]=[["A",item.optionA],["B",item.optionB],["C",item.optionC],["D",item.optionD]] as any;const correct=String(item.correctOption||"").trim().toUpperCase().replace(/[^A-D].*$/,"").charAt(0);
  const block=(label:string,value?:string)=>!String(value||"").trim()?null:<div className="myword-detail-block"><small>{label}</small><div>{value}</div></div>;
  return <div className="saved-parity-page saved-detail-page">
   <section className="saved-subhead mywords-detail-head"><button className="btn ghost saved-back" onClick={onBack}>← My Words</button><div><h1>{item.word}</h1><p>GPT enrichment · {savedStatus(item)}</p></div></section>
