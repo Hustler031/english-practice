@@ -3,7 +3,7 @@ import { useRouter } from "next/navigation";
 import { useEffect,useMemo,useRef,useState } from "react";
 import { EnglishLoading } from "@/components/english-frame";
 import AddWordSheet from "@/components/add-word-sheet";
-import { rpc } from "@/lib/supabase";
+import { rpc, subscribeRpcFresh } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
 import { makeDisplayOptions,type DisplayOption } from "@/lib/options";
 
@@ -16,7 +16,7 @@ export default function HinduPage(){
  const ready=useAuthGuard(),router=useRouter();const[words,setWords]=useState<Word[]>([]);const[items,setItems]=useState<Q[]>([]);const[progress,setProgress]=useState<Progress|null>(null);const[quiz,setQuiz]=useState(false);const[openWords,setOpenWords]=useState<Set<string>>(new Set());const[idx,setIdx]=useState(0);const[answers,setAnswers]=useState<Record<string,LocalAnswer>>({});const[error,setError]=useState("");const[returnHref,setReturnHref]=useState("/english/library");const started=useRef(Date.now());const optionCache=useRef(new Map<string,DisplayOption[]>());
  useEffect(()=>{try{const p=new URLSearchParams(window.location.search).get("return");if(p?.startsWith("/english"))setReturnHref(p)}catch{}},[]);
  async function loadLanding(){const[w,p]=await Promise.all([rpc<Word[]>("english_get_hindu_today"),rpc<Progress>("english_hindu_progress")]);setWords(w);setProgress(p)}
- useEffect(()=>{if(ready)loadLanding().catch((e:any)=>setError(e.message))},[ready]);
+ useEffect(()=>{if(!ready)return;const offWords=subscribeRpcFresh<Word[]>("english_get_hindu_today",undefined,setWords);const offProgress=subscribeRpcFresh<Progress>("english_hindu_progress",undefined,setProgress);loadLanding().catch((e:any)=>setError(e.message));return()=>{offWords();offProgress();};},[ready]);
  async function startQuiz(){setError("");try{const[q,p]=await Promise.all([rpc<Q[]>("english_get_hindu_quiz"),rpc<Progress>("english_hindu_progress")]);optionCache.current.clear();setItems(q);setProgress(p);setIdx(0);setAnswers({});started.current=Date.now();if(q.length)setQuiz(true);else setError("Today's Hindu vocabulary set has not been added yet.")}catch(e:any){setError(e.message)}}
  function exitQuiz(){setQuiz(false);setItems([]);setIdx(0);setAnswers({});void loadLanding().catch(()=>{})}
  if(!ready)return <EnglishLoading text="Checking session…"/>;
