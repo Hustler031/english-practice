@@ -11,10 +11,10 @@ import "./mywords-parity.css";
 type Saved={id:string;word:string;meaning:string;context:string;status:string;practiceQuestionId:string;gptStatus:string;captureType:string;resolvedType:string;created:string;partOfSpeech?:string;synonyms?:string;antonyms?:string;example?:string;explanation?:string;question?:string;optionA?:string;optionB?:string;optionC?:string;optionD?:string;correctOption?:string};
 type Stats={saved:number;eligible:number;controlledNew:number;neverRevised:number;due:number;weak:number;difficult:number;starred:number;mastered:number};
 type History={date:string|null;day?:number;label:string;saved:number;eligible:number;controlledNew:number;due:number;weak:number;difficult:number;mastered:number};
-type Hub={currentDay?:number;stats:Stats;available:{smart:number;weak:number;difficult:number;starred:number;random:number;all:number};sizes:number[];history:History[]};
+type Hub={currentDay?:number;stats:Stats;available:{smart:number;new:number;weak:number;difficult:number;starred:number;random:number;all:number};sizes:number[];history:History[]};
 type Pick={mode:string;label:string;date?:string|null;count:number};
 const types=["AUTO","V","SM","OWS","PV","IP"];
-const modes=[["🧠","Smart Revision","smart"],["🔥","Weak","weak"],["⚡","Difficult","difficult"],["⭐","Starred","starred"],["🎲","Random","random"],["▶","Practice All","all"]] as const;
+const modes=[["🧠","Smart Revision","smart"],["🆕","New","new"],["🔥","Weak","weak"],["⚡","Difficult","difficult"],["⭐","Starred","starred"],["🎲","Random","random"],["▶","Practice All","all"]] as const;
 function shortDate(value:string){const d=new Date(value);return Number.isNaN(d.getTime())?value:d.toLocaleDateString("en-CA",{timeZone:"Asia/Kolkata"});}
 function savedStatus(item:Saved){if(String(item.practiceQuestionId||"").trim())return "In Practice";const g=String(item.gptStatus||"").trim().toLowerCase();if(g==="ready")return "Ready";if(/review|error|fail|invalid/.test(g))return "Needs Review";return "Pending";}
 
@@ -54,9 +54,9 @@ export default function SavedPage(){
 
   <section className="sms-card saved-smart-card">
    <div className="saved-smart-main"><div><span className="saved-smart-kicker">Smart Revision</span><div className="saved-due-number"><strong>{s?.due??"—"}</strong><span>Due now</span></div></div><button className="btn primary saved-smart-cta" disabled={!smartAvailable} onClick={()=>runMode("smart",smartCount)}>Start Smart Revision</button></div>
-   <div className="saved-stat-strip"><span><b>{s?.saved??0}</b> Saved</span><span><b>{s?.controlledNew??0}</b> New</span><span className="is-due"><b>{s?.due??0}</b> Due</span><span><b>{s?.mastered??0}</b> Mastered</span></div>
+   <div className="saved-stat-strip"><span><b>{s?.saved??0}</b> Saved</span><span><b>{s?.neverRevised??0}</b> New</span><span className="is-due"><b>{s?.due??0}</b> Due</span><span><b>{s?.mastered??0}</b> Mastered</span></div>
    <div className="saved-lane-label">Focus lanes</div>
-   <div className="saved-focus-lanes"><button className="btn soft mini focus-weak" disabled={!a?.weak} onClick={()=>setPendingMode("weak")}>Weak <b>{a?.weak||0}</b></button><button className="btn soft mini focus-difficult" disabled={!a?.difficult} onClick={()=>setPendingMode("difficult")}>Difficult <b>{a?.difficult||0}</b></button><button className="btn soft mini focus-starred" disabled={!a?.starred} onClick={()=>setPendingMode("starred")}>Starred <b>{a?.starred||0}</b></button></div>
+   <div className="saved-focus-lanes"><button className="btn soft mini focus-new" disabled={!a?.new} onClick={()=>setPendingMode("new")}>New <b>{a?.new||0}</b></button><button className="btn soft mini focus-weak" disabled={!a?.weak} onClick={()=>setPendingMode("weak")}>Weak <b>{a?.weak||0}</b></button><button className="btn soft mini focus-difficult" disabled={!a?.difficult} onClick={()=>setPendingMode("difficult")}>Difficult <b>{a?.difficult||0}</b></button><button className="btn soft mini focus-starred" disabled={!a?.starred} onClick={()=>setPendingMode("starred")}>Starred <b>{a?.starred||0}</b></button></div>
    <div className="saved-browse-actions"><span>Browse</span><button className="btn ghost mini" disabled={!a?.random} onClick={()=>setPendingMode("random")}>Random</button><button className="btn ghost mini" disabled={!a?.all} onClick={()=>runMode("all",100)}>Practice All</button></div>
   </section>
 
