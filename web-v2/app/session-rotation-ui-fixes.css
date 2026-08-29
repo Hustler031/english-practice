@@ -1,0 +1,49 @@
+/* Fresh-session / Add Word UX fixes. Loaded last. */
+
+/* Add Word is an observational capture drawer, not a blocking modal: the quiz
+   stays readable and scrollable behind it while controls inside the sheet remain interactive. */
+.add-word-backdrop{
+  background:transparent!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+  pointer-events:none!important;
+}
+.add-word-backdrop .add-word-sheet-v2{
+  pointer-events:auto!important;
+  max-height:min(52dvh,520px);
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  box-shadow:0 -12px 38px color-mix(in srgb,#000 44%,transparent)!important;
+}
+.add-word-backdrop .sheet-close{
+  position:relative;
+  z-index:2;
+  border-color:color-mix(in srgb,var(--text) 22%,var(--line))!important;
+  color:color-mix(in srgb,var(--text) 84%,var(--muted))!important;
+}
+
+/* Selection must be unmistakable on a phone display. */
+.add-word-types .capture-type{
+  transition:transform .12s ease,border-color .12s ease,background-color .12s ease,box-shadow .12s ease,color .12s ease;
+}
+.add-word-types .capture-type.selected,
+.add-word-types .capture-type[aria-pressed="true"]{
+  border-color:var(--primary)!important;
+  background:color-mix(in srgb,var(--primary) 24%,var(--card-2))!important;
+  color:var(--text)!important;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--primary) 78%,transparent),0 0 0 2px color-mix(in srgb,var(--primary) 12%,transparent)!important;
+  font-weight:900!important;
+  transform:translateY(-1px);
+}
+
+/* Four My Saved focus lanes: New / Weak / Difficult / Starred. */
+.saved-focus-lanes{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+.saved-focus-lanes .focus-new{
+  background:color-mix(in srgb,var(--primary) 10%,var(--card-2))!important;
+  border-color:color-mix(in srgb,var(--primary) 28%,var(--line))!important;
+}
+
+@media(max-width:420px){
+  .add-word-backdrop .add-word-sheet-v2{max-height:min(49dvh,460px)}
+  .saved-focus-lanes{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
