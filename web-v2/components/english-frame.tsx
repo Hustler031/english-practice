@@ -16,13 +16,14 @@ const tabs: { id: Tab; href: string; icon: string; label: string }[] = [
 ];
 
 function tabForPath(pathname: string): Tab {
-  // Keep the selected tab tied to the current route, never to the page that
-  // happened to launch the nested screen.
+  // The active tab follows the route the user is actually viewing. Keep the
+  // top-level roots explicit so /english/practice and /english/revision can
+  // never fall through to Home.
   if (pathname === "/english" || pathname.startsWith("/english/daily") || pathname.startsWith("/english/resume")) return "home";
-  if (/\/(new|topics|sources|demand)/.test(pathname)) return "practice";
-  if (/\/(starred|difficult|phrasal)/.test(pathname)) return "revision";
-  if (/\/(saved|hindu|library)/.test(pathname)) return "library";
-  if (pathname.includes("/progress")) return "progress";
+  if (pathname === "/english/practice" || /\/(new|topics|sources|demand|bank)(?:\/|$)/.test(pathname)) return "practice";
+  if (pathname === "/english/revision" || /\/(starred|difficult|phrasal)(?:\/|$)/.test(pathname)) return "revision";
+  if (pathname === "/english/library" || /\/(saved|hindu|library)(?:\/|$)/.test(pathname)) return "library";
+  if (pathname === "/english/progress" || pathname.startsWith("/english/progress/")) return "progress";
   return "home";
 }
 
