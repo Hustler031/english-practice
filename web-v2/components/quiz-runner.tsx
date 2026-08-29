@@ -6,11 +6,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { rpc } from "@/lib/supabase";
 import { makeDisplayOptions, type DisplayOption } from "@/lib/options";
 import AddWordSheet from "@/components/add-word-sheet";
+import { clearPausedQuiz, savePausedQuiz, type PausedQuizSession } from "@/lib/quiz-session";
 
 type Question = { id:string; category?:string; topic?:string; subtopic?:string; word?:string; question:string; options:{key:string;text:string}[]; correctKey?:string; questionType?:string; explanation?:string; tip?:string; usageNote?:string; example?:string; memoryAid?:string; starred?:boolean; difficult?:boolean; mastered?:boolean; status?:string; attempts?:number; wrong?:number };
-type Props = { title:string; backHref:string; load:()=>Promise<Question[]>; module?:string; emptyText?:string };
+type Props = { title:string; backHref:string; load:()=>Promise<Question[]>; module?:string; emptyText?:string; resumeSession?:PausedQuizSession|null };
 
-export default function QuizRunner({ title, backHref, load, module="practice", emptyText="No questions are available for this selection." }: Props) {
+export default function QuizRunner({ title, backHref, load, module="practice", emptyText="No questions are available for this selection.", resumeSession }: Props) {
   const router = useRouter();
   const [items, setItems] = useState<Question[]>([]);
   const [idx, setIdx] = useState(0);
@@ -24,11 +25,23 @@ export default function QuizRunner({ title, backHref, load, module="practice", e
 
   useEffect(() => {
     let live = true;
+    if (resumeSession?.questions?.length) {
+      setItems(resumeSession.questions as Question[]);
+      setIdx(Math.max(0, Math.min(resumeSession.index || 0, resumeSession.questions.length - 1)));
+      setLoading(false);
+      started.current = Date.now();
+      return () => { live = false; };
+    }
     setLoading(true); optionCache.current.clear();
     load().then((x) => { if (live) { setItems(Array.isArray(x) ? x : []); setIdx(0); started.current = Date.now(); } })
       .catch((e:any) => live && setError(e.message)).finally(() => live && setLoading(false));
     return () => { live = false; };
-  }, [load]);
+  }, [load, resumeSession]);
+
+  useEffect(() => {
+    if (!items.length) return;
+    savePausedQuiz({ title, backHref, module, index:idx, questions:items, savedAt:Date.now() });
+  }, [items, idx, title, backHref, module]);
 
   const q = items[idx];
   const options = useMemo(() => {
@@ -59,7 +72,7 @@ export default function QuizRunner({ title, backHref, load, module="practice", e
   }
   async function mastered() {
     if (!q || !window.confirm("Mark this as Mastered / Don't Repeat? You can restore it later.")) return;
-    try { await rpc("english_set_mastered", { p_question_id:q.id, p_mastered:true, p_require_proven:false }); setItems((rows) => rows.map((row, i) => i === idx ? { ...row, mastered:true } : row)); if (idx < items.length - 1) move(idx + 1); else router.push(backHref); }
+    try { await rpc("english_set_mastered", { p_question_id:q.id, p_mastered:true, p_require_proven:false }); setItems((rows) => rows.map((row, i) => i === idx ? { ...row, mastered:true } : row)); if (idx < items.length - 1) move(idx + 1); else { clearPausedQuiz(); router.push(backHref); } }
     catch (e:any) { setError(e.message); }
   }
 
@@ -79,7 +92,7 @@ export default function QuizRunner({ title, backHref, load, module="practice", e
       <button className={`mastered-after ${q.mastered ? "done" : ""}`} onClick={mastered}>{q.mastered ? "✓ Mastered" : "✓ Mark Mastered"}</button>
     </section>
     <div className="quiz-tools"><button className={`btn ghost ${q.starred ? "warn" : ""}`} onClick={toggleMark}>{q.starred ? "★ Marked" : "☆ Mark"}</button><AddWordSheet questionId={q.id} initialWord={q.word || ""} source={title} label="📝 Add Word"/><button className={`btn ghost ${q.difficult ? "danger" : ""}`} onClick={toggleDifficult}>! Difficult</button><button className="btn ghost" onClick={() => window.location.assign(backHref)}>Ⅱ Pause</button></div>
-    <div className="quiz-nav"><button className="btn ghost" disabled={idx===0} onClick={() => move(idx-1)}>← Previous</button><button className="btn primary" onClick={() => idx < items.length - 1 ? move(idx+1) : router.push(backHref)}>{idx===items.length-1 ? "Finish" : "Next →"}</button></div>
+    <div className="quiz-nav"><button className="btn ghost" disabled={idx===0} onClick={() => move(idx-1)}>← Previous</button><button className="btn primary" onClick={() => { if (idx < items.length - 1) move(idx+1); else { clearPausedQuiz(); router.push(backHref); } }}>{idx===items.length-1 ? "Finish" : "Next →"}</button></div>
   </main>;
 }
 
