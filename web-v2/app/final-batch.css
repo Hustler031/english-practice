@@ -1,7 +1,9 @@
 /* Final pre-production UI batch. Keep the existing visual system; only tighten hierarchy and mobile ergonomics. */
 
-/* Quiz bottom controls are one cohesive dock: utility row directly touches Previous / Next. */
-.quiz-tools{bottom:calc(68px + env(safe-area-inset-bottom))!important;width:min(700px,100%)!important;border:0!important;border-top:1px solid var(--line)!important;border-radius:0!important;box-shadow:none!important;padding:8px 10px!important;background:rgba(21,27,36,.985)!important}
+/* Quiz bottom controls are one cohesive dock: utility row directly touches Previous / Next.
+   Chrome can expose a large bottom safe-area while the nav already consumes most of it, so
+   use the greater of the legacy 68px dock height or 52px + the device inset. */
+.quiz-tools{bottom:max(68px,calc(52px + env(safe-area-inset-bottom)))!important;width:min(700px,100%)!important;border:0!important;border-top:1px solid var(--line)!important;border-radius:0!important;box-shadow:none!important;padding:8px 10px!important;background:rgba(21,27,36,.985)!important}
 .quiz-nav{margin-top:0!important;background:rgba(21,27,36,.985)!important}.quiz-with-tools,.quiz{padding-bottom:calc(178px + env(safe-area-inset-bottom))!important}.quiz-tools-four{grid-template-columns:repeat(4,minmax(0,1fr))!important}.hindu-quiz-tools{grid-template-columns:repeat(5,minmax(0,1fr))!important}
 
 /* Question IDs are implementation detail; the info sheet owns technical metadata. */
