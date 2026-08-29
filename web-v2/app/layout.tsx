@@ -7,6 +7,7 @@ import "./remaining-parity.css";
 import "./hindu-parity.css";
 import "./mobile-parity-fixes.css";
 import "./final-polish.css";
+import "./quiz-safe-area-fix.css";
 
 export const metadata: Metadata = {
   title: "Revision Platform",
