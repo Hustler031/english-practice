@@ -17,6 +17,7 @@ const BACKOFF = [1000, 2500, 5000, 15000, 30000, 60000];
 type RpcArgs = Record<string, unknown>;
 type CacheEntry<T = unknown> = { at: number; name: string; args: RpcArgs; data: T };
 type OutboxItem = { id: string; name: "english_submit_answer" | "english_submit_hindu_answer"; args: RpcArgs; tries: number; nextAt: number; queuedAt: number };
+type FreshDetail<T = unknown> = { name: string; args: RpcArgs; data: T };
 
 const answerLocks = new Map<string, { at: number; result: unknown }>();
 let questionKeys: Record<string, string> | null = null;
@@ -26,13 +27,18 @@ function stableArgs(args?: RpcArgs) {
   const src = args ?? {};
   return Object.keys(src).sort().reduce<Record<string, unknown>>((out, key) => { out[key] = src[key]; return out; }, {});
 }
-function rpcCacheKey(name: string, args?: RpcArgs) { return `${CACHE_PREFIX}${name}:${JSON.stringify(stableArgs(args))}`; }
+function stableArgsText(args?: RpcArgs) { return JSON.stringify(stableArgs(args)); }
+function rpcCacheKey(name: string, args?: RpcArgs) { return `${CACHE_PREFIX}${name}:${stableArgsText(args)}`; }
 function isCacheableRead(name: string) {
   return name === "english_dashboard_summary" || name === "english_resume_daily" || name.startsWith("english_get_") || name === "english_hindu_progress";
 }
 function shouldRefreshAfterMutation(name: string) {
   return name === "english_dashboard_summary" || name === "english_resume_daily" || name === "english_get_home_snapshot" || name === "english_hindu_progress" ||
     /^english_get_.*_(hub|progress|summary|intelligence|today|guidance)$/.test(name);
+}
+function publishFresh<T>(name: string, args: RpcArgs | undefined, data: T) {
+  if (!browserReady()) return;
+  try { window.dispatchEvent(new CustomEvent<FreshDetail<T>>("ep:v2-rpc-fresh", { detail: { name, args: stableArgs(args), data } })); } catch { /* best effort */ }
 }
 function readCache<T>(name: string, args?: RpcArgs): T | undefined {
   if (!browserReady()) return undefined;
@@ -127,8 +133,8 @@ async function revalidateCachedReads() {
   await Promise.allSettled(entries.slice(0, 16).map(async entry => {
     const fresh = await networkRpc(entry.name, entry.args);
     writeCache(entry.name, entry.args, fresh);
+    publishFresh(entry.name, entry.args, fresh);
   }));
-  try { window.dispatchEvent(new CustomEvent("ep:v2-cache-refreshed")); } catch { /* ignore */ }
 }
 function scheduleCacheRefresh(ms = 1200) {
   if (!browserReady()) return;
@@ -223,7 +229,7 @@ export async function rpc<T = unknown>(name: string, args?: RpcArgs): Promise<T>
   if (isCacheableRead(name)) {
     const cached = readCache<T>(name, args);
     if (cached !== undefined) {
-      void networkRpc<T>(name, args).then(fresh => { writeCache(name, args, fresh); try { window.dispatchEvent(new CustomEvent("ep:v2-cache-refreshed", { detail: { name } })); } catch { /* ignore */ } }).catch(() => {});
+      void networkRpc<T>(name, args).then(fresh => { writeCache(name, args, fresh); publishFresh(name, args, fresh); }).catch(() => {});
       return cached;
     }
     const fresh = await networkRpc<T>(name, args);
@@ -234,6 +240,18 @@ export async function rpc<T = unknown>(name: string, args?: RpcArgs): Promise<T>
   const result = await networkRpc<T>(name, args);
   if (/^english_(set_|save_|add_|promote_|update_|start_|reconcile_)/.test(name)) scheduleCacheRefresh();
   return result;
+}
+
+export function subscribeRpcFresh<T>(name: string, args: RpcArgs | undefined, onFresh: (data: T) => void) {
+  if (!browserReady()) return () => {};
+  const wanted = stableArgsText(args);
+  const handler = (event: Event) => {
+    const detail = (event as CustomEvent<FreshDetail<T>>).detail;
+    if (!detail || detail.name !== name || stableArgsText(detail.args) !== wanted) return;
+    onFresh(detail.data);
+  };
+  window.addEventListener("ep:v2-rpc-fresh", handler as EventListener);
+  return () => window.removeEventListener("ep:v2-rpc-fresh", handler as EventListener);
 }
 
 export async function prefetchEnglishCore() {
@@ -261,6 +279,7 @@ export async function prefetchEnglishCore() {
   await Promise.allSettled(reads.map(async ([name, args]) => {
     const fresh = await networkRpc(name, args);
     writeCache(name, args, fresh);
+    publishFresh(name, args, fresh);
   }));
 }
 
