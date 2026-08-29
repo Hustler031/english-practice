@@ -11,7 +11,7 @@ const ROOT="revision:v2:gk:";
 const MAX_AGE=12*60*60*1000;
 const BACKOFF=[1000,2500,5000,15000,30000,60000];
 const DURABLE=new Set(["gk_submit_answer","gk_record_exposure","gk_mark_guessed","gk_set_starred","gk_set_difficult","gk_set_flag","gk_save_note","gk_save_session"]);
-const MUTATION=/^gk_(?:submit_|record_|mark_|set_|save_|start_|finish_|complete_)/;
+const MUTATION=/^gk_(?:submit_|record_|mark_|set_|save_|start_|create_|finish_|complete_)/;
 let running=false;let timer:ReturnType<typeof setTimeout>|null=null;let wired=false;let activeUser="";
 
 const browser=()=>typeof window!=="undefined";
