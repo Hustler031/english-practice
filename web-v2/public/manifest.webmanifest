@@ -1,0 +1,16 @@
+{
+  "name": "English Mastery",
+  "short_name": "English",
+  "id": "/english",
+  "start_url": "/english",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "description": "SSC English practice, revision and spaced learning",
+  "icons": [
+    {"src":"/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
+    {"src":"/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
+  ]
+}
