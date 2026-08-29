@@ -1,8 +1,9 @@
 name: Validate English V2 Web
 
 on:
+  workflow_dispatch:
   push:
-    branches: [english-v2-supabase, gk-v2-integration]
+    branches: [english-v2-supabase]
     paths:
       - 'web-v2/**'
       - '.github/workflows/validate-english-v2-web.yml'
