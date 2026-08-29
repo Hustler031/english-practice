@@ -1,9 +1,14 @@
-/* Keep the quiz utility row fully above Previous / Next on mobile.
-   The nav is taller than 68px once padding/borders/safe-area are included. */
+/* Keep the quiz utility row comfortably separated from Previous / Next.
+   The legacy Apps Script quiz treated the actions as one cohesive bottom dock;
+   V2 keeps the two semantic rows but gives the utility row its own floating surface. */
 .quiz-tools{
-  bottom:calc(76px + env(safe-area-inset-bottom));
+  bottom:calc(84px + env(safe-area-inset-bottom));
+  width:min(680px,calc(100% - 20px));
+  border:1px solid var(--line);
+  border-radius:16px;
+  box-shadow:0 8px 24px rgba(0,0,0,.18);
 }
 .quiz-with-tools,
 .quiz{
-  padding-bottom:calc(190px + env(safe-area-inset-bottom));
+  padding-bottom:calc(198px + env(safe-area-inset-bottom));
 }
