@@ -11,7 +11,6 @@ type HistoryRow={type:string;label:string;fromDay:number;toDay:number;generated:
 type Hub={version:string;dailyTarget:number;stats:{totalConcepts:number;exposed:number;exposurePercent:number;due:number;weak:number;recallWeak:number;difficult:number;starred:number;mastered:number;freshVariantChecks:number;eligible:number};today:{date:string;count:number;target:number;ready:boolean;sourceId:string};available:{smart:number;weak:number;difficult:number;starred:number;random:number;all:number};sizes:number[];history:HistoryRow[]};
 type Pick={kind:"mastery"|"today"|"history";label:string;mode?:string;count?:number;fromDay?:number;toDay?:number};
 const modes=[["🧠","Smart Revision","smart"],["🔥","Weak","weak"],["⚡","Difficult","difficult"],["⭐","Starred","starred"],["🎲","Random","random"],["▶","Practice All","all"]] as const;
-const sizeChoices=[10,20,30,50];
 
 export default function PhrasalPage(){
  const ready=useAuthGuard(),router=useRouter();
@@ -30,7 +29,7 @@ export default function PhrasalPage(){
  },[hub]);
  if(!ready)return <EnglishLoading text="Checking session…"/>;
  if(pick)return <QuizRunner title={pick.label} backHref="/english/phrasal" load={load} module={pick.kind==="today"?"phrasaldaily":"phrasalrevision"} onExit={()=>setPick(null)}/>;
- const s=hub?.stats,a=hub?.available,t=hub?.today;
+ const s=hub?.stats,a=hub?.available,t=hub?.today,sizeChoices=hub?.sizes?.length?hub.sizes:[10,20,30,50];
  const startMastery=(mode:string,count:number)=>setPick({kind:"mastery",mode,count,label:`Phrasal Verb · ${modes.find(m=>m[2]===mode)?.[1]||mode}`});
  return <div className="phrasal-parity-page">
   <section className="pv-page-subhead"><button className="btn ghost" onClick={()=>window.history.length>1?router.back():router.push("/english")}>← Back</button><div><h1>Phrasal Verb</h1><p>Smart revision + today&apos;s permanent batch.</p></div></section>
