@@ -12,9 +12,7 @@ type History={date:string|null;label:string;saved:number;eligible:number;control
 type Hub={stats:Stats;available:{smart:number;weak:number;difficult:number;starred:number;random:number;all:number};sizes:number[];history:History[]};
 type Pick={mode:string;label:string;date?:string|null;count:number};
 const types=["AUTO","V","SM","OWS","PV","IP"];
-const modes=[
- ["🧠","Smart Revision","smart"],["🔥","Weak","weak"],["⚡","Difficult","difficult"],["★","Starred","starred"],["🎲","Random","random"],["▶","Practice All","all"]
-] as const;
+const modes=[["🧠","Smart Revision","smart"],["🔥","Weak","weak"],["⚡","Difficult","difficult"],["★","Starred","starred"],["🎲","Random","random"],["▶","Practice All","all"]] as const;
 
 export default function SavedPage(){
  const ready=useAuthGuard();const [hub,setHub]=useState<Hub|null>(null);const [pick,setPick]=useState<Pick|null>(null);const [manage,setManage]=useState(false);const [rows,setRows]=useState<Saved[]>([]);const [word,setWord]=useState("");const [context,setContext]=useState("");const [type,setType]=useState("AUTO");const [error,setError]=useState("");
@@ -26,7 +24,7 @@ export default function SavedPage(){
  async function add(event:FormEvent){event.preventDefault();setError("");try{await rpc("english_save_word",{p_word:word,p_context:context,p_capture_type:type,p_module:"web-v2",p_source:"Manual capture"});setWord("");setContext("");setType("AUTO");await Promise.all([refreshRows(),refreshHub()]);}catch(e:any){setError(e.message);}}
  async function changeType(id:string,next:string){setRows(a=>a.map(x=>x.id===id?{...x,captureType:next}:x));try{await rpc("english_set_saved_item_type",{p_saved_id:id,p_capture_type:next});await refreshRows();}catch(e:any){setError(e.message);await refreshRows();}}
  if(!ready)return <EnglishLoading text="Checking session…"/>;
- if(pick)return <QuizRunner title={pick.label} backHref="/english/saved" load={load} module="mySavedRevision"/>;
+ if(pick)return <QuizRunner title={pick.label} backHref="/english/saved" load={load} module="mySavedRevision" onExit={()=>setPick(null)}/>;
  const s=hub?.stats,a=hub?.available;
  return <>
   <section className="page-intro"><h1>My Saved Words</h1><p>Personal revision organised by your central learning intelligence.</p></section>
