@@ -72,7 +72,6 @@ export default function AddWordSheet({ questionId = "", initialWord = "", questi
           placeholder="Word / doubt / usage point"
           required
         />
-        {questionId && <div className="capture-origin">From {source || "practice"} · {questionId}</div>}
         <div className="capture-types add-word-types">{types.map((item) => <button className={`capture-type ${item === type ? "selected" : ""}`} type="button" key={item} onClick={() => setType(item)}>{item === "IP" ? "I/P" : item}</button>)}</div>
         {message && <div className="form-message add-word-message">{message}</div>}
         <button className="btn primary sheet-save add-word-save" disabled={busy || !word.trim()}>{busy ? "Saving…" : "Save"}</button>
