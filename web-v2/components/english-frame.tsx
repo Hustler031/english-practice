@@ -16,7 +16,9 @@ const tabs: { id: Tab; href: string; icon: string; label: string }[] = [
 ];
 
 function tabForPath(pathname: string): Tab {
-  if (pathname.includes("/daily")) return "home";
+  // Keep the selected tab tied to the current route, never to the page that
+  // happened to launch the nested screen.
+  if (pathname === "/english" || pathname.startsWith("/english/daily") || pathname.startsWith("/english/resume")) return "home";
   if (/\/(new|topics|sources|demand)/.test(pathname)) return "practice";
   if (/\/(starred|difficult|phrasal)/.test(pathname)) return "revision";
   if (/\/(saved|hindu|library)/.test(pathname)) return "library";
