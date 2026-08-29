@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import QuizRunner from "@/components/quiz-runner";
 import { EnglishLoading } from "@/components/english-frame";
 import { rpc } from "@/lib/supabase";
@@ -13,7 +14,7 @@ const modes=[["🧠","Smart Revision","smart"],["🔥","Weak","weak"],["⚡","Di
 const sizeChoices=[10,20,30,50];
 
 export default function PhrasalPage(){
- const ready=useAuthGuard();
+ const ready=useAuthGuard(),router=useRouter();
  const [hub,setHub]=useState<Hub|null>(null);
  const [pick,setPick]=useState<Pick|null>(null);
  const [pendingMode,setPendingMode]=useState<string|null>(null);
@@ -32,6 +33,7 @@ export default function PhrasalPage(){
  const s=hub?.stats,a=hub?.available,t=hub?.today;
  const startMastery=(mode:string,count:number)=>setPick({kind:"mastery",mode,count,label:`Phrasal Verb · ${modes.find(m=>m[2]===mode)?.[1]||mode}`});
  return <div className="phrasal-parity-page">
+  <section className="pv-page-subhead"><button className="btn ghost" onClick={()=>window.history.length>1?router.back():router.push("/english")}>← Back</button><div><h1>Phrasal Verb</h1><p>Smart revision + today&apos;s permanent batch.</p></div></section>
   {error&&<div className="error-box">{error}</div>}
   <section className="pv-legacy-card">
    <div className="pv-legacy-head"><div><h2>🧠 Smart Revision</h2><p>One concept per slot · central Weak/Due/Starred/Difficult signals.</p></div><span className="pv-concept-pill">{s?.totalConcepts??"—"} concepts</span></div>
