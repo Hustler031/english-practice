@@ -27,10 +27,7 @@ function stableArgs(args?: RpcArgs) {
 }
 function rpcCacheKey(name: string, args?: RpcArgs) { return `${CACHE_PREFIX}${name}:${JSON.stringify(stableArgs(args))}`; }
 function isCacheableRead(name: string) {
-  return name === "english_dashboard_summary" ||
-    name === "english_get_home_snapshot" ||
-    /^english_get_.*_(hub|today|progress|summary|intelligence|sets|audit|detail)$/.test(name) ||
-    name === "english_get_hindu_quiz";
+  return name === "english_dashboard_summary" || name === "english_resume_daily" || name.startsWith("english_get_") || name === "english_hindu_progress";
 }
 function readCache<T>(name: string, args?: RpcArgs): T | undefined {
   if (!browserReady()) return undefined;
@@ -119,7 +116,7 @@ async function revalidateCachedReads() {
     if (!key?.startsWith(CACHE_PREFIX)) continue;
     try { const entry = JSON.parse(window.localStorage.getItem(key) || "null") as CacheEntry; if (entry?.name && isCacheableRead(entry.name)) entries.push(entry); } catch { /* ignore */ }
   }
-  await Promise.allSettled(entries.slice(0, 18).map(async entry => {
+  await Promise.allSettled(entries.slice(0, 24).map(async entry => {
     const fresh = await networkRpc(entry.name, entry.args);
     writeCache(entry.name, entry.args, fresh);
   }));
@@ -143,7 +140,7 @@ async function flushAnswerOutbox() {
       writeOutbox(readOutbox().filter(x => x.id !== item.id));
       try { window.dispatchEvent(new CustomEvent("ep:answer-durable", { detail: { id: item.id, name: item.name, result } })); } catch { /* ignore */ }
       void revalidateCachedReads();
-    } catch (error) {
+    } catch {
       const latest = readOutbox();
       const hit = latest.find(x => x.id === item.id);
       if (hit) {
@@ -232,6 +229,7 @@ export async function prefetchEnglishCore() {
   if (!data.session) return;
   const reads: Array<[string, RpcArgs | undefined]> = [
     ["english_get_home_snapshot", undefined],
+    ["english_resume_daily", undefined],
     ["english_get_revision_hub", undefined],
     ["english_get_new_practice_hub", undefined],
     ["english_get_topic_hub", undefined],
@@ -243,6 +241,7 @@ export async function prefetchEnglishCore() {
     ["english_get_starred_hub", { p_from_day: null, p_to_day: null }],
     ["english_get_hindu_today", undefined],
     ["english_get_hindu_quiz", undefined],
+    ["english_hindu_progress", undefined],
     ["english_get_learning_progress", undefined],
   ];
   await Promise.allSettled(reads.map(async ([name, args]) => {
