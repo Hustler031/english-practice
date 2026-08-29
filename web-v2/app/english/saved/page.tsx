@@ -56,7 +56,7 @@ function ManageSaved({rows,error,editing,setEditing,onBack,onOpen,onType}:{rows:
 }
 
 function SavedDetail({item,onBack}:{item:Saved;onBack:()=>void}){
- const options:[[string,string|undefined],[string,string|undefined],[string,string|undefined],[string,string|undefined],[string,string|undefined]]=[["A",item.optionA],["B",item.optionB],["C",item.optionC],["D",item.optionD]] as any;const correct=String(item.correctOption||"").trim().toUpperCase().replace(/[^A-D].*$/,"").charAt(0);
+ const options:Array<[string,string|undefined]>=[["A",item.optionA],["B",item.optionB],["C",item.optionC],["D",item.optionD]];const correct=String(item.correctOption||"").trim().toUpperCase().replace(/[^A-D].*$/,"").charAt(0);
  const block=(label:string,value?:string)=>!String(value||"").trim()?null:<div className="myword-detail-block"><small>{label}</small><div>{value}</div></div>;
  return <div className="saved-parity-page saved-detail-page">
   <section className="saved-subhead mywords-detail-head"><button className="btn ghost saved-back" onClick={onBack}>← My Words</button><div><h1>{item.word}</h1><p>GPT enrichment · {savedStatus(item)}</p></div></section>
