@@ -12,11 +12,11 @@ import "./quiz-safe-area-fix.css";
 import "./final-batch.css";
 
 export const metadata: Metadata = {
-  title: "English Mastery",
-  description: "Fast SSC English practice and revision",
+  title: "Revision",
+  description: "SSC English, GK and Maths revision",
   manifest: "/manifest.webmanifest",
   icons: { icon: [{ url: "/icon-192.png", sizes: "192x192", type: "image/png" }, { url: "/icon-512.png", sizes: "512x512", type: "image/png" }], apple: [{ url: "/icon-192.png", sizes: "192x192", type: "image/png" }] },
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "English Mastery" },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Revision" },
 };
 
 export const viewport: Viewport = {
@@ -27,7 +27,7 @@ export const viewport: Viewport = {
   themeColor: "#0d1117",
 };
 
-const themeBoot = `try{const t=localStorage.getItem('english-theme');document.documentElement.dataset.theme=t==='light'?'light':'dark'}catch(e){document.documentElement.dataset.theme='dark'}`;
+const themeBoot = `try{const t=localStorage.getItem('revision-theme')||localStorage.getItem('english-theme');document.documentElement.dataset.theme=t==='light'?'light':'dark'}catch(e){document.documentElement.dataset.theme='dark'}`;
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return <html lang="en" suppressHydrationWarning><head><script dangerouslySetInnerHTML={{ __html: themeBoot }} /></head><body><PwaRegister/>{children}</body></html>;
