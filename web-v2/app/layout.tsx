@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./parity.css";
+import "./phrasal-parity.css";
 
 export const metadata: Metadata = {
   title: "Revision Platform",
