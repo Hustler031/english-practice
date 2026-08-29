@@ -9,16 +9,14 @@ import { useAuthGuard } from "@/lib/use-auth";
 type Stats={active:number;revised:number;neverRevised:number;revisedOnce:number;revisedMultiple:number;longOverdue:number;due:number;weak:number;persistentWeak:number;fragile:number;difficult:number;strong:number;learning:number};
 type Hub={stats:Stats;available:{smart:number;notRevised:number;due:number;weak:number;difficult:number;longest:number;all:number};sizes:number[];history:{day:number;label:string;count:number}[]};
 type Pick={mode:string;label:string;count:number;fromDay?:number;toDay?:number};
-const modes=[
- ["🧠","Smart Mix","smart"],["🆕","Not Revised","notRevised"],["⏰","Due Now","due"],["🔴","Weak Focus","weak"],["⚡","Difficult","difficult"],["🔄","Longest Not Revised","longest"]
-] as const;
+const modes=[["🧠","Smart Mix","smart"],["🆕","Not Revised","notRevised"],["⏰","Due Now","due"],["🔴","Weak Focus","weak"],["⚡","Difficult","difficult"],["🔄","Longest Not Revised","longest"]] as const;
 
 export default function StarredPage(){
  const ready=useAuthGuard();const [hub,setHub]=useState<Hub|null>(null);const [pick,setPick]=useState<Pick|null>(null);const [error,setError]=useState("");const [size,setSize]=useState(20);
  useEffect(()=>{if(ready)rpc<Hub>("english_get_starred_hub",{p_from_day:null,p_to_day:null}).then(setHub).catch((e:any)=>setError(e.message));},[ready]);
  const load=useCallback(()=>pick?rpc<any[]>("english_get_starred_batch",{p_mode:pick.mode,p_count:pick.count,p_from_day:pick.fromDay??null,p_to_day:pick.toDay??null}):Promise.resolve([]),[pick]);
  if(!ready)return <EnglishLoading text="Checking session…"/>;
- if(pick)return <QuizRunner title={pick.label} backHref="/english/starred" load={load} module="starredRevision"/>;
+ if(pick)return <QuizRunner title={pick.label} backHref="/english/starred" load={load} module="starredRevision" onExit={()=>setPick(null)}/>;
  const s=hub?.stats,a=hub?.available,coverage=s?.active?Math.round(s.revised*1000/s.active)/10:0;
  return <>
   <section className="page-intro"><h1>⭐ Starred Intelligence</h1><p>Adaptive revision inside your current Central Starred bank only.</p></section>
