@@ -11,7 +11,6 @@ import { clearPausedQuiz, savePausedQuiz, type PausedQuizAnswer, type PausedQuiz
 type Question = { id:string; category?:string; topic?:string; subtopic?:string; word?:string; question:string; options:{key:string;text:string}[]; correctKey?:string; questionType?:string; explanation?:string; tip?:string; usageNote?:string; example?:string; memoryAid?:string; related?:string; starred?:boolean; difficult?:boolean; mastered?:boolean; status?:string; attempts?:number; correct?:number; wrong?:number; nextReview?:string; selectionReason?:string; reason?:string };
 type Props = { title:string; backHref:string; load:()=>Promise<Question[]>; module?:string; emptyText?:string; resumeSession?:PausedQuizSession|null; initialIndex?:number; onPause?:(index:number,total:number)=>void|Promise<void>; onFinish?:()=>void|Promise<void>; onExit?:()=>void };
 const isRecallCard=(q?:Question)=>/reverse\s+recall\s+card/i.test(String(q?.questionType||""));
-const shouldShowWord=(q?:Question)=>{const word=String(q?.word||"").trim(),question=String(q?.question||"").trim();return !!word&&!!question&&question.toLocaleLowerCase().includes(word.toLocaleLowerCase());};
 
 export default function QuizRunner({ title, backHref, load, module="practice", emptyText="No questions are available for this selection.", resumeSession, initialIndex=0, onPause, onFinish, onExit }: Props) {
   const router=useRouter();
@@ -46,7 +45,7 @@ export default function QuizRunner({ title, backHref, load, module="practice", e
     <div className="quiz-progress-meta"><span>Question {idx+1} of {items.length}</span><b>{answeredCount} answered</b></div><div className="progress"><span style={{width:`${items.length?(answeredCount/items.length)*100:0}%`}}/></div>
     <section className="quiz-card">
       <div className="quiz-meta"><span className="pill">{q.category||q.topic||"English"}</span><span className="pill">{q.id}</span><LearningSignals status={q.status}/><button className="intel-button" type="button" aria-label="Question intelligence" aria-expanded={intelOpen} onClick={()=>setIntelOpen(true)}>ⓘ</button></div>
-      <div className="question-area">{!recall&&shouldShowWord(q)&&<div className="question-word">{q.word}</div>}<div className="question">{q.question}</div></div>
+      <div className="question-area"><div className="question">{q.question}</div></div>
       {recall?<RecallCard q={q} revealed={recallShown} answer={answer} busy={busy} onReveal={revealRecall} onRate={answerCanonical}/>:<div className="options">{options.map(o=>{let cls="option";if(selectedDisplayKey===o.key)cls+=" selected";if(answer&&o.canonicalKey===answer.correctCanonicalKey)cls+=" correct";if(answer&&selectedDisplayKey===o.key&&o.canonicalKey!==answer.correctCanonicalKey)cls+=" wrong";return <button key={o.key} className={cls} onClick={()=>void answerCanonical(o.canonicalKey)} disabled={!!answer||busy}><span className="option-key">{o.key}</span><span>{o.text}</span></button>;})}</div>}
       {error&&<div className="result-wrap"><div className="error-box">{error}</div></div>}
       {answer&&!recall&&<div className="result-wrap"><span className={`answer-cue ${answer.correct?"good-result":"bad-result"}`}>{answer.correct?"✓ Correct":"✕ Incorrect"}</span><Explanation q={q} options={options}/></div>}
