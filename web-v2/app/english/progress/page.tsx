@@ -5,13 +5,24 @@ import { EnglishLoading } from "@/components/english-frame";
 import { rpc } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
 
-type Summary = { total_active:number; attempted:number; mastered:number; starred:number; difficult:number };
-type Group = { id:string; name:string; total:number; weak:number; started:number; newCount:number };
-export default function ProgressHome() {
-  const ready = useAuthGuard(); const [summary, setSummary] = useState<Summary | null>(null); const [groups, setGroups] = useState<Group[]>([]);
-  useEffect(() => { if (ready) Promise.all([rpc<Summary>("english_dashboard_summary"), rpc<Group[]>("english_get_topic_hub")]).then(([s, g]) => { setSummary(s); setGroups(g); }).catch(() => {}); }, [ready]);
-  if (!ready) return <EnglishLoading text="Checking session…" />;
-  const coverage = summary?.total_active ? Math.round(summary.attempted * 100 / summary.total_active) : 0;
-  return <><section className="page-intro"><h1>Progress</h1><p>Your English coverage and category status.</p></section><div className="progress-summary"><Metric label="Bank Exposed" value={summary ? `${summary.attempted} / ${summary.total_active}` : "—"} /><Metric label="Coverage" value={summary ? `${coverage}%` : "—"} /><Metric label="Weak" value={summary?.difficult ?? "—"} /><Metric label="Mastered" value={summary?.mastered ?? "—"} /></div><section className="section-block"><h2 className="section-cap">Category Progress</h2><div className="category-list">{groups.length ? groups.map((group) => { const percent = group.total ? Math.min(100, Math.round(group.started * 100 / group.total)) : 0; return <article className="category-row" key={group.id}><div className="category-title"><b>{group.name}</b><span>{group.started} / {group.total}</span></div><div className="progress-track"><i style={{ width: `${percent}%` }} /></div><small>Coverage {percent}% · Weak {group.weak} · New {group.newCount}</small></article>; }) : <div className="empty-copy">Loading categories…</div>}</div></section></>;
+type Composition={coreBank:number;addedGenerated:number;demandCreated:number;totalActive:number};
+type Category={id:string;name:string;total:number;exposed:number;coveragePercent:number;firstAttemptAccuracy:number;retentionAccuracy:number;weak:number;weakConcepts:number;persistentWeak:number;mastered:number;core:number;added:number;demand:number;totalActive:number};
+type Progress={schemaVersion:number;bankExposed:number;exposed:number;total:number;left:number;firstAttemptAccuracy:number;afterReviewAccuracy:number;retentionAccuracy:number;weakCount:number;weakConcepts:number;persistentWeakCount:number;masteredCount:number;composition:Composition;categories:Category[]};
+
+export default function ProgressHome(){
+ const ready=useAuthGuard();const [p,setP]=useState<Progress|null>(null);const [error,setError]=useState("");
+ useEffect(()=>{if(ready)rpc<Progress>("english_get_learning_progress").then(setP).catch((e:any)=>setError(e.message));},[ready]);
+ if(!ready)return <EnglishLoading text="Checking session…"/>;
+ return <>
+  <section className="page-intro"><h1>Progress</h1><p>Your core-bank exposure, first-attempt quality and spaced retention.</p></section>
+  {error&&<div className="error-box">{error}</div>}
+  <div className="progress-summary learning-progress-grid">
+   <Metric label="Bank Exposed" value={p?`${p.bankExposed.toFixed(1)}%`:"—"}/><Metric label="First Attempt" value={p?`${p.firstAttemptAccuracy.toFixed(1)}%`:"—"}/><Metric label="Retention" value={p?`${p.retentionAccuracy.toFixed(1)}%`:"—"}/><Metric label="Weak Concepts" value={p?.weakConcepts??"—"}/><Metric label="Persistent Weak" value={p?.persistentWeakCount??"—"}/><Metric label="Mastered" value={p?.masteredCount??"—"}/>
+  </div>
+  <div className="learning-after">After-review accuracy: <b>{p?`${p.afterReviewAccuracy.toFixed(1)}%`:"—"}</b> · immediate same-day retries are excluded from retention.</div>
+  <section className="section-block"><h2 className="section-cap">Question Bank</h2><div className="progress-composition"><Metric label="Core Bank" value={p?.composition?.coreBank??"—"}/><Metric label="Added / Generated" value={p?.composition?.addedGenerated??"—"}/><Metric label="Demand-created" value={p?.composition?.demandCreated??"—"}/><Metric label="Total Active" value={p?.composition?.totalActive??"—"}/></div><p className="muted progress-method">Core Bank is the original curated bank. Added / Generated covers later saved-word and Hindu-generated canonical questions. Demand-created counts only genuinely new canonical questions created for a Demand Set; membership of an existing question never increases the total.</p></section>
+  <section className="section-block"><h2 className="section-cap">Category Progress</h2><div className="category-list">{p?.categories?.length?p.categories.map(c=><article className="category-row" key={c.id}><div className="category-title"><b>{c.name}</b><span>{c.exposed} / {c.total}</span></div><div className="progress-track"><i style={{width:`${Math.min(100,c.coveragePercent)}%`}}/></div><small>Coverage {c.coveragePercent.toFixed(1)}% · First {c.firstAttemptAccuracy.toFixed(1)}% · Retention {c.retentionAccuracy.toFixed(1)}%</small><small>Weak {c.weak} · Persistent Weak {c.persistentWeak} · Mastered {c.mastered}</small><small>Core {c.core} · Added {c.added} · Demand {c.demand} · Total active {c.totalActive}</small></article>):<div className="empty-copy">Loading category progress…</div>}</div></section>
+  <p className="muted progress-method">Bank Exposed = unique genuine core-bank Question_IDs attempted at least once. First Attempt uses only the first genuine attempt per Question_ID. Retention uses the first attempt on later study days, so same-day correction does not inflate retention.</p>
+ </>;
 }
-function Metric({ label, value }: { label:string; value:string | number }) { return <div><span>{label}</span><b>{value}</b></div>; }
+function Metric({label,value}:{label:string;value:string|number}){return <div><span>{label}</span><b>{value}</b></div>}
