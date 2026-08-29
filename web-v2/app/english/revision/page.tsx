@@ -9,20 +9,14 @@ import { useAuthGuard } from "@/lib/use-auth";
 
 type Hub={due:number;weak:number;persistentWeak:number;difficult:number;starred:number;seenBefore:number;mastered:number;learning:number};
 type Pick={mode:"due"|"weak"|"recall"|"difficult";label:string};
-const attention=[
- ["⏰","Due Today","Central spaced-review clock is due","due"],
- ["🔥","Weak / Wrong","Persistent Weak → Weak → Fragile","weak"],
- ["★","Starred Revision","Adaptive revision inside your Central Starred bank","starred"],
- ["⚡","Difficult","Questions you manually marked difficult anywhere","difficult"],
- ["↺","Seen Before / Recall","Rotate previously encountered questions","recall"]
-] as const;
+const attention=[["⏰","Due Today","Central spaced-review clock is due","due"],["🔥","Weak / Wrong","Persistent Weak → Weak → Fragile","weak"],["★","Starred Revision","Adaptive revision inside your Central Starred bank","starred"],["⚡","Difficult","Questions you manually marked difficult anywhere","difficult"],["↺","Seen Before / Recall","Rotate previously encountered questions","recall"]] as const;
 
 export default function RevisionHome(){
  const ready=useAuthGuard();const [hub,setHub]=useState<Hub|null>(null);const [pick,setPick]=useState<Pick|null>(null);const [error,setError]=useState("");
  useEffect(()=>{if(ready)rpc<Hub>("english_get_revision_hub").then(setHub).catch((e:any)=>setError(e.message));},[ready]);
  const load=useCallback(()=>pick?rpc<any[]>("english_get_revision_batch",{p_mode:pick.mode,p_count:30}):Promise.resolve([]),[pick]);
  if(!ready)return <EnglishLoading text="Checking session…"/>;
- if(pick)return <QuizRunner title={pick.label} backHref="/english/revision" load={load} module="revision"/>;
+ if(pick)return <QuizRunner title={pick.label} backHref="/english/revision" load={load} module="revision" onExit={()=>setPick(null)}/>;
  const count=(id:string)=>id==="due"?hub?.due:id==="weak"?hub?.weak:id==="starred"?hub?.starred:id==="difficult"?hub?.difficult:hub?.seenBefore;
  return <>
   <section className="page-intro"><h1>Revision</h1><p>Central Intelligence decides what needs attention; each module keeps its own candidate pool.</p></section>
