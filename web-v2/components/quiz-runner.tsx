@@ -43,6 +43,14 @@ export default function QuizRunner({ title, backHref, load, module="practice", e
     savePausedQuiz({ title, backHref, module, index:idx, questions:items, savedAt:Date.now() });
   }, [items, idx, title, backHref, module]);
 
+  useEffect(() => {
+    if (loading) return;
+    const onBack = () => window.location.assign(backHref);
+    window.history.pushState({ englishQuiz:true }, "");
+    window.addEventListener("popstate", onBack);
+    return () => window.removeEventListener("popstate", onBack);
+  }, [loading, backHref]);
+
   const q = items[idx];
   const options = useMemo(() => {
     if (!q) return [];
