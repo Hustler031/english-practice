@@ -27,7 +27,7 @@ export const viewport: Viewport = {
   themeColor: "#0d1117",
 };
 
-const themeBoot = `try{const t=localStorage.getItem('revision-theme')||localStorage.getItem('english-theme');document.documentElement.dataset.theme=t==='light'?'light':'dark'}catch(e){document.documentElement.dataset.theme='dark'}`;
+const themeBoot = `try{const t=localStorage.getItem('revision:theme')||localStorage.getItem('revision-theme')||localStorage.getItem('english-theme');document.documentElement.dataset.theme=t==='light'?'light':'dark'}catch(e){document.documentElement.dataset.theme='dark'}`;
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return <html lang="en" suppressHydrationWarning><head><script dangerouslySetInnerHTML={{ __html: themeBoot }} /></head><body><PwaRegister/>{children}</body></html>;
