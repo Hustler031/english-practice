@@ -3,15 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
+import { prefetchEnglishCore } from "@/lib/supabase";
 
 type Tab = "home" | "practice" | "revision" | "library" | "progress";
 type Theme = "dark" | "light";
 
 const tabs: { id: Tab; href: string; icon: string; label: string }[] = [
   { id: "home", href: "/english", icon: "⌂", label: "Home" },
-  { id: "practice", href: "/english/practice", icon: "▤", label: "Practice" },
-  { id: "revision", href: "/english/revision", icon: "★", label: "Revision" },
-  { id: "library", href: "/english/library", icon: "▥", label: "Library" },
+  { id: "practice", href: "/english/practice", icon: "◎", label: "Practice" },
+  { id: "revision", href: "/english/revision", icon: "↻", label: "Revision" },
+  { id: "library", href: "/english/library", icon: "▦", label: "Library" },
   { id: "progress", href: "/english/progress", icon: "◔", label: "Progress" },
 ];
 
@@ -34,6 +35,13 @@ export function EnglishFrame({ children, tab }: { children: ReactNode; tab?: Tab
     const next: Theme = saved === "light" ? "light" : "dark";
     setTheme(next);
     document.documentElement.dataset.theme = next;
+    const warm = () => { void prefetchEnglishCore(); };
+    warm();
+    const timer = window.setInterval(warm, 120000);
+    const onVisible = () => { if (!document.hidden) warm(); };
+    window.addEventListener("online", warm);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { window.clearInterval(timer); window.removeEventListener("online", warm); document.removeEventListener("visibilitychange", onVisible); };
   }, []);
 
   function toggleTheme() {
@@ -63,5 +71,5 @@ export function EnglishFrame({ children, tab }: { children: ReactNode; tab?: Tab
 }
 
 export function EnglishLoading({ text = "Loading…" }: { text?: string }) {
-  return <div className="english-app"><div className="loading-copy">{text}</div></div>;
+  return <div className="english-app"><div className="loading-shell"><i/><i/><i/><span>{text}</span></div></div>;
 }
