@@ -1,0 +1,80 @@
+/* Local visual trial: subtle blue-tinted explanation cards + stronger English header. */
+
+/* Explanation: keep the current typography/highlights, but give each learning block
+   a restrained blue-black surface so the long answer does not read as one flat page. */
+.quiz .explanation{
+  display:grid!important;
+  gap:9px!important;
+  margin-top:15px!important;
+  padding:0!important;
+  border:0!important;
+  background:transparent!important;
+}
+.quiz .explanation>div,
+.quiz .explanation .tipbox{
+  margin:0!important;
+  padding:12px 13px!important;
+  border:1px solid color-mix(in srgb,var(--primary) 13%,var(--line))!important;
+  border-radius:14px!important;
+  background:linear-gradient(145deg,
+    color-mix(in srgb,var(--primary) 5%,var(--card)) 0%,
+    color-mix(in srgb,var(--primary) 2.5%,var(--card)) 100%)!important;
+  box-shadow:inset 0 1px 0 color-mix(in srgb,var(--primary) 5%,transparent)!important;
+}
+.quiz .explanation>div:first-child{
+  border-top:1px solid color-mix(in srgb,var(--primary) 13%,var(--line))!important;
+}
+.quiz .explanation h3{
+  margin:0 0 7px!important;
+  font-size:12.5px!important;
+  font-weight:900!important;
+}
+.quiz .explanation .tipbox{
+  border-color:color-mix(in srgb,var(--primary) 18%,var(--line))!important;
+  background:linear-gradient(145deg,
+    color-mix(in srgb,var(--primary) 7%,var(--card)) 0%,
+    color-mix(in srgb,var(--primary) 3%,var(--card)) 100%)!important;
+}
+
+/* English Mastery row: slightly taller, heavier and more deliberate. */
+.english-header{
+  min-height:80px!important;
+  height:auto!important;
+  padding:14px 20px!important;
+  border-bottom:2px solid color-mix(in srgb,var(--primary) 12%,var(--line))!important;
+}
+.english-brand{
+  gap:3px!important;
+}
+.english-brand strong{
+  font-size:24px!important;
+  font-weight:950!important;
+  line-height:1.06!important;
+  letter-spacing:-.035em!important;
+}
+.english-brand span{
+  font-size:13.5px!important;
+  font-weight:600!important;
+  line-height:1.25!important;
+}
+.english-header .control-icon{
+  width:42px!important;
+  height:42px!important;
+  border-radius:13px!important;
+}
+
+@media(max-width:420px){
+  .english-header{min-height:78px!important;padding:13px 15px!important}
+  .english-brand strong{font-size:22px!important}
+  .english-brand span{font-size:12.5px!important}
+  .english-header .control-icon{width:40px!important;height:40px!important}
+  .quiz .explanation{gap:8px!important}
+  .quiz .explanation>div,.quiz .explanation .tipbox{padding:11px 12px!important;border-radius:13px!important}
+}
+
+:root[data-theme="light"] .quiz .explanation>div,
+:root[data-theme="light"] .quiz .explanation .tipbox{
+  background:linear-gradient(145deg,
+    color-mix(in srgb,var(--primary) 4%,var(--card)) 0%,
+    color-mix(in srgb,var(--primary) 1.5%,var(--card)) 100%)!important;
+}
