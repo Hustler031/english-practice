@@ -6,6 +6,7 @@ let client: SupabaseClient | null = null;
 let reliabilityWired = false;
 let outboxRunning = false;
 let wakeTimer: ReturnType<typeof setTimeout> | null = null;
+let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
 const CACHE_PREFIX = "ep:v2:rpc-cache:";
 const OUTBOX_KEY = "ep:v2:answer-outbox:v1";
@@ -28,6 +29,10 @@ function stableArgs(args?: RpcArgs) {
 function rpcCacheKey(name: string, args?: RpcArgs) { return `${CACHE_PREFIX}${name}:${JSON.stringify(stableArgs(args))}`; }
 function isCacheableRead(name: string) {
   return name === "english_dashboard_summary" || name === "english_resume_daily" || name.startsWith("english_get_") || name === "english_hindu_progress";
+}
+function shouldRefreshAfterMutation(name: string) {
+  return name === "english_dashboard_summary" || name === "english_resume_daily" || name === "english_get_home_snapshot" || name === "english_hindu_progress" ||
+    /^english_get_.*_(hub|progress|summary|intelligence|today|guidance)$/.test(name);
 }
 function readCache<T>(name: string, args?: RpcArgs): T | undefined {
   if (!browserReady()) return undefined;
@@ -114,13 +119,21 @@ async function revalidateCachedReads() {
   for (let i = 0; i < window.localStorage.length; i++) {
     const key = window.localStorage.key(i);
     if (!key?.startsWith(CACHE_PREFIX)) continue;
-    try { const entry = JSON.parse(window.localStorage.getItem(key) || "null") as CacheEntry; if (entry?.name && isCacheableRead(entry.name)) entries.push(entry); } catch { /* ignore */ }
+    try {
+      const entry = JSON.parse(window.localStorage.getItem(key) || "null") as CacheEntry;
+      if (entry?.name && shouldRefreshAfterMutation(entry.name)) entries.push(entry);
+    } catch { /* ignore */ }
   }
-  await Promise.allSettled(entries.slice(0, 24).map(async entry => {
+  await Promise.allSettled(entries.slice(0, 16).map(async entry => {
     const fresh = await networkRpc(entry.name, entry.args);
     writeCache(entry.name, entry.args, fresh);
   }));
   try { window.dispatchEvent(new CustomEvent("ep:v2-cache-refreshed")); } catch { /* ignore */ }
+}
+function scheduleCacheRefresh(ms = 1200) {
+  if (!browserReady()) return;
+  if (refreshTimer) clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(() => { void revalidateCachedReads(); }, Math.max(0, ms));
 }
 async function flushAnswerOutbox() {
   if (!browserReady() || outboxRunning || !navigator.onLine) return;
@@ -139,7 +152,7 @@ async function flushAnswerOutbox() {
       const result = await networkRpc(item.name, item.args);
       writeOutbox(readOutbox().filter(x => x.id !== item.id));
       try { window.dispatchEvent(new CustomEvent("ep:answer-durable", { detail: { id: item.id, name: item.name, result } })); } catch { /* ignore */ }
-      void revalidateCachedReads();
+      scheduleCacheRefresh();
     } catch {
       const latest = readOutbox();
       const hit = latest.find(x => x.id === item.id);
@@ -219,7 +232,7 @@ export async function rpc<T = unknown>(name: string, args?: RpcArgs): Promise<T>
   }
 
   const result = await networkRpc<T>(name, args);
-  if (/^english_(set_|save_|add_|promote_|update_|start_|reconcile_)/.test(name)) void revalidateCachedReads();
+  if (/^english_(set_|save_|add_|promote_|update_|start_|reconcile_)/.test(name)) scheduleCacheRefresh();
   return result;
 }
 
@@ -239,6 +252,7 @@ export async function prefetchEnglishCore() {
     ["english_get_saved_revision_hub", undefined],
     ["english_get_phrasal_hub", undefined],
     ["english_get_starred_hub", { p_from_day: null, p_to_day: null }],
+    ["english_get_starred_guidance", { p_from_day: null, p_to_day: null }],
     ["english_get_hindu_today", undefined],
     ["english_get_hindu_quiz", undefined],
     ["english_hindu_progress", undefined],
