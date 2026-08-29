@@ -23,11 +23,20 @@ export default function AddWordSheet({ questionId = "", initialWord = "", questi
     setWord(defaultWord);
     setType("AUTO");
     setMessage("");
-    // The legacy app used a short post-open focus delay. On Android Chrome
-    // this is more reliable than contentEditable or synthetic focus tricks.
+    // Keep the Android-friendly delayed focus, while the transparent/non-blocking
+    // capture surface still leaves the question readable behind the sheet.
     const timer = window.setTimeout(() => inputRef.current?.focus(), 60);
     return () => window.clearTimeout(timer);
   }, [open, defaultWord]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeSheet();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open]);
 
   function closeSheet() {
     inputRef.current?.blur();
@@ -47,7 +56,7 @@ export default function AddWordSheet({ questionId = "", initialWord = "", questi
   }
 
   const sheet = open && typeof document !== "undefined" ? createPortal(
-    <div className="sheet-backdrop add-word-backdrop" role="dialog" aria-modal="true" aria-label="Add word" onMouseDown={(e) => { if (e.target === e.currentTarget) closeSheet(); }}>
+    <div className="sheet-backdrop add-word-backdrop" role="dialog" aria-label="Add word">
       <form className="add-word-sheet add-word-sheet-v2" onSubmit={save} autoComplete="off">
         <div className="add-word-handle" aria-hidden="true" />
         <div className="sheet-heading add-word-heading">
@@ -72,7 +81,7 @@ export default function AddWordSheet({ questionId = "", initialWord = "", questi
           placeholder="Word / doubt / usage point"
           required
         />
-        <div className="capture-types add-word-types">{types.map((item) => <button className={`capture-type ${item === type ? "selected" : ""}`} type="button" key={item} onClick={() => setType(item)}>{item === "IP" ? "I/P" : item}</button>)}</div>
+        <div className="capture-types add-word-types">{types.map((item) => <button className={`capture-type ${item === type ? "selected" : ""}`} type="button" key={item} aria-pressed={item === type} onClick={() => setType(item)}>{item === "IP" ? "I/P" : item}</button>)}</div>
         {message && <div className="form-message add-word-message">{message}</div>}
         <button className="btn primary sheet-save add-word-save" disabled={busy || !word.trim()}>{busy ? "Saving…" : "Save"}</button>
       </form>
@@ -81,7 +90,7 @@ export default function AddWordSheet({ questionId = "", initialWord = "", questi
   ) : null;
 
   return <>
-    <button className="btn ghost compact-add" onClick={() => setOpen(true)}>{label}</button>
+    <button className="btn ghost compact-add" type="button" onClick={() => setOpen(true)}>{label}</button>
     {sheet}
   </>;
 }
