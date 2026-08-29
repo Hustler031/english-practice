@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { rpc } from "@/lib/supabase";
 
 const types = ["AUTO", "V", "SM", "OWS", "PV", "IP"];
@@ -13,25 +14,38 @@ export default function AddWordSheet({ questionId = "", initialWord = "", questi
   const [message, setMessage] = useState("");
   const editorRef = useRef<HTMLDivElement | null>(null);
 
+  function focusEditorAtEnd() {
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.focus();
+    const selection = window.getSelection();
+    if (!selection) return;
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  function openSheet() {
+    // Mobile Chrome only reliably opens the IME when focus happens inside the
+    // original user gesture. flushSync mounts the contentEditable before the
+    // click handler returns, so we can focus it synchronously without falling
+    // back to a normal input (which triggers Chrome/Gboard autofill UI).
+    flushSync(() => {
+      setWord(initialWord);
+      setOpen(true);
+    });
+    if (editorRef.current) editorRef.current.textContent = initialWord;
+    focusEditorAtEnd();
+  }
+
   useEffect(() => {
     if (!open) return;
-    setWord(initialWord);
-    const frame = requestAnimationFrame(() => {
-      const editor = editorRef.current;
-      if (!editor) return;
-      editor.textContent = initialWord;
-      editor.focus();
-      const selection = window.getSelection();
-      if (selection) {
-        const range = document.createRange();
-        range.selectNodeContents(editor);
-        range.collapse(false);
-        selection.removeAllRanges();
-        selection.addRange(range);
-      }
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [open, initialWord]);
+    const editor = editorRef.current;
+    if (!editor) return;
+    if (editor.textContent !== initialWord && word === initialWord) editor.textContent = initialWord;
+  }, [open, initialWord, word]);
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -49,7 +63,7 @@ export default function AddWordSheet({ questionId = "", initialWord = "", questi
   }
 
   return <>
-    <button className="btn ghost compact-add" onClick={() => setOpen(true)}>{label}</button>
+    <button className="btn ghost compact-add" onClick={openSheet}>{label}</button>
     {open && <div className="sheet-backdrop" role="dialog" aria-modal="true" aria-label="Add word" onMouseDown={(e) => { if (e.target === e.currentTarget) setOpen(false); }}>
       <form className="add-word-sheet" onSubmit={save} autoComplete="off">
         <div className="sheet-heading"><div><strong>Add Word</strong><span>Save a word, doubt or usage point for revision.</span></div><button className="control-icon" type="button" onClick={() => setOpen(false)} aria-label="Close">×</button></div>
