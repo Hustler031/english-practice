@@ -32,9 +32,23 @@ export default function AddWordSheet({ questionId = "", initialWord = "", questi
   return <>
     <button className="btn ghost compact-add" onClick={() => setOpen(true)}>{label}</button>
     {open && <div className="sheet-backdrop" role="dialog" aria-modal="true" aria-label="Add word" onMouseDown={(e) => { if (e.target === e.currentTarget) setOpen(false); }}>
-      <form className="add-word-sheet" onSubmit={save}>
+      <form className="add-word-sheet" onSubmit={save} autoComplete="off">
         <div className="sheet-heading"><div><strong>Add Word</strong><span>Save a word, doubt or usage point for revision.</span></div><button className="control-icon" type="button" onClick={() => setOpen(false)} aria-label="Close">×</button></div>
-        <input className="input" value={word} onChange={(e) => setWord(e.target.value)} placeholder="Word / doubt / usage point" required />
+        <input
+          className="input"
+          name="english-study-capture"
+          type="text"
+          inputMode="text"
+          autoFocus
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="none"
+          spellCheck={false}
+          value={word}
+          onChange={(e) => setWord(e.target.value)}
+          placeholder="Word / doubt / usage point"
+          required
+        />
         <div className="capture-types">{types.map((item) => <button className={`capture-type ${item === type ? "selected" : ""}`} type="button" key={item} onClick={() => setType(item)}>{item === "IP" ? "I/P" : item}</button>)}</div>
         {message && <div className="form-message">{message}</div>}
         <button className="btn primary sheet-save" disabled={busy}>{busy ? "Saving…" : "Save"}</button>
