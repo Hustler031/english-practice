@@ -16,7 +16,7 @@ export default function ProgressHome(){
  return <>
   <section className="page-intro"><h1>Progress</h1><p>Your core-bank exposure, first-attempt quality and spaced retention.</p></section>
   {error&&<div className="error-box">{error}</div>}
-  <div className="progress-summary">
+  <div className="progress-summary progress-six">
    <Metric label="Bank Exposed" value={p?`${p.bankExposed.toFixed(1)}%`:"—"}/><Metric label="First Attempt" value={p?`${p.firstAttemptAccuracy.toFixed(1)}%`:"—"}/><Metric label="Retention" value={p?`${p.retentionAccuracy.toFixed(1)}%`:"—"}/><Metric label="Weak Concepts" value={p?.weakConcepts??"—"}/><Metric label="Persistent Weak" value={p?.persistentWeakCount??"—"}/><Metric label="Mastered" value={p?.masteredCount??"—"}/>
   </div>
   <p className="muted" style={{textAlign:"center",fontSize:11,marginTop:-8}}>After-review accuracy: <b>{p?`${p.afterReviewAccuracy.toFixed(1)}%`:"—"}</b> · immediate same-day retries are excluded from retention.</p>
