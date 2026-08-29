@@ -20,7 +20,7 @@ export default function QuizRunner({ title, backHref, load, module="practice", e
   useEffect(()=>{if(!items.length)return;savePausedQuiz({title,backHref,module,index:idx,questions:items,answers,revealedRecall:[...revealedRecall],savedAt:Date.now()});},[items,idx,title,backHref,module,answers,revealedRecall]);
   useEffect(()=>{if(loading)return;const onBack=()=>{const x=exitRef.current;Promise.resolve(x.onPause?.(x.idx,x.total)).catch(()=>{}).finally(()=>{if(x.onExit)x.onExit();else router.push(backHref);});};window.history.pushState({englishQuiz:true},"");window.addEventListener("popstate",onBack);return()=>window.removeEventListener("popstate",onBack);},[loading,backHref,router]);
 
-  const q=items[idx];const answer=q?answers[q.id]:undefined;const [intelOpen,setIntelOpen]=useState(false);
+  const q=items[idx];const answer=q?answers[q.id]:undefined;const [intelOpen,setIntelOpen]=useState(false);const answeredCount=Object.keys(answers).length;
   useEffect(()=>setIntelOpen(false),[q?.id]);
   const options=useMemo(()=>{if(!q||isRecallCard(q))return[];const hit=optionCache.current.get(q.id);if(hit)return hit;const made=makeDisplayOptions(q.questionType,q.options||[]);optionCache.current.set(q.id,made);return made;},[q?.id,q?.questionType,q?.options]);
   const selectedDisplayKey=answer?(options.find(o=>o.canonicalKey===answer.selectedCanonicalKey)?.key||answer.selectedCanonicalKey):"";const showDifficult=difficultModules.has(module.toLowerCase());const recall=isRecallCard(q);const recallShown=!!q&&revealedRecall.has(q.id);
@@ -33,7 +33,7 @@ export default function QuizRunner({ title, backHref, load, module="practice", e
     setAnswers(a=>({...a,[q.id]:{selectedCanonicalKey:canonicalKey,correct:canonicalKey===localCorrectKey,correctCanonicalKey:localCorrectKey}}));
     setBusy(true);setError("");
     try{const out=await rpc<any>("english_submit_answer",{p_question_id:q.id,p_selected_key:canonicalKey,p_time_seconds:Math.min(180,(Date.now()-started.current)/1000),p_marked_revision:!!q.starred,p_attempt_id:`v2-${q.id}-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,p_module:module});const correctKey=String(out.correct_key||localCorrectKey).toUpperCase();setAnswers(a=>({...a,[q.id]:{selectedCanonicalKey:canonicalKey,correct:!!out.is_correct,correctCanonicalKey:correctKey}}));}
-    catch(e:any){setError(`Answer is shown, but saving it failed: ${e.message||"please retry later"}`);}
+    catch(e:any){setError(`Answer is shown, but this save could not be queued: ${e.message||"please reconnect and retry"}`);}
     finally{setBusy(false);}
   }
   async function answerOption(option:DisplayOption){return answerCanonical(option.canonicalKey);}
@@ -43,12 +43,13 @@ export default function QuizRunner({ title, backHref, load, module="practice", e
   function revealRecall(){if(!q)return;setRevealedRecall(s=>{const next=new Set(s);next.add(q.id);return next;});}
   async function finish(){try{await onFinish?.();}catch{}clearPausedQuiz();if(onExit)onExit();else router.push(backHref);}
 
-  if(loading)return <main className="center"><div className="muted">Loading {title}…</div></main>;
+  if(loading)return <main className="shell quiz"><div className="loading-shell"><i/><i/><i/><span>Opening {title} from cache and syncing fresh data…</span></div></main>;
   if(!items.length)return <main className="shell quiz"><QuizTop title={title} onBack={()=>void exitQuiz()}/><div className="empty-state"><h2>{title}</h2><p className="muted">{error||emptyText}</p></div></main>;
   if(!q)return <main className="shell"><div className="error-box">Question position is unavailable.</div></main>;
 
   return <main className="shell quiz quiz-with-tools">
-    <QuizTop title={title} onBack={()=>void exitQuiz()} count={`${idx+1} / ${items.length}`}/><div className="progress"><span style={{width:`${((idx+1)/items.length)*100}%`}}/></div>
+    <QuizTop title={title} onBack={()=>void exitQuiz()} count={`${idx+1} / ${items.length}`}/>
+    <div className="quiz-progress-meta"><span>Question {idx+1} of {items.length}</span><b>{answeredCount} answered</b></div><div className="progress"><span style={{width:`${items.length?(answeredCount/items.length)*100:0}%`}}/></div>
     <section className="quiz-card">
       <div className="quiz-meta"><span className="pill">{q.category||q.topic||"English"}</span><span className="pill">{q.id}</span><LearningSignals status={q.status}/><button className="intel-button" type="button" aria-label="Question intelligence" aria-expanded={intelOpen} onClick={()=>setIntelOpen(true)}>ⓘ</button></div>
       <div className="question-area">{!recall&&q.word&&<div className="question-word">{q.word}</div>}<div className="question">{q.question}</div></div>
