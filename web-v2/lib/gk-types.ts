@@ -11,7 +11,7 @@ export type GkQuestionState={
 export type GkQuestion={
  id:string;question_id?:string;question:string;correctKey:string;options:GkOption[];content_lane?:string;content_type?:string;
  subject?:string;topic?:string;chapter?:string;subtopic?:string;concept_id?:string;lecture_key?:string;lecture_no?:number|string;
- library_key?:string;source_label?:string;source_date?:string;difficulty?:string;explanation?:string;trick?:string;related_fact?:string;exam_trap?:string;
+ library_key?:string;source_label?:string;source_date?:string;source_page?:number|string;difficulty?:string;explanation?:string;trick?:string;related_fact?:string;exam_trap?:string;
  state?:GkQuestionState;
 };
 export type GkSummary={
@@ -40,3 +40,12 @@ export type GkProgress={
  currentAffairsHealth:Array<Record<string,number|string>>;starredHealth:Record<string,number>;guessedHealth:Record<string,number>;
  difficultResolution:Record<string,number>;lectureCoverage:Array<{lecture_key:string;title:string;total:number;exposed:number;weak:number;mastered:number}>;
 };
+export type GkNewTopic={topic:string;unseen:number};
+export type GkNewSubject={subject:string;unseen:number;topics:GkNewTopic[]};
+export type GkNewLecture={lectureKey:string;lectureNo:number|string|null;title:string;unseenTotal:number;unseenMain:number;unseenRapid:number};
+export type GkNewLibrary={libraryKey:string;title:string;unseen:number;lectures:GkNewLecture[]};
+export type GkNewCurrentCategory={category:string;all:number;m1:number;m3:number;m6:number};
+export type GkNewPracticeHub={ok:boolean;summary:{unseen:number;totalActive:number;bankExposedPct:number};subjects:GkNewSubject[];libraries:GkNewLibrary[];currentAffairs:{all:number;m1:number;m3:number;m6:number;categories:GkNewCurrentCategory[]}};
+export type GkGuessedRow={id:string;question:string;subject:string;topic:string;learningState:string;guessedAttempts:number;repeatedlyGuessed:boolean;due:boolean;confirmedUnguessedSpacedRecalls:number};
+export type GkGuessedHub={ok:boolean;summary:{unresolved:number;repeated:number;weak:number;due:number};rows:GkGuessedRow[]};
+export type GkFlaggedContent={id:string;question:string;subject:string;topic:string;reason:string;note:string};
