@@ -2,39 +2,95 @@
 
 Project: `hytehindbmjdwcfptsic`
 
-This file records the live GK V2 migration sequence verified from `supabase_migrations.schema_migrations` during the localhost-first integration on 2026-08-30.
+This document separates three things deliberately:
+
+1. the historical migration versions verified in the live `supabase_migrations.schema_migrations` ledger;
+2. exact repository-managed migrations that are safe to apply forward from the current live project; and
+3. a reconstructed clean-database recovery baseline. The recovery baseline is **not** represented as an original historical migration and is kept outside `managed-migrations` so it cannot be accidentally replayed against production.
+
+## Verified live historical ledger
 
 | Version | Live migration | Repository status |
 |---|---|---|
-| 20260829105829 | gk_v2_source_identity_and_raw_evidence | live foundation; original managed SQL is not present in this branch |
-| 20260829120011 | gk_enable_http_import_transport | live foundation; original managed SQL is not present in this branch |
-| 20260829120326 | gk_canonical_payload_import_transport | live foundation; original managed SQL is not present in this branch |
-| 20260829121729 | gk_v2_backend_read_write_foundation | live foundation; original managed SQL is not present in this branch |
-| 20260829123912 | gk_v2_source_study_date | live foundation; original managed SQL is not present in this branch |
-| 20260829155628 | gk_lock_down_staging_tables | live foundation; original managed SQL is not present in this branch |
-| 20260829155742 | protect_gk_migration_evidence_tables | live foundation; original managed SQL is not present in this branch |
-| 20260829160249 | gk_v2_lane_contract_fix | live foundation; original managed SQL is not present in this branch |
-| 20260829160500 | gk_v2_lane_and_subject_browse | live foundation; original managed SQL is not present in this branch |
-| 20260829160511 | gk_v2_runtime_rpc_permissions | live foundation; original managed SQL is not present in this branch |
-| 20260829161319 | gk_v2_native_api | live foundation; original managed SQL is not present in this branch |
-| 20260829163754 | gk_lane_recall_guess_parity | live foundation; original managed SQL is not present in this branch |
-| 20260829164200 | gk_active_exposure_summary | live foundation; original managed SQL is not present in this branch |
+| 20260829105829 | gk_v2_source_identity_and_raw_evidence | historical live foundation; original SQL was not recovered exactly |
+| 20260829120011 | gk_enable_http_import_transport | historical live foundation; original SQL was not recovered exactly |
+| 20260829120326 | gk_canonical_payload_import_transport | historical live foundation; original SQL was not recovered exactly |
+| 20260829121729 | gk_v2_backend_read_write_foundation | historical live foundation; original SQL was not recovered exactly |
+| 20260829123912 | gk_v2_source_study_date | historical live foundation; original SQL was not recovered exactly |
+| 20260829155628 | gk_lock_down_staging_tables | historical live foundation; original SQL was not recovered exactly |
+| 20260829155742 | protect_gk_migration_evidence_tables | historical live foundation; original SQL was not recovered exactly |
+| 20260829160249 | gk_v2_lane_contract_fix | historical live foundation; original SQL was not recovered exactly |
+| 20260829160500 | gk_v2_lane_and_subject_browse | historical live foundation; original SQL was not recovered exactly |
+| 20260829160511 | gk_v2_runtime_rpc_permissions | historical live foundation; original SQL was not recovered exactly |
+| 20260829161319 | gk_v2_native_api | historical live foundation; original SQL was not recovered exactly |
+| 20260829163754 | gk_lane_recall_guess_parity | historical live foundation; original SQL was not recovered exactly |
+| 20260829164200 | gk_active_exposure_summary | historical live foundation; original SQL was not recovered exactly |
 | 20260830025704 | gk_v2_local_safe_read_surface | exact repository mirror: `20260830025704_gk_v2_local_safe_read_surface.sql` |
-| 20260830032146 | gk_v2_view_parity_reads | exact repository mirror; read-only old-view support for true scope All, lecture Parts, New Practice, Guessed and Flagged Content |
-| 20260830032730 | gk_v2_starred_group_view_parity | exact repository mirror; read-only Starred day-group random/smart/all selector |
-| 20260830033040 | gk_v2_starred_group_selector_wiring | exact repository mirror; routes existing Starred age URLs to the group selector without changing data |
-| 20260830034447 | gk_v2_scoped_concept_route_keys | exact repository mirror; read-only subject/topic-scoped concept route keys prevent duplicate React keys and ambiguous concept routing |
+| 20260830032146 | gk_v2_view_parity_reads | exact repository mirror |
+| 20260830032730 | gk_v2_starred_group_view_parity | exact repository mirror |
+| 20260830033040 | gk_v2_starred_group_selector_wiring | exact repository mirror |
+| 20260830034447 | gk_v2_scoped_concept_route_keys | exact repository mirror |
 
-## Localhost-first safety decision
+The historical versions above remain the truthful production history. Missing original SQL is **not** recreated under those version numbers.
 
-The earlier branch-only GK SQL drafts dated `20260829100000`, `20260830013000`, `20260830020500`, `20260830023000`, `20260830025000`, and `20260830030000` were never the live migration ledger. Some contained evidence-derived `question_state` rebuilds. They were removed from the deployable `managed-migrations` directory once the actual live ledger was inspected.
+## Reconstructed clean-database baseline
 
-The tracked GK migrations from `20260830025704` onward are read-model/runtime-function changes only. They create or replace helper/read RPC functions and grants; they do not update/insert/delete canonical GK content, attempts, exposures, question state, sessions, notes, flags, demand-set rows, or English data.
+Recovery file:
 
-The view-parity layer restores old product behavior that the first React shell had flattened: Content library → lecture → Main/Rapid 20-question Parts, dedicated New Practice hierarchy, dedicated Starred and Guessed libraries, Flagged Content review, and true large-scope Practice All reads. Starred day groups preserve the old Random 10 / Smart 20 / Practice All semantics through a read-only selector.
+`supabase/recovery-baselines/gk_v2_reconstructed_pre25704_baseline.sql`
 
-The scoped concept-key layer addresses legacy concept IDs reused across more than one subject/topic scope. UI/read routes now carry `Subject|Topic|CanonicalConcept` while the canonical database `concept_id` itself is left unchanged. This removes duplicate React keys such as `POL3-C005` and prevents a concept route from mixing similarly named concept IDs across topics.
+This is a deterministic reconstruction of the effective GK foundation immediately required by the repository-managed `20260830025704+` layer. It was reconstructed from the live PostgreSQL catalog and records:
 
-## Cutover gate
+- the `gk` tables and exact required column types/defaults;
+- primary keys, foreign keys and uniqueness constraints;
+- runtime indexes required by the foundation;
+- RLS enablement and the pre-25704 ownership/read policies;
+- staging/evidence-table protection;
+- the canonical admin import transport.
 
-Localhost integration may rely on the current live GK foundation plus the exact read-surface mirrors above. Production cutover remains blocked until the pre-`20260830025704` live GK foundation is either recovered as exact managed SQL or captured as an approved deterministic baseline. No future cutover should rely on untracked SQL.
+It contains **no canonical question rows and no user learning evidence**. It does not replay Attempts, Exposures, QuestionState, Sessions, notes, flags or Demand Sets. Legacy `demand_sets` intentionally starts without `user_id`; the forward audit migration adds ownership without fabricating an owner for historical rows.
+
+The recovery file lives outside `managed-migrations` by design. It must never be applied to the existing production project merely to make the historical ledger look complete.
+
+## Repository-managed forward GK migrations
+
+After the reconstructed baseline, the repository-managed GK runtime is built by applying the tracked `20260830025704+` migrations in version order:
+
+| File | Purpose |
+|---|---|
+| `20260830025704_gk_v2_local_safe_read_surface.sql` | authenticated read surface and canonical library/selector compatibility |
+| `20260830032146_gk_v2_view_parity_reads.sql` | scope, lecture-part, New, Guessed and Flagged read parity |
+| `20260830032730_gk_v2_starred_group_view_parity.sql` | Starred day-group selector |
+| `20260830033040_gk_v2_starred_group_selector_wiring.sql` | Starred age-route wiring |
+| `20260830034447_gk_v2_scoped_concept_route_keys.sql` | subject/topic-scoped concept route identity |
+| `20260830073000_gk_v2_final_runtime_parity.sql` | forward runtime recovery: raw-evidence intelligence, missing mutation/session RPCs, Demand ownership column, guarded canonical answer corrections and RPC-only private-table access |
+| `20260830074500_gk_v2_final_audit_corrections.sql` | final live-schema corrections: seven-argument submit compatibility, same-session retention exclusion, exact Daily tiers, idempotent manual tools, exact pause position, Demand RLS and active answer-key constraint |
+
+`20260830073000` and `20260830074500` were created during the final pre-deployment audit and are repository-forward migrations; at the time of this document update they are not being represented as already deployed production history.
+
+## Canonical content and historical evidence recovery
+
+Schema reproducibility is separate from data recovery.
+
+A clean environment uses this sequence:
+
+1. apply `gk_v2_reconstructed_pre25704_baseline.sql`;
+2. import canonical GK content through the protected canonical import transport or an equivalent audited content seed;
+3. apply the repository-managed `20260830025704+` GK migrations in version order;
+4. import historical user evidence only when performing a real disaster-recovery/data migration, never as part of schema bootstrap.
+
+The schema baseline therefore does not invent or embed the current user's learning history. The historical raw evidence remains authoritative in production.
+
+## Unsafe draft history
+
+Earlier branch-only GK drafts dated `20260829100000`, `20260830013000`, `20260830020500`, `20260830023000`, `20260830025000`, and `20260830030000` were never the verified live migration ledger. Some contained evidence-derived `question_state` rebuilds. They remain excluded from the deployable managed-migration directory and must not be reintroduced.
+
+## Mechanical recovery gate
+
+The GK GitHub validation workflow creates a fresh PostgreSQL database, applies:
+
+- the reconstructed pre-25704 recovery baseline;
+- all tracked `20260830025704+` GK migrations in version order;
+- executable runtime/security/evidence assertions.
+
+Only a successful clean-room workflow proves that repository-managed material can reproduce the required backend structure and current runtime contract. Production cutover must remain blocked if that clean-room test or any later validation fails.
