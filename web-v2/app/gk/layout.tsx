@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { MouseEvent, ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { clearGkPrivateCache, isGkLocalSafe } from "@/lib/gk-rpc";
+import { markGkHardRefreshIntent } from "@/lib/gk-session";
 import "./gk-home-english-parity.css";
 import "./gk-shell-polish.css";
 
@@ -16,7 +17,7 @@ export default function GkLayout({ children }: { children: ReactNode }) {
  const[theme,setTheme]=useState<Theme>("dark"),[refreshing,setRefreshing]=useState(false),[localSafe,setLocalSafe]=useState(false);
  useEffect(()=>{const saved=window.localStorage.getItem("english-theme");const next:Theme=saved==="light"?"light":"dark";setTheme(next);applyTheme(next);setLocalSafe(isGkLocalSafe());},[]);
  function toggleTheme(){const next:Theme=theme==="dark"?"light":"dark";setTheme(next);applyTheme(next,true);}
- async function hardRefresh(){if(refreshing)return;setRefreshing(true);clearGkPrivateCache();try{if("caches" in window){const names=await window.caches.keys();await Promise.allSettled(names.map(name=>window.caches.delete(name)));}}catch{}const target=new URL(window.location.href);target.searchParams.set("_refresh",Date.now().toString());window.location.replace(target.toString());}
+ async function hardRefresh(){if(refreshing)return;setRefreshing(true);markGkHardRefreshIntent();clearGkPrivateCache();try{if("caches" in window){const names=await window.caches.keys();await Promise.allSettled(names.map(name=>window.caches.delete(name)));}}catch{}const target=new URL(window.location.href);target.searchParams.set("_refresh",Date.now().toString());window.location.replace(target.toString());}
  function forceSamePageNavigation(event: MouseEvent<HTMLDivElement>) {
   if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
   const target = event.target as Element | null;
