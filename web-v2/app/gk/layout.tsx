@@ -1,6 +1,7 @@
 "use client";
 
 import type { MouseEvent, ReactNode } from "react";
+import "./gk-home-english-parity.css";
 
 export default function GkLayout({ children }: { children: ReactNode }) {
   function forceSamePageNavigation(event: MouseEvent<HTMLDivElement>) {
@@ -17,5 +18,5 @@ export default function GkLayout({ children }: { children: ReactNode }) {
     window.location.assign(`${url.pathname}${url.search}${url.hash}`);
   }
 
-  return <div onClickCapture={forceSamePageNavigation}>{children}</div>;
+  return <div className="gk-parity-scope" onClickCapture={forceSamePageNavigation}>{children}</div>;
 }
