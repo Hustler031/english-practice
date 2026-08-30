@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useCallback,useEffect,useState } from "react";
 import QuizRunner from "@/components/quiz-runner";
 import { EnglishLoading } from "@/components/english-frame";
-import { pendingAnswerSaves,supabaseBrowser } from "@/lib/supabase";
+import { rpc, supabaseBrowser } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
 
 type Category={id:string;name:string;total:number;exposed:number;available:number;unseen:number;coverage:number;complete:boolean};
@@ -15,9 +15,6 @@ type Pick={kind:"new"|"seen"|"review";category:string;name:string;count:number;m
 async function bankRpc<T>(name:string,args?:Record<string,unknown>){
  const {data,error}=await supabaseBrowser().rpc(name,args??{});if(error)throw error;return data as T;
 }
-async function waitForBankAnswerSync(maxMs=5000){
- const started=Date.now();while(pendingAnswerSaves()>0&&Date.now()-started<maxMs){await new Promise(resolve=>window.setTimeout(resolve,80));}
-}
 
 export default function BankCoveragePage(){
  const ready=useAuthGuard();const[hub,setHub]=useState<Hub|null>(null);const[current,setCurrent]=useState<Category|null>(null);const[detail,setDetail]=useState<Detail|null>(null);const[count,setCount]=useState(10);const[pick,setPick]=useState<Pick|null>(null);const[error,setError]=useState("");
@@ -25,7 +22,7 @@ export default function BankCoveragePage(){
  const refreshDetail=useCallback(async(cat:string)=>setDetail(await bankRpc<Detail>("english_get_bank_coverage_category_detail",{p_category:cat})),[]);
  useEffect(()=>{if(ready)refreshHub().catch((e:any)=>setError(e.message))},[ready,refreshHub]);
  useEffect(()=>{if(current)refreshDetail(current.id).catch((e:any)=>setError(e.message));else setDetail(null)},[current,refreshDetail]);
- const load=useCallback(async()=>{if(!pick)return [];await waitForBankAnswerSync();if(pick.kind==="review")return bankRpc<any[]>("english_get_bank_coverage_review_batch",{p_category:pick.category,p_mode:pick.mode||"all",p_count:pick.count});if(pick.kind==="seen")return bankRpc<any[]>("english_get_bank_coverage_seen_batch",{p_category:pick.category,p_count:pick.count});return bankRpc<any[]>("english_get_bank_coverage_batch",{p_category:pick.category,p_count:pick.count})},[pick]);
+ const load=useCallback(async()=>{if(!pick)return [];if(pick.kind==="review")return rpc<any[]>("english_get_bank_coverage_review_batch",{p_category:pick.category,p_mode:pick.mode||"all",p_count:pick.count});if(pick.kind==="seen")return rpc<any[]>("english_get_bank_coverage_seen_batch",{p_category:pick.category,p_count:pick.count});return rpc<any[]>("english_get_bank_coverage_batch",{p_category:pick.category,p_count:pick.count})},[pick]);
  if(!ready)return <EnglishLoading text="Checking session…"/>;
  if(pick)return <QuizRunner title={pick.name} backHref="/english/bank" load={load} module="bankCoverage" emptyText="No eligible Bank Coverage questions are available for this action." onExit={()=>{setPick(null);void refreshHub();if(current)void refreshDetail(current.id)}}/>;
  if(current)return <CategoryDetail category={current} detail={detail} count={count} setCount={setCount} back={()=>{setCurrent(null);setCount(10)}} start={(kind,n,mode)=>setPick({kind,category:current.id,name:`Bank Coverage · ${current.name}${kind==="seen"?" · Seen Practice":kind==="review"?" · Today Review":""}`,count:n,mode})}/>;
