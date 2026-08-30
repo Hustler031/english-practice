@@ -65,3 +65,24 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_build_placeholder
+      - name: Final scope secret and cleanliness guard
+        run: |
+          if [ -n "$(git -C .. status --porcelain --untracked-files=no)" ]; then
+            echo "Tracked working tree changed during validation"
+            git -C .. status --short --untracked-files=no
+            exit 1
+          fi
+          if git -C .. grep -nE 'sb_secret_[A-Za-z0-9_-]{8,}|github_pat_[A-Za-z0-9_]+' -- .; then
+            echo "Potential committed secret detected"
+            exit 1
+          fi
+          if git -C .. grep -nE 'NEXT_PUBLIC_[A-Za-z0-9_]*SERVICE[_-]?ROLE' -- web-v2; then
+            echo "Browser-exposed service-role configuration detected"
+            exit 1
+          fi
+          git -C .. fetch origin main --depth=1
+          if git -C .. diff --name-only origin/main...HEAD | grep -E '^(web-v2/app/maths/|web-v2/lib/math|maths/|Maths/)'; then
+            echo "Maths internals changed on GK integration branch"
+            exit 1
+          fi
+          echo "Final scope, secret and tracked-tree cleanliness guard passed"
