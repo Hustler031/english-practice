@@ -13,7 +13,7 @@ const supabase=read('web-v2/lib/supabase.ts');
 const frame=read('web-v2/components/english-frame.tsx');
 const css=read('web-v2/app/session-rotation-ui-fixes.css');
 
-need(migration,"s.last_attempt >= now()-interval '90 minutes'",'durable recent attempts drive server cooldown');
+need(migration,"coalesce(s.last_attempt >= now()-interval '90 minutes',false)",'durable recent attempts drive server cooldown and untouched NULL attempts stay non-recent');
 need(migration,"qid=any(coalesce(p_client_exclude,'{}'::text[]))",'pending local answers remain an immediate cooldown input');
 need(migration,'attempts>0','strict unseen is based on actual attempt evidence');
 need(migration,'priority_band asc','Central Intelligence candidate priority stays ahead of within-band recency');
