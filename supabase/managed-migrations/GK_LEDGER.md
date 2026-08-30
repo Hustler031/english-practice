@@ -66,8 +66,9 @@ After the reconstructed baseline, the repository-managed GK runtime is built by 
 | `20260830072000_gk_uuid_min_compat.sql` | internal `gk.min(uuid)` aggregate required by legacy-owner compatibility logic on PostgreSQL versions without built-in `min(uuid)` |
 | `20260830073000_gk_v2_final_runtime_parity.sql` | forward runtime recovery: raw-evidence intelligence, missing mutation/session RPCs, Demand ownership column, guarded canonical answer corrections and RPC-only private-table access |
 | `20260830074500_gk_v2_final_audit_corrections.sql` | final live-schema corrections: seven-argument submit compatibility, same-session retention exclusion, exact Daily tiers, idempotent manual tools, exact pause position, Demand RLS and active answer-key constraint |
+| `20260830075000_gk_v2_selector_uid_disambiguation.sql` | final central-selector correction removing PL/pgSQL caller/legacy-owner identifier ambiguity without changing selection semantics |
 
-`20260830072000`, `20260830073000` and `20260830074500` were created during the final pre-deployment audit and are repository-forward migrations; they are not represented here as already deployed production history.
+`20260830072000`, `20260830073000`, `20260830074500` and `20260830075000` were created during the final pre-deployment audit and are repository-forward migrations; they are not represented here as already deployed production history.
 
 ## Canonical content and historical evidence recovery
 
