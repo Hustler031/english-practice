@@ -46,7 +46,7 @@ export default function PhrasalPage(){
     const n=Number(a?.[mode as keyof typeof a]||0),disabled=!a||n===0;
     return <button key={mode} className="pv-legacy-action" disabled={disabled} onClick={()=>mode==="all"?startMastery("all",100):setPendingMode(mode)}><span>{icon}</span><b>{label}{n?` (${n})`:""}</b></button>;
    })}</div>
-   <div className="pv-cache-note">Cached first · refreshes silently in background</div>
+   <div className="pv-cache-note">Fresh quiz selection · hub data refreshes silently</div>
   </section>
 
   <section className="pv-today-legacy">
