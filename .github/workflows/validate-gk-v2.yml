@@ -1,0 +1,40 @@
+name: Validate GK V2
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [gk-v2-integration]
+    paths:
+      - 'web-v2/**'
+      - 'supabase/managed-migrations/**'
+      - '.github/workflows/validate-gk-v2.yml'
+  pull_request:
+    paths:
+      - 'web-v2/**'
+      - 'supabase/managed-migrations/**'
+
+concurrency:
+  group: validate-gk-v2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web-v2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - name: GK behavioral contracts
+        run: npm run contracts:gk
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Production build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_build_placeholder

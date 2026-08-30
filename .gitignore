@@ -7,5 +7,7 @@ client_secret*.json
 credentials*.json
 token*.json
 node_modules/
+.next/
+**/.next/
 .env
 .env.*
