@@ -7,6 +7,7 @@ on:
       - 'web-v2/**'
       - 'supabase/managed-migrations/**english**.sql'
       - '.github/scripts/validate-english-v2-fresh-session.cjs'
+      - '.github/scripts/validate-english-v2-interaction-cooldown.cjs'
       - '.github/scripts/validate-english-v2-fresh-session-module-audit.cjs'
       - '.github/english-v2-fresh-session-module-audit.md'
       - '.github/workflows/validate-english-v2-web.yml'
@@ -15,6 +16,7 @@ on:
       - 'web-v2/**'
       - 'supabase/managed-migrations/**english**.sql'
       - '.github/scripts/validate-english-v2-fresh-session.cjs'
+      - '.github/scripts/validate-english-v2-interaction-cooldown.cjs'
       - '.github/scripts/validate-english-v2-fresh-session-module-audit.cjs'
       - '.github/english-v2-fresh-session-module-audit.md'
       - '.github/workflows/validate-english-v2-web.yml'
@@ -59,9 +61,11 @@ jobs:
           SQL
           psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260830180000_english_quiz_session_freshness.sql
           psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260830181000_english_source_group_fresh_session.sql
+          psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260830210000_english_interaction_cooldown.sql
       - name: Validate English V2 fresh-session contracts
         run: |
           node ../.github/scripts/validate-english-v2-fresh-session.cjs
+          node ../.github/scripts/validate-english-v2-interaction-cooldown.cjs
           node ../.github/scripts/validate-english-v2-fresh-session-module-audit.cjs
       - name: Validate existing English reliability and learning contracts
         run: |

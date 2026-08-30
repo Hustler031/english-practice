@@ -232,20 +232,9 @@ function recordLocalSession(lane: string, data: unknown) {
 function pendingQuestionIds() {
   return readOutbox().map(row => String(row.questionId ?? row.args?.p_question_id ?? row.args?.p_hindu_id ?? "").trim()).filter(Boolean);
 }
-function localExcludeIds(lane: string, pending: number, strict: boolean) {
-  const rows = readLocalSessions();
-  const chosen: LocalSession[] = [];
-  const global = rows[0];
-  const sameLane = rows.find(row => row.lane === lane);
-  if (global) chosen.push(global);
-  if (sameLane && sameLane !== global) chosen.push(sameLane);
-  if (pending > 0 || strict || localProductionSafetyMode()) {
-    const recentCutoff = Date.now() - (strict || localProductionSafetyMode() ? LOCAL_SESSION_MAX_AGE : 2 * 60 * 60 * 1000);
-    rows.filter(row => row.at >= recentCutoff).forEach(row => chosen.push(row));
-  }
-  const ids = chosen.flatMap(row => row.ids);
-  if (pending > 0) ids.push(...pendingQuestionIds());
-  return [...new Set(ids)].slice(0, 500);
+function localExcludeIds(_lane: string, pending: number, _strict: boolean) {
+  if (pending <= 0) return [];
+  return [...new Set(pendingQuestionIds())].slice(0, 500);
 }
 function makeAttemptId(questionId: string) { return `v2-${questionId || "Q"}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`; }
 function scheduleFlush(ms = 0) {
