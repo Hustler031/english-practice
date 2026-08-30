@@ -41,6 +41,8 @@ jobs:
         working-directory: web-v2
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -72,7 +74,9 @@ jobs:
             git -C .. status --short --untracked-files=no
             exit 1
           fi
-          if git -C .. grep -nE 'sb_secret_[A-Za-z0-9_-]{8,}|github_pat_[A-Za-z0-9_]+' -- .; then
+          supabase_secret_prefix="sb_se""cret_"
+          github_pat_prefix="github_""pat_"
+          if git -C .. grep -nE "${supabase_secret_prefix}[A-Za-z0-9_-]{8,}|${github_pat_prefix}[A-Za-z0-9_]+" -- .; then
             echo "Potential committed secret detected"
             exit 1
           fi
@@ -80,7 +84,7 @@ jobs:
             echo "Browser-exposed service-role configuration detected"
             exit 1
           fi
-          git -C .. fetch origin main --depth=1
+          git -C .. fetch origin main
           if git -C .. diff --name-only origin/main...HEAD | grep -E '^(web-v2/app/maths/|web-v2/lib/math|maths/|Maths/)'; then
             echo "Maths internals changed on GK integration branch"
             exit 1
