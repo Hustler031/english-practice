@@ -17,12 +17,16 @@ as $$
   end
 $$;
 
--- A fresh recovery database has no prior aggregate; IF EXISTS keeps forward replay safe.
-drop aggregate if exists gk.min(uuid);
-create aggregate gk.min(uuid) (
-  sfunc=gk.uuid_min_state,
-  stype=uuid,
-  parallel=safe
-);
+do $$
+begin
+  if not exists(
+    select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+    where n.nspname='gk' and p.proname='min' and p.prokind='a'
+      and pg_get_function_identity_arguments(p.oid)='uuid'
+  ) then
+    execute 'create aggregate gk.min(uuid) (sfunc=gk.uuid_min_state, stype=uuid, parallel=safe)';
+  end if;
+end
+$$;
 
 revoke execute on function gk.uuid_min_state(uuid,uuid) from public,anon,authenticated,service_role;
