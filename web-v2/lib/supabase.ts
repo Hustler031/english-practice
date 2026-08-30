@@ -34,7 +34,7 @@ const MUTATION_REFRESH_RPCS = new Set([
 
 type RpcArgs = Record<string, unknown>;
 type CacheEntry<T = unknown> = { at: number; name: string; args: RpcArgs; data: T };
-type OutboxItem = { id: string; name: "english_submit_answer" | "english_submit_hindu_answer"; args: RpcArgs; tries: number; nextAt: number; queuedAt: number };
+type OutboxItem = { id: string; name: "english_submit_answer" | "english_submit_hindu_answer"; args: RpcArgs; tries: number; nextAt: number; queuedAt: number; questionId?: string };
 type FreshDetail<T = unknown> = { name: string; args: RpcArgs; data: T };
 type LocalSession = { lane: string; ids: string[]; at: number };
 type SessionReadPolicy = { kind: "rotating"; lane: string; strict: boolean } | { kind: "live" };
@@ -50,6 +50,11 @@ function isLoopbackHost(hostname: string) {
 }
 function cleanLanePart(value: unknown, fallback = "all") {
   return String(value ?? fallback).trim().toLowerCase().replace(/[^a-z0-9_.:-]+/g, "-").slice(0, 120) || fallback;
+}
+function cleanLaneList(value: unknown) {
+  if (!Array.isArray(value)) return cleanLanePart(value);
+  const rows = [...new Set(value.map(v => cleanLanePart(v, "")).filter(Boolean))].sort();
+  return rows.join("|").slice(0, 600) || "all";
 }
 function isReadOnlyRpc(name: string) {
   return name === "english_dashboard_summary" || name.startsWith("english_get_") || name === "english_hindu_progress";
@@ -99,12 +104,12 @@ function sessionReadPolicy(name: string, args?: RpcArgs): SessionReadPolicy | nu
       return { kind: "rotating", lane: `topic:${cleanLanePart(input.p_category)}:${mode}`, strict: mode === "new" };
     case "english_get_source_batch":
       return { kind: "rotating", lane: `source:${cleanLanePart(input.p_source_key)}:${mode}`, strict: mode === "new" };
+    case "english_get_source_group_batch":
+      return { kind: "rotating", lane: `source-group:${cleanLaneList(input.p_source_keys)}:${mode}`, strict: mode === "new" };
     case "english_get_starred_batch":
       return { kind: "rotating", lane: `starred:${mode}:${cleanLanePart(input.p_from_day, "any")}:${cleanLanePart(input.p_to_day, "any")}`, strict: false };
     case "english_get_phrasal_batch":
       return { kind: "rotating", lane: `phrasal:${mode}`, strict: false };
-    case "english_get_phrasal_maintenance_batch":
-      return { kind: "rotating", lane: `phrasal-maintenance:${mode}`, strict: false };
     case "english_get_today_extra_batch":
       return { kind: "rotating", lane: "extra", strict: false };
     case "english_get_bank_coverage_batch":
@@ -224,9 +229,11 @@ function recordLocalSession(lane: string, data: unknown) {
   rows.unshift({ lane, ids, at: Date.now() });
   writeLocalSessions(rows);
 }
+function pendingQuestionIds() {
+  return readOutbox().map(row => String(row.questionId ?? row.args?.p_question_id ?? row.args?.p_hindu_id ?? "").trim()).filter(Boolean);
+}
 function localExcludeIds(lane: string, pending: number, strict: boolean) {
   const rows = readLocalSessions();
-  if (!rows.length) return [];
   const chosen: LocalSession[] = [];
   const global = rows[0];
   const sameLane = rows.find(row => row.lane === lane);
@@ -236,7 +243,9 @@ function localExcludeIds(lane: string, pending: number, strict: boolean) {
     const recentCutoff = Date.now() - (strict || localProductionSafetyMode() ? LOCAL_SESSION_MAX_AGE : 2 * 60 * 60 * 1000);
     rows.filter(row => row.at >= recentCutoff).forEach(row => chosen.push(row));
   }
-  return [...new Set(chosen.flatMap(row => row.ids))].slice(0, 500);
+  const ids = chosen.flatMap(row => row.ids);
+  if (pending > 0) ids.push(...pendingQuestionIds());
+  return [...new Set(ids)].slice(0, 500);
 }
 function makeAttemptId(questionId: string) { return `v2-${questionId || "Q"}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`; }
 function scheduleFlush(ms = 0) {
@@ -322,6 +331,8 @@ async function flushAnswerOutbox() {
 }
 async function queueAnswer<T>(name: "english_submit_answer" | "english_submit_hindu_answer", input?: RpcArgs): Promise<T> {
   const args: RpcArgs = { ...(input ?? {}) };
+  const clientQuestionId = String(args.p_client_question_id ?? "").trim();
+  delete args.p_client_question_id;
   const questionId = name === "english_submit_hindu_answer"
     ? String(args.p_hindu_id ?? "").replace(/^HINDU_/i, "").trim()
     : String(args.p_question_id ?? "").trim();
@@ -336,7 +347,7 @@ async function queueAnswer<T>(name: "english_submit_answer" | "english_submit_hi
   const attemptId = String(args.p_attempt_id ?? "").trim() || makeAttemptId(questionId);
   args.p_attempt_id = attemptId;
   const rows = readOutbox();
-  if (!rows.some(x => x.id === attemptId)) rows.push({ id: attemptId, name, args, tries: 0, nextAt: 0, queuedAt: Date.now() });
+  if (!rows.some(x => x.id === attemptId)) rows.push({ id: attemptId, name, args, tries: 0, nextAt: 0, queuedAt: Date.now(), questionId: clientQuestionId || (name === "english_submit_answer" ? questionId : "") });
   if (!writeOutbox(rows)) throw new Error("Local answer storage is unavailable. Please free browser storage and retry.");
   scheduleFlush(0);
 
