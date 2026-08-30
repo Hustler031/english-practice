@@ -92,9 +92,53 @@ ok('exactly five GK top-level tabs',((tabs.match(/\["(?:home|content|practice|de
 for(const label of ['Home','Content','Practice','On Demand','Progress'])ok(`top-level tab ${label}`,tabs.includes(`"${label}"`));
 ok('Main/Rapid stay lanes, not top-level tabs',!tabs.includes('"Main"')&&!tabs.includes('"Rapid"'));
 
+function hasDirectSupabaseTableAccess(source){
+  const sf=ts.createSourceFile('gk-browser-audit.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+  const factories=new Set(['supabaseBrowser']);
+  const clients=new Set();
+  for(const statement of sf.statements){
+    if(!ts.isImportDeclaration(statement)||!ts.isStringLiteral(statement.moduleSpecifier)||!statement.moduleSpecifier.text.endsWith('/lib/supabase'))continue;
+    const bindings=statement.importClause?.namedBindings;
+    if(ts.isNamedImports(bindings))for(const item of bindings.elements){
+      const imported=item.propertyName?.text||item.name.text;
+      if(imported==='supabaseBrowser')factories.add(item.name.text);
+    }
+  }
+  const isFactoryCall=node=>ts.isCallExpression(node)&&ts.isIdentifier(node.expression)&&factories.has(node.expression.text);
+  let changed=true;
+  while(changed){
+    changed=false;
+    const scan=node=>{
+      if(ts.isVariableDeclaration(node)&&ts.isIdentifier(node.name)&&node.initializer){
+        const init=node.initializer;
+        const client=isFactoryCall(init)||(ts.isIdentifier(init)&&clients.has(init.text));
+        if(client&&!clients.has(node.name.text)){clients.add(node.name.text);changed=true;}
+      }
+      ts.forEachChild(node,scan);
+    };
+    scan(sf);
+  }
+  const isClientExpr=node=>{
+    if(ts.isIdentifier(node))return clients.has(node.text);
+    if(isFactoryCall(node))return true;
+    if(ts.isCallExpression(node))return isClientExpr(node.expression);
+    if(ts.isPropertyAccessExpression(node))return isClientExpr(node.expression);
+    if(ts.isParenthesizedExpression(node))return isClientExpr(node.expression);
+    return false;
+  };
+  let direct=false;
+  const visit=node=>{
+    if(direct)return;
+    if(ts.isCallExpression(node)&&ts.isPropertyAccessExpression(node.expression)&&node.expression.name.text==='from'&&isClientExpr(node.expression.expression)){direct=true;return;}
+    ts.forEachChild(node,visit);
+  };
+  visit(sf);
+  return direct;
+}
+
 ok('English shared transport remains present',supabase.includes('english_submit_answer')&&supabase.includes('prefetchEnglishCore'));
 ok('GK transport has no browser service-role secret',![quiz,home,layout,transport,sessionSource,options].some(x=>/service[_-]?role/i.test(x)));
-ok('GK browser code has no direct table .from() access',![quiz,home,layout,transport,sessionSource].some(x=>/\.from\s*\(/.test(x)));
+ok('GK browser code has no direct Supabase table access',![quiz,home,layout,transport,sessionSource].some(hasDirectSupabaseTableAccess));
 
 if(failed){console.error(`\n${failed} final GK audit contract(s) failed.`);process.exit(1);}
 console.log(`\nFinal GK audit contracts passed (${consumed.size} frontend RPCs checked).`);
