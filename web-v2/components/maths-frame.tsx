@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ReactNode, useEffect, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { invalidateMathsCaches, mathsLocalSafe, pendingMathsWrites } from "@/lib/maths-rpc";
 
 type Tab="home"|"chapters"|"library"|"ondemand"|"progress";
@@ -40,18 +40,31 @@ function triggerNativeSelect(select:HTMLSelectElement,value:string){
 
 export function MathsFrame({children}:{children:ReactNode}){
   const path=usePathname();const router=useRouter();const active=useMemo(()=>activeTab(path),[path]);const quizMode=/^\/maths\/session(?:\/|$)/.test(path);
-  const[theme,setTheme]=useState<Theme>("dark");const[pending,setPending]=useState(0);const[refreshing,setRefreshing]=useState(false);const[safe,setSafe]=useState(false);const[timerOn,setTimerOn]=useState(false);const[timerSeconds,setTimerSeconds]=useState(0);const[jump,setJump]=useState<JumpState|null>(null);
+  const[theme,setTheme]=useState<Theme>("dark");const[pending,setPending]=useState(0);const[refreshing,setRefreshing]=useState(false);const[safe,setSafe]=useState(false);const[timerVisible,setTimerVisible]=useState(false);const[timerSeconds,setTimerSeconds]=useState(0);const[jump,setJump]=useState<JumpState|null>(null);const questionStartedAt=useRef(Date.now());
+  function resetQuestionTimer(){questionStartedAt.current=Date.now();setTimerSeconds(0);}
   useEffect(()=>{const saved=localStorage.getItem("maths-theme");const next:Theme=saved==="light"?"light":"dark";setTheme(next);applyTheme(next);setSafe(mathsLocalSafe());const sync=()=>setPending(pendingMathsWrites());sync();const t=setInterval(sync,700);window.addEventListener("maths:v2-sync-change",sync);window.addEventListener("maths:v2-answer-durable",sync);return()=>{clearInterval(t);window.removeEventListener("maths:v2-sync-change",sync);window.removeEventListener("maths:v2-answer-durable",sync);};},[]);
   useEffect(()=>{if(path!=="/maths")return;window.history.pushState({...window.history.state,mathsHomeGuard:true},"",window.location.href);const back=()=>router.replace("/");window.addEventListener("popstate",back);return()=>window.removeEventListener("popstate",back);},[path,router]);
-  useEffect(()=>{setTimerOn(false);setTimerSeconds(0);setJump(null);},[path]);
-  useEffect(()=>{if(!quizMode||!timerOn)return;const t=window.setInterval(()=>setTimerSeconds(v=>v+1),1000);return()=>window.clearInterval(t);},[quizMode,timerOn]);
+  useEffect(()=>{setTimerVisible(false);resetQuestionTimer();setJump(null);},[path]);
+  useEffect(()=>{
+    if(!quizMode)return;
+    let cancelled=false;let raf=0;let timer=0;
+    const tick=()=>setTimerSeconds(Math.max(0,Math.floor((Date.now()-questionStartedAt.current)/1000)));
+    const arm=()=>{if(cancelled)return;if(!document.querySelector(".m-quiz-shell .m-question-card")){raf=window.requestAnimationFrame(arm);return;}resetQuestionTimer();tick();timer=window.setInterval(tick,250);};
+    arm();
+    return()=>{cancelled=true;if(raf)window.cancelAnimationFrame(raf);if(timer)window.clearInterval(timer);};
+  },[quizMode,path]);
   useEffect(()=>{
     if(!quizMode)return;
     const main=document.querySelector(".maths-content");
-    const open=(ev:Event)=>{const target=ev.target as HTMLElement|null;if(!target?.closest(".m-quiz-head .m-quiz-head-top>span"))return;const state=readJumpState();if(state){ev.preventDefault();setJump(state);}};
+    const click=(ev:Event)=>{
+      const target=ev.target as HTMLElement|null;
+      if(target?.closest(".m-quiz-head .m-quiz-head-top>span")){const state=readJumpState();if(state){ev.preventDefault();setJump(state);}return;}
+      const nav=target?.closest<HTMLButtonElement>(".m-nav-dock button");
+      if(nav&&!nav.disabled&&/previous|next/i.test(nav.textContent||""))resetQuestionTimer();
+    };
     const key=(ev:KeyboardEvent)=>{if(ev.key==="Escape")setJump(null);};
-    main?.addEventListener("click",open);document.addEventListener("keydown",key);
-    return()=>{main?.removeEventListener("click",open);document.removeEventListener("keydown",key);};
+    main?.addEventListener("click",click);document.addEventListener("keydown",key);
+    return()=>{main?.removeEventListener("click",click);document.removeEventListener("keydown",key);};
   },[quizMode,path]);
   useEffect(()=>{
     if(path!=="/maths/mocks")return;
@@ -69,7 +82,7 @@ export function MathsFrame({children}:{children:ReactNode}){
   },[path]);
   function toggle(){const next:Theme=theme==="dark"?"light":"dark";setTheme(next);applyTheme(next,true);}
   async function refresh(){if(refreshing)return;setRefreshing(true);invalidateMathsCaches();try{if("caches"in window){const names=await caches.keys();await Promise.allSettled(names.map(x=>caches.delete(x)));}}catch{}const u=new URL(location.href);u.searchParams.set("_refresh",Date.now().toString());location.replace(u.toString());}
-  function jumpTo(index:number){const select=document.querySelector<HTMLSelectElement>(".m-quiz-shell .m-jump");if(!select)return;triggerNativeSelect(select,String(index));setJump(null);window.scrollTo({top:0,behavior:"auto"});}
-  return <div className={`maths-app ${quizMode?"maths-quiz-mode":""}`}><header className="maths-header"><Link href="/maths" className="maths-brand"><strong>Maths Revision</strong><span>SSC formula + method recall</span></Link><div className="maths-header-actions">{!quizMode&&safe&&<span className="maths-pill">Local Safe</span>}{!quizMode&&pending>0&&<span className="maths-pill syncing"><i/>Syncing {pending}</span>}{quizMode&&<button className={`maths-icon-btn maths-timer-btn ${timerOn?"maths-timer-on":""}`} type="button" onClick={()=>setTimerOn(v=>!v)} aria-pressed={timerOn} title={timerOn?"Pause timer":"Start timer"}>⏱ {timerSeconds?timerText(timerSeconds):"Timer"}</button>}{!quizMode&&<Link className="maths-icon-btn" href="/" aria-label="Revision launcher" title="Revision launcher">⌂</Link>}<button className="maths-icon-btn" type="button" onClick={toggle} aria-label="Toggle theme">{theme==="dark"?"◐":"◑"}</button><button className={`maths-icon-btn ${refreshing?"spin":""}`} type="button" onClick={()=>void refresh()} aria-label="Refresh Maths" disabled={refreshing}>↻</button></div></header><main className="maths-content">{children}</main>{!quizMode&&<nav className="maths-nav" aria-label="Maths navigation">{tabs.map(t=><Link key={t.id} href={t.href} className={`maths-nav-item ${active===t.id?"active":""}`} aria-current={active===t.id?"page":undefined}><b>{t.icon}</b><span>{t.label}</span></Link>)}</nav>}{quizMode&&jump&&<div className="m-old-jump-backdrop" role="dialog" aria-modal="true" aria-label="Jump to question" onMouseDown={e=>{if(e.target===e.currentTarget)setJump(null);}}><section className="m-old-jump-sheet"><div className="m-old-jump-head"><div className="m-old-jump-copy"><small>Question selector</small><strong>Jump to question</strong></div><button className="m-old-jump-close" type="button" aria-label="Close question selector" onClick={()=>setJump(null)}>×</button></div><div className="m-old-jump-grid">{Array.from({length:jump.total},(_,i)=>{const status=jump.statuses[i];const state=status==="correct"?"qj-correct":status==="wrong"?"qj-wrong":status?"qj-seen":"";return <button key={i} type="button" className={`m-old-jump-q ${state} ${i===jump.current?"qj-current":""}`} onClick={()=>jumpTo(i)}>{i+1}</button>;})}</div></section></div>}</div>;
+  function jumpTo(index:number){const select=document.querySelector<HTMLSelectElement>(".m-quiz-shell .m-jump");if(!select)return;resetQuestionTimer();triggerNativeSelect(select,String(index));setJump(null);window.scrollTo({top:0,behavior:"auto"});}
+  return <div className={`maths-app ${quizMode?"maths-quiz-mode":""}`}><header className="maths-header"><Link href="/maths" className="maths-brand"><strong>Maths Revision</strong><span>SSC formula + method recall</span></Link><div className="maths-header-actions">{!quizMode&&safe&&<span className="maths-pill">Local Safe</span>}{!quizMode&&pending>0&&<span className="maths-pill syncing"><i/>Syncing {pending}</span>}{quizMode&&<button className={`maths-icon-btn maths-timer-btn ${timerVisible?"maths-timer-on":""}`} type="button" onClick={()=>setTimerVisible(v=>!v)} aria-pressed={timerVisible} title={timerVisible?"Hide question time":"Show question time"}>⏱ {timerVisible?timerText(timerSeconds):"Timer"}</button>}{!quizMode&&<Link className="maths-icon-btn" href="/" aria-label="Revision launcher" title="Revision launcher">⌂</Link>}<button className="maths-icon-btn" type="button" onClick={toggle} aria-label="Toggle theme">{theme==="dark"?"◐":"◑"}</button><button className={`maths-icon-btn ${refreshing?"spin":""}`} type="button" onClick={()=>void refresh()} aria-label="Refresh Maths" disabled={refreshing}>↻</button></div></header><main className="maths-content">{children}</main>{!quizMode&&<nav className="maths-nav" aria-label="Maths navigation">{tabs.map(t=><Link key={t.id} href={t.href} className={`maths-nav-item ${active===t.id?"active":""}`} aria-current={active===t.id?"page":undefined}><b>{t.icon}</b><span>{t.label}</span></Link>)}</nav>}{quizMode&&jump&&<div className="m-old-jump-backdrop" role="dialog" aria-modal="true" aria-label="Jump to question" onMouseDown={e=>{if(e.target===e.currentTarget)setJump(null);}}><section className="m-old-jump-sheet"><div className="m-old-jump-head"><div className="m-old-jump-copy"><small>Question selector</small><strong>Jump to question</strong></div><button className="m-old-jump-close" type="button" aria-label="Close question selector" onClick={()=>setJump(null)}>×</button></div><div className="m-old-jump-grid">{Array.from({length:jump.total},(_,i)=>{const status=jump.statuses[i];const state=status==="correct"?"qj-correct":status==="wrong"?"qj-wrong":status?"qj-seen":"";return <button key={i} type="button" className={`m-old-jump-q ${state} ${i===jump.current?"qj-current":""}`} onClick={()=>jumpTo(i)}>{i+1}</button>;})}</div></section></div>}</div>;
 }
 export function MathsLoading({text="Loading Maths…"}:{text?:string}){return <div className="maths-loading"><i/><i/><i/><span>{text}</span></div>}
