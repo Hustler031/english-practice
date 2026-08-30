@@ -1,0 +1,8 @@
+create table if not exists maths.historical_attempt_evidence (evidence_key text primary key,migration_run_id text not null references maths.migration_runs(migration_run_id) on delete restrict,user_id uuid not null references auth.users(id) on delete cascade,source_attempt_id text,question_id text,attempted_at timestamptz,result text,response_sec numeric,mode text,session_id text,mastered_after boolean,marked_after boolean,variant_type text,selected_option text,question_index integer,client_attempt_key text,source_row jsonb not null);
+create index if not exists maths_historical_attempt_question_idx on maths.historical_attempt_evidence(user_id, question_id, attempted_at);
+create table if not exists maths.historical_sessions (evidence_key text primary key,migration_run_id text not null references maths.migration_runs(migration_run_id) on delete restrict,user_id uuid not null references auth.users(id) on delete cascade,source_session_id text,mode text,title text,current_index integer,updated_at timestamptz,completed boolean,params jsonb,rendered_questions jsonb,source_row jsonb not null);
+create table if not exists maths.historical_session_items (evidence_key text not null references maths.historical_sessions(evidence_key) on delete cascade,question_id text not null,position integer not null,primary key (evidence_key, position));
+alter table maths.historical_attempt_evidence enable row level security; alter table maths.historical_sessions enable row level security; alter table maths.historical_session_items enable row level security;
+revoke all on maths.historical_attempt_evidence, maths.historical_sessions, maths.historical_session_items from anon, authenticated;
+
+

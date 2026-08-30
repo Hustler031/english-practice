@@ -13,6 +13,7 @@ import {
   subscribeMathsFresh,
 } from "@/lib/maths-rpc";
 import { MathsLoading } from "@/components/maths-frame";
+import { MathsDiagram } from "@/components/maths-diagram";
 
 type Home = {
   ok: boolean;
@@ -206,12 +207,17 @@ function useMathsRead<T>(name: string, args?: Record<string, unknown>) {
   const key = JSON.stringify(args ?? {});
   useEffect(() => {
     let alive = true;
+    let request = 0;
     const accept = (x: T) => { if (alive) { setData(x); setError(""); } };
     const unsub = subscribeMathsFresh<T>(name, args, accept);
-    void mathsRpc<T>(name, args).then(accept).catch((e: unknown) => {
-      if (alive) setError(e instanceof Error ? e.message : String(e));
+    const load = () => { const current = ++request; void mathsRpc<T>(name, args).then(x => { if (current === request) accept(x); }).catch((e: unknown) => {
+      if (alive && current === request) setError(e instanceof Error ? e.message : String(e));
     });
-    return () => { alive = false; unsub(); };
+    };
+    const ownerChanged = () => { if (alive) { setData(null); setError(""); load(); } };
+    window.addEventListener("maths:v2-owner-change", ownerChanged);
+    load();
+    return () => { alive = false; unsub(); window.removeEventListener("maths:v2-owner-change", ownerChanged); };
   }, [name, key]);
   return { data, error };
 }
@@ -667,7 +673,12 @@ function QuizPage({ sessionId }: { sessionId: string }) {
     try { await mathsRpc("maths_save_session_position", { p_session_id: session.sessionId, p_index: ni }); }
     catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
   }
+  async function advance() {
+    if (!answered) { setError(q.answerMode === "MCQ" ? "Answer this question first." : "Reveal the answer first."); return; }
+    await move(index + 1);
+  }
   async function finish() {
+    if (!answered) { setError(q.answerMode === "MCQ" ? "Answer this question first." : "Reveal the answer first."); return; }
     setBusy(true);
     try { await mathsRpc("maths_finish_session", { p_session_id: session.sessionId }); router.push(returnRoute(session.mode)); }
     catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
@@ -680,7 +691,7 @@ function QuizPage({ sessionId }: { sessionId: string }) {
     <article className="m-question-card">
       <div className="m-meta"><span>{q.chapter || "Maths"}</span>{q.majorTopic && <span>{q.majorTopic}</span>}<span>{q.questionId}</span><span>{q.answerMode}</span></div>
       <div className="m-question">{q.prompt}</div>
-      {q.diagram && <div className="m-diagram"><b>Diagram payload preserved</b><br />Structured renderer boundary active · {q.diagram.type || "diagram"}</div>}
+      {q.diagram && <MathsDiagram diagram={q.diagram} />}
       {q.answerMode === "MCQ" ? <div className="m-options">{q.options.map(o => {
         const isSelected = selected === o.key;
         const stateClass = answered ? (o.key === correct ? "correct" : isSelected ? "wrong" : "") : isSelected ? "selected" : "";
@@ -698,7 +709,7 @@ function QuizPage({ sessionId }: { sessionId: string }) {
     <div className="m-nav-dock">
       <button className="m-btn" type="button" disabled={index === 0} onClick={() => void move(index - 1)}>‹ Previous</button>
       <select className="m-jump" value={index} onChange={e => void move(Number(e.target.value))} aria-label="Jump to question">{session.questions.map((_, i) => <option key={i} value={i}>{i + 1}/{session.target}</option>)}</select>
-      {index === session.questions.length - 1 ? <button className="m-btn primary" type="button" disabled={busy} onClick={() => void finish()}>Finish</button> : <button className="m-btn primary" type="button" onClick={() => void move(index + 1)}>Next ›</button>}
+      {index === session.questions.length - 1 ? <button className="m-btn primary" type="button" disabled={busy} onClick={() => void finish()}>Finish</button> : <button className="m-btn primary" type="button" disabled={busy} onClick={() => void advance()}>Next ›</button>}
     </div>
     {pause && <div className="m-pause-backdrop" role="dialog" aria-modal="true"><section className="m-pause-sheet"><h2>Pause Maths practice?</h2><p>Your server session keeps the frozen question order, option order, answers and current position. Local Safe keeps the preview on this device.</p><button className="m-btn primary" type="button" onClick={() => void pauseBack()}>Save & Back</button><button className="m-btn ghost" type="button" onClick={() => setPause(false)}>Continue Quiz</button></section></div>}
   </div>;

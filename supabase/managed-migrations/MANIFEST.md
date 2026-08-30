@@ -2,7 +2,7 @@
 
 Project: `hytehindbmjdwcfptsic`
 
-This manifest tracks the managed Supabase execution ledger for English V2. The live ledger currently contains **58 migrations**.
+This manifest tracks the managed Supabase execution ledger for the revision platform. English, GK and Maths migrations are mirrored in execution order.
 
 | Version | Migration | Repository mirror |
 |---|---|---|
@@ -64,6 +64,32 @@ This manifest tracks the managed Supabase execution ledger for English V2. The l
 | 20260829064811 | english_ui_intelligence_centralization | exact mirror |
 | 20260829070255 | english_read_path_performance_polish | exact mirror |
 | 20260829070759 | english_home_snapshot_read_write_fix | exact mirror |
+| 20260830121830 | maths_lossless_data_foundation | exact mirror |
+| 20260830121917 | maths_historical_evidence_ledger | exact mirror |
+| 20260830123431 | maths_complete_migration_schema | exact mirror |
+| 20260830123600 | maths_migration_parse_helpers | exact mirror |
+| 20260830123722 | maths_complete_learning_evidence | exact mirror |
+| 20260830123745 | maths_complete_session_evidence | exact mirror |
+| 20260830123836 | maths_complete_diagram_and_bank_ledger | exact mirror |
+| 20260830124036 | maths_normalize_seen_exposures | exact mirror |
+| 20260830124331 | maths_persistent_integrity_report | exact mirror |
+| 20260830124444 | maths_persistent_reconciliation | exact mirror |
+| 20260830124700 | maths_migration_final_hardening | exact mirror |
+| 20260830172024 | maths_v2_runtime_core | exact mirror |
+| 20260830172110 | maths_v2_read_surfaces | exact mirror |
+| 20260830172204 | maths_v2_session_and_state_rpcs | exact mirror |
+| 20260830172224 | maths_v2_runtime_permissions | exact mirror |
+| 20260830172323 | maths_v2_home_target_fix | exact mirror |
+| 20260830172541 | maths_v2_local_safe_preview | exact mirror |
+| 20260830174557 | maths_v2_new_pool_parity | exact mirror |
+| 20260830174613 | maths_v2_formula_revision_parity | exact mirror |
+| 20260830174627 | maths_v2_new_count_and_helper_hardening | exact mirror |
+| 20260830174714 | maths_v2_local_safe_formula_parity | exact mirror |
+| 20260830175430 | maths_v2_option_rotation_parity | exact mirror |
+| 20260830191345 | maths_v2_final_audit_hardening | exact mirror |
+| 20260830192647 | maths_v2_restore_diagram_ledger | exact mirror |
+| 20260830193148 | maths_v2_session_snapshot_repair | exact mirror |
+| 20260830193522 | maths_v2_chapter_group_boundary_fix | exact mirror |
 
 ## Current runtime closure
 

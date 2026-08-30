@@ -1,0 +1,32 @@
+revoke all on function maths._require_uid() from public,anon,authenticated; revoke all on function maths._setting(text,text) from public,anon,authenticated; revoke all on function maths._study_day() from public,anon,authenticated; revoke all on function maths._user_runtime(uuid) from public,anon,authenticated; revoke all on function maths._metric(uuid,text[]) from public,anon,authenticated; revoke all on function maths._question_ids(uuid,text,text,text,text) from public,anon,authenticated; revoke all on function maths._render_questions(uuid,text[],boolean) from public,anon,authenticated; revoke all on function maths._get_session(uuid,text) from public,anon,authenticated; revoke all on function maths._start_session(uuid,text[],text,text,jsonb,boolean) from public,anon,authenticated; revoke all on function maths._select_by_kind(uuid,text[],text,integer) from public,anon,authenticated; revoke all on function maths._select_daily_ids(uuid,integer,integer,text[]) from public,anon,authenticated; revoke all on function maths._ensure_state(uuid,text) from public,anon,authenticated; revoke all on function maths._calc_type(maths.runtime_questions) from public,anon,authenticated; revoke all on function maths._calc_recall_eligible(maths.runtime_questions) from public,anon,authenticated;
+revoke all on function public.maths_get_home_snapshot() from public,anon; grant execute on function public.maths_get_home_snapshot() to authenticated;
+revoke all on function public.maths_get_chapters_hub() from public,anon; grant execute on function public.maths_get_chapters_hub() to authenticated;
+revoke all on function public.maths_get_chapter(text,text) from public,anon; grant execute on function public.maths_get_chapter(text,text) to authenticated;
+revoke all on function public.maths_get_progress() from public,anon; grant execute on function public.maths_get_progress() to authenticated;
+revoke all on function public.maths_get_mocks_hub() from public,anon; grant execute on function public.maths_get_mocks_hub() to authenticated;
+revoke all on function public.maths_get_formula_hub() from public,anon; grant execute on function public.maths_get_formula_hub() to authenticated;
+revoke all on function public.maths_get_calculation_hub() from public,anon; grant execute on function public.maths_get_calculation_hub() to authenticated;
+revoke all on function public.maths_get_concepts_hub() from public,anon; grant execute on function public.maths_get_concepts_hub() to authenticated;
+revoke all on function public.maths_get_library_hub(text) from public,anon; grant execute on function public.maths_get_library_hub(text) to authenticated;
+revoke all on function public.maths_get_demand_hub() from public,anon; grant execute on function public.maths_get_demand_hub() to authenticated;
+revoke all on function public.maths_get_ondemand_hub() from public,anon; grant execute on function public.maths_get_ondemand_hub() to authenticated;
+revoke all on function public.maths_start_daily() from public,anon; grant execute on function public.maths_start_daily() to authenticated;
+revoke all on function public.maths_start_practice_more(integer) from public,anon; grant execute on function public.maths_start_practice_more(integer) to authenticated;
+revoke all on function public.maths_start_focused_practice(text,text,text,text,text,integer) from public,anon; grant execute on function public.maths_start_focused_practice(text,text,text,text,text,integer) to authenticated;
+revoke all on function public.maths_start_mock_practice(text,text,integer) from public,anon; grant execute on function public.maths_start_mock_practice(text,text,integer) to authenticated;
+revoke all on function public.maths_start_formula_revision(text,text,integer) from public,anon; grant execute on function public.maths_start_formula_revision(text,text,integer) to authenticated;
+revoke all on function public.maths_start_calculation(text,text,text,integer) from public,anon; grant execute on function public.maths_start_calculation(text,text,text,integer) to authenticated;
+revoke all on function public.maths_start_concepts(text,text,text,integer) from public,anon; grant execute on function public.maths_start_concepts(text,text,text,integer) to authenticated;
+revoke all on function public.maths_start_demand_set(text,text,integer) from public,anon; grant execute on function public.maths_start_demand_set(text,text,integer) to authenticated;
+revoke all on function public.maths_get_session(text) from public,anon; grant execute on function public.maths_get_session(text) to authenticated;
+revoke all on function public.maths_save_session_position(text,integer) from public,anon; grant execute on function public.maths_save_session_position(text,integer) to authenticated;
+revoke all on function public.maths_submit_answer(text,text,text,numeric,text) from public,anon; grant execute on function public.maths_submit_answer(text,text,text,numeric,text) to authenticated;
+revoke all on function public.maths_finish_session(text) from public,anon; grant execute on function public.maths_finish_session(text) to authenticated;
+revoke all on function public.maths_set_starred(text,boolean) from public,anon; grant execute on function public.maths_set_starred(text,boolean) to authenticated;
+revoke all on function public.maths_set_difficult(text,boolean) from public,anon; grant execute on function public.maths_set_difficult(text,boolean) to authenticated;
+revoke all on function public.maths_set_mastered(text,boolean) from public,anon; grant execute on function public.maths_set_mastered(text,boolean) to authenticated;
+revoke all on function public.maths_set_concept(text,boolean) from public,anon; grant execute on function public.maths_set_concept(text,boolean) to authenticated;
+revoke all on function public.maths_save_note(text,text,boolean) from public,anon; grant execute on function public.maths_save_note(text,text,boolean) to authenticated;
+revoke all on function public.maths_get_local_safe_health() from public,anon; grant execute on function public.maths_get_local_safe_health() to authenticated;
+
+
