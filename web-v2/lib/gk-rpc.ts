@@ -12,6 +12,7 @@ const MAX_AGE=12*60*60*1000;
 const BACKOFF=[1000,2500,5000,15000,30000,60000];
 const DURABLE=new Set(["gk_submit_answer","gk_record_exposure","gk_mark_guessed","gk_set_starred","gk_set_difficult","gk_set_flag","gk_save_note","gk_save_session"]);
 const MUTATION=/^gk_(?:submit_|record_|mark_|set_|save_|start_|create_|finish_|complete_)/;
+const PAUSED_KEYS=[`${ROOT}paused-session:v3`,`${ROOT}paused-session:v2`,`${ROOT}paused-session:v1`];
 let running=false;let timer:ReturnType<typeof setTimeout>|null=null;let wired=false;let activeUser="";
 
 const browser=()=>typeof window!=="undefined";
@@ -31,6 +32,7 @@ function writeCache<T>(uid:string,name:string,args:Args|undefined,data:T){if(!br
 async function network<T>(name:string,args?:Args){const{data,error}=await supabaseBrowser().rpc(name,args||{});if(error)throw error;return data as T;}
 function readOutbox(uid=activeUser):OutboxItem[]{if(!browser()||!uid)return[];try{const x=JSON.parse(localStorage.getItem(outboxKey(uid))||"[]");return Array.isArray(x)?x:[];}catch{return[];}}
 function writeOutbox(uid:string,x:OutboxItem[]){if(!browser()||!uid)return;try{localStorage.setItem(outboxKey(uid),JSON.stringify(x));publishPending(uid);}catch{}}
+function clearGlobalPaused(){if(!browser())return;try{PAUSED_KEYS.forEach(k=>localStorage.removeItem(k));}catch{}}
 function removeUserPrivateState(uid:string){if(!browser()||!uid)return;try{for(let i=localStorage.length-1;i>=0;i--){const k=localStorage.key(i);if(k?.startsWith(`${ROOT}${uid}:`))localStorage.removeItem(k);}}catch{}}
 function schedule(ms=0){if(!browser()||isGkLocalSafe())return;if(timer)clearTimeout(timer);timer=setTimeout(()=>void flushGkMutationOutbox(),Math.max(0,ms));}
 function makeId(prefix:string){return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2,9)}`;}
@@ -49,8 +51,8 @@ function localSimulation<T>(name:string,args?:Args):T{const a=args||{};const res
 
 export async function flushGkMutationOutbox(){if(!browser()||running||!navigator.onLine||isGkLocalSafe())return;let uid="";try{uid=await userId();}catch{return;}const rows=readOutbox(uid).slice().sort((a,b)=>a.queuedAt-b.queuedAt);if(!rows.length)return;const item=rows[0];const now=Date.now();if(item.nextAt>now){schedule(Math.min(60000,Math.max(500,item.nextAt-now)));return;}running=true;try{try{const result=await network(item.name,item.args);writeOutbox(uid,readOutbox(uid).filter(x=>x.id!==item.id));try{window.dispatchEvent(new CustomEvent("revision:gk-mutation-durable",{detail:{id:item.id,name:item.name,result}}));}catch{}invalidateReadCache(uid);}catch{const latest=readOutbox(uid);const hit=latest.find(x=>x.id===item.id);if(hit){hit.tries++;hit.nextAt=Date.now()+BACKOFF[Math.min(BACKOFF.length-1,hit.tries-1)];writeOutbox(uid,latest);}}}finally{running=false;if(readOutbox(uid).length)schedule(250);}}
 function invalidateReadCache(uid:string){if(!browser()||!uid)return;try{for(let i=localStorage.length-1;i>=0;i--){const k=localStorage.key(i);if(k?.startsWith(cachePrefix(uid)))localStorage.removeItem(k);}}catch{}}
-function clearPreviousAccountPrivateState(nextUid:string){if(!browser())return;try{const marker=`${ROOT}active-user`;const previous=localStorage.getItem(marker)||"";if(previous&&previous!==nextUid)removeUserPrivateState(previous);localStorage.setItem(marker,nextUid);}catch{}}
-function clearSignedOutPrivateState(){if(!browser())return;try{const marker=`${ROOT}active-user`;const previous=activeUser||localStorage.getItem(marker)||"";if(previous)removeUserPrivateState(previous);localStorage.removeItem(marker);activeUser="";}catch{activeUser="";}}
+function clearPreviousAccountPrivateState(nextUid:string){if(!browser())return;try{const marker=`${ROOT}active-user`;const previous=localStorage.getItem(marker)||"";if(previous&&previous!==nextUid){removeUserPrivateState(previous);clearGlobalPaused();}localStorage.setItem(marker,nextUid);}catch{}}
+function clearSignedOutPrivateState(){if(!browser())return;try{const marker=`${ROOT}active-user`;const previous=activeUser||localStorage.getItem(marker)||"";if(previous)removeUserPrivateState(previous);clearGlobalPaused();localStorage.removeItem(marker);activeUser="";}catch{activeUser="";}}
 function wire(){if(!browser()||wired)return;wired=true;window.addEventListener("online",()=>schedule(0));document.addEventListener("visibilitychange",()=>{if(!document.hidden)schedule(0)});supabaseBrowser().auth.onAuthStateChange((_event,session)=>{const uid=session?.user?.id||"";if(uid){clearPreviousAccountPrivateState(uid);activeUser=uid;schedule(0);}else clearSignedOutPrivateState();});window.setInterval(()=>{if(readOutbox().length)schedule(0)},60000);schedule(0);}
 
 export async function gkRpc<T=unknown>(name:string,args?:Args):Promise<T>{wire();const uid=await userId();clearPreviousAccountPrivateState(uid);
@@ -68,4 +70,4 @@ export async function gkRpc<T=unknown>(name:string,args?:Args):Promise<T>{wire()
 export function subscribeGkFresh<T>(name:string,args:Args|undefined,onFresh:(x:T)=>void){if(!browser())return()=>{};const wanted=stableText(args);const h=(e:Event)=>{const d=(e as CustomEvent<FreshDetail<T>>).detail;if(d?.name===name&&stableText(d.args)===wanted)onFresh(d.data);};window.addEventListener("revision:gk-rpc-fresh",h as EventListener);return()=>window.removeEventListener("revision:gk-rpc-fresh",h as EventListener);}
 export function pendingGkMutations(){return readOutbox().length;}
 export function pendingGkAnswers(){return readOutbox().filter(x=>x.name==="gk_submit_answer").length;}
-export function clearGkPrivateCache(){if(!browser())return;try{for(let i=localStorage.length-1;i>=0;i--){const k=localStorage.key(i);if(k?.startsWith(ROOT))localStorage.removeItem(k);}activeUser="";}catch{}}
+export function clearGkPrivateCache(){if(!browser())return;try{for(let i=localStorage.length-1;i>=0;i--){const k=localStorage.key(i);if(k?.startsWith(ROOT)&&k.includes(":rpc-cache:"))localStorage.removeItem(k);}}catch{}}
