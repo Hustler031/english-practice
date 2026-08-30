@@ -23,6 +23,7 @@ This file records the live GK V2 migration sequence verified from `supabase_migr
 | 20260830032146 | gk_v2_view_parity_reads | exact repository mirror; read-only old-view support for true scope All, lecture Parts, New Practice, Guessed and Flagged Content |
 | 20260830032730 | gk_v2_starred_group_view_parity | exact repository mirror; read-only Starred day-group random/smart/all selector |
 | 20260830033040 | gk_v2_starred_group_selector_wiring | exact repository mirror; routes existing Starred age URLs to the group selector without changing data |
+| 20260830034447 | gk_v2_scoped_concept_route_keys | exact repository mirror; read-only subject/topic-scoped concept route keys prevent duplicate React keys and ambiguous concept routing |
 
 ## Localhost-first safety decision
 
@@ -31,6 +32,8 @@ The earlier branch-only GK SQL drafts dated `20260829100000`, `20260830013000`, 
 The tracked GK migrations from `20260830025704` onward are read-model/runtime-function changes only. They create or replace helper/read RPC functions and grants; they do not update/insert/delete canonical GK content, attempts, exposures, question state, sessions, notes, flags, demand-set rows, or English data.
 
 The view-parity layer restores old product behavior that the first React shell had flattened: Content library → lecture → Main/Rapid 20-question Parts, dedicated New Practice hierarchy, dedicated Starred and Guessed libraries, Flagged Content review, and true large-scope Practice All reads. Starred day groups preserve the old Random 10 / Smart 20 / Practice All semantics through a read-only selector.
+
+The scoped concept-key layer addresses legacy concept IDs reused across more than one subject/topic scope. UI/read routes now carry `Subject|Topic|CanonicalConcept` while the canonical database `concept_id` itself is left unchanged. This removes duplicate React keys such as `POL3-C005` and prevents a concept route from mixing similarly named concept IDs across topics.
 
 ## Cutover gate
 
