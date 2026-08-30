@@ -7,11 +7,13 @@ on:
     paths:
       - 'web-v2/**'
       - 'supabase/managed-migrations/**'
+      - 'supabase/recovery-baselines/**'
       - '.github/workflows/validate-gk-v2.yml'
   pull_request:
     paths:
       - 'web-v2/**'
       - 'supabase/managed-migrations/**'
+      - 'supabase/recovery-baselines/**'
 
 concurrency:
   group: validate-gk-v2-${{ github.ref }}
@@ -20,6 +22,20 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: gk_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d gk_ci"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
     defaults:
       run:
         working-directory: web-v2
@@ -29,6 +45,17 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --no-audit --no-fund
+      - name: GK clean-room backend reconstruction
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -d gk_ci -v ON_ERROR_STOP=1 -f scripts/gk-ci-bootstrap.sql
+          psql -h 127.0.0.1 -U postgres -d gk_ci -v ON_ERROR_STOP=1 -f ../supabase/recovery-baselines/gk_v2_reconstructed_pre25704_baseline.sql
+          for f in ../supabase/managed-migrations/20260830*_gk*.sql; do
+            echo "Applying $f"
+            psql -h 127.0.0.1 -U postgres -d gk_ci -v ON_ERROR_STOP=1 -f "$f"
+          done
+          psql -h 127.0.0.1 -U postgres -d gk_ci -v ON_ERROR_STOP=1 -f scripts/gk-ci-runtime-assertions.sql
       - name: GK behavioral contracts
         run: npm run contracts:gk
       - name: TypeScript
