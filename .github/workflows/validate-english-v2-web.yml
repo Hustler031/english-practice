@@ -22,6 +22,20 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: english_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d english_ci"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
     defaults:
       run:
         working-directory: web-v2
@@ -31,6 +45,20 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --no-audit --no-fund
+      - name: Validate English fresh-session migration syntax
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 <<'SQL'
+          create schema auth;
+          create schema english;
+          create role anon nologin;
+          create role authenticated nologin;
+          create role service_role nologin;
+          create or replace function auth.uid() returns uuid language sql stable as $$ select null::uuid $$;
+          SQL
+          psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260830180000_english_quiz_session_freshness.sql
+          psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260830181000_english_source_group_fresh_session.sql
       - name: Validate English V2 fresh-session contracts
         run: |
           node ../.github/scripts/validate-english-v2-fresh-session.cjs
