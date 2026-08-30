@@ -5,14 +5,39 @@ on:
     branches: [english-v2-supabase]
     paths:
       - 'web-v2/**'
+      - 'supabase/managed-migrations/**english**.sql'
+      - '.github/scripts/validate-english-v2-fresh-session.cjs'
+      - '.github/scripts/validate-english-v2-interaction-cooldown.cjs'
+      - '.github/scripts/validate-english-v2-fresh-session-module-audit.cjs'
+      - '.github/english-v2-fresh-session-module-audit.md'
       - '.github/workflows/validate-english-v2-web.yml'
   pull_request:
     paths:
       - 'web-v2/**'
+      - 'supabase/managed-migrations/**english**.sql'
+      - '.github/scripts/validate-english-v2-fresh-session.cjs'
+      - '.github/scripts/validate-english-v2-interaction-cooldown.cjs'
+      - '.github/scripts/validate-english-v2-fresh-session-module-audit.cjs'
+      - '.github/english-v2-fresh-session-module-audit.md'
+      - '.github/workflows/validate-english-v2-web.yml'
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: english_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d english_ci"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
     defaults:
       run:
         working-directory: web-v2
@@ -22,6 +47,44 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --no-audit --no-fund
+      - name: Validate English fresh-session migration syntax
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 <<'SQL'
+          create schema auth;
+          create schema english;
+          create role anon nologin;
+          create role authenticated nologin;
+          create role service_role nologin;
+          create or replace function auth.uid() returns uuid language sql stable as $$ select null::uuid $$;
+          SQL
+          psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260830180000_english_quiz_session_freshness.sql
+          psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260830181000_english_source_group_fresh_session.sql
+          psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260830210000_english_interaction_cooldown.sql
+      - name: Validate English V2 fresh-session contracts
+        run: |
+          node ../.github/scripts/validate-english-v2-fresh-session.cjs
+          node ../.github/scripts/validate-english-v2-interaction-cooldown.cjs
+          node ../.github/scripts/validate-english-v2-fresh-session-module-audit.cjs
+      - name: Validate existing English reliability and learning contracts
+        run: |
+          cd ..
+          node .github/scripts/validate-english.cjs
+          node .github/scripts/validate-learning.cjs
+          node .github/scripts/validate-reliability.cjs
+          node .github/scripts/validate-starred-origin.cjs
+          node .github/scripts/validate-ui-polish.cjs
+          node .github/scripts/validate-daily-selection.cjs
+          node .github/scripts/validate-star-reliability.cjs
+          node .github/scripts/validate-daily-finish.cjs
+          node .github/scripts/validate-module-sync.cjs
+          node .github/scripts/validate-starred-intelligence.cjs
+          node .github/scripts/validate-smart-saved-phrasal.cjs
+          node .github/scripts/validate-saved-owner-cache.cjs
+          node .github/scripts/validate-phrasal-recall.cjs
+          node .github/scripts/validate-final-hardening.cjs
+          node .github/scripts/validate-boot-cleanup.cjs
       - run: npm run typecheck
       - run: npm run build
         env:

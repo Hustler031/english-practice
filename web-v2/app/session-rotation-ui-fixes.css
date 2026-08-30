@@ -43,7 +43,50 @@
   border-color:color-mix(in srgb,var(--primary) 28%,var(--line))!important;
 }
 
+/* Sync state must never animate or shift the quiz header. Pending work is a static
+   purple dot; the final durable save gets one brief, static green confirmation. */
+.sync-status-dot{
+  align-self:center;
+  display:block;
+  width:8px;
+  height:8px;
+  flex:0 0 8px;
+  border-radius:999px;
+  animation:none!important;
+  transition:none!important;
+  transform:none!important;
+}
+.sync-status-dot.sync-pending{background:var(--primary)}
+.sync-status-dot.sync-saved{background:var(--ok)}
+.sync-home-pending{
+  align-self:center;
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  min-height:28px;
+  padding:4px 7px;
+  border:1px solid color-mix(in srgb,var(--primary) 28%,var(--line));
+  border-radius:999px;
+  background:color-mix(in srgb,var(--primary) 8%,var(--card));
+  color:var(--muted);
+  font-size:10px;
+  font-weight:850;
+  white-space:nowrap;
+  animation:none!important;
+  transition:none!important;
+}
+.sync-home-pending i{
+  display:block;
+  width:6px;
+  height:6px;
+  border-radius:999px;
+  background:var(--primary);
+  animation:none!important;
+  transition:none!important;
+}
+
 @media(max-width:420px){
   .add-word-backdrop .add-word-sheet-v2{max-height:min(49dvh,460px)}
   .saved-focus-lanes{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .sync-home-pending{padding-inline:6px;font-size:9.5px}
 }
