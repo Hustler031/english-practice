@@ -11,22 +11,45 @@ let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 const CACHE_PREFIX = "ep:v2:rpc-cache:";
 const OUTBOX_KEY = "ep:v2:answer-outbox:v1";
 const QUESTION_KEY_STORE = "ep:v2:question-correct-keys:v1";
+const LOCAL_SESSION_STORE = "ep:v2:fresh-session-history:v1";
 const CACHE_MAX_AGE = 12 * 60 * 60 * 1000;
+const LOCAL_SESSION_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 const BACKOFF = [1000, 2500, 5000, 15000, 30000, 60000];
 const PRODUCTION_SUPABASE_HOST = "hytehindbmjdwcfptsic.supabase.co";
+const MUTATION_REFRESH_RPCS = new Set([
+  "english_dashboard_summary",
+  "english_resume_daily",
+  "english_get_daily_current",
+  "english_get_home_snapshot",
+  "english_get_revision_hub",
+  "english_get_saved_revision_hub",
+  "english_get_phrasal_hub",
+  "english_get_starred_hub",
+  "english_get_starred_guidance",
+  "english_get_bank_coverage_hub",
+  "english_get_new_practice_hub",
+  "english_get_learning_progress",
+  "english_hindu_progress",
+]);
 
 type RpcArgs = Record<string, unknown>;
 type CacheEntry<T = unknown> = { at: number; name: string; args: RpcArgs; data: T };
 type OutboxItem = { id: string; name: "english_submit_answer" | "english_submit_hindu_answer"; args: RpcArgs; tries: number; nextAt: number; queuedAt: number };
 type FreshDetail<T = unknown> = { name: string; args: RpcArgs; data: T };
+type LocalSession = { lane: string; ids: string[]; at: number };
+type SessionReadPolicy = { kind: "rotating"; lane: string; strict: boolean } | { kind: "live" };
 
 const answerLocks = new Map<string, { at: number; result: unknown }>();
+const freshInflight = new Map<string, Promise<unknown>>();
 let questionKeys: Record<string, string> | null = null;
 
 function browserReady() { return typeof window !== "undefined"; }
 function isLoopbackHost(hostname: string) {
   const host = String(hostname || "").toLowerCase();
   return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
+}
+function cleanLanePart(value: unknown, fallback = "all") {
+  return String(value ?? fallback).trim().toLowerCase().replace(/[^a-z0-9_.:-]+/g, "-").slice(0, 120) || fallback;
 }
 function isReadOnlyRpc(name: string) {
   return name === "english_dashboard_summary" || name.startsWith("english_get_") || name === "english_hindu_progress";
@@ -60,13 +83,46 @@ function stableArgs(args?: RpcArgs) {
 }
 function stableArgsText(args?: RpcArgs) { return JSON.stringify(stableArgs(args)); }
 function rpcCacheKey(name: string, args?: RpcArgs) { return `${CACHE_PREFIX}${name}:${stableArgsText(args)}`; }
-function isCacheableRead(name: string) {
+function sessionReadPolicy(name: string, args?: RpcArgs): SessionReadPolicy | null {
+  const input = args ?? {};
+  const mode = cleanLanePart(input.p_mode, "all");
+  switch (name) {
+    case "english_get_revision_batch":
+      return { kind: "rotating", lane: `revision:${mode}`, strict: false };
+    case "english_get_difficult_items":
+      return { kind: "rotating", lane: "difficult", strict: false };
+    case "english_get_saved_revision_batch":
+      return { kind: "rotating", lane: `saved:${mode}`, strict: mode === "new" };
+    case "english_get_new_practice_batch":
+      return { kind: "rotating", lane: `new:${cleanLanePart(input.p_category)}:${mode}:${cleanLanePart(input.p_source)}`, strict: mode === "new" || mode === "newwords" };
+    case "english_get_topic_batch":
+      return { kind: "rotating", lane: `topic:${cleanLanePart(input.p_category)}:${mode}`, strict: mode === "new" };
+    case "english_get_source_batch":
+      return { kind: "rotating", lane: `source:${cleanLanePart(input.p_source_key)}:${mode}`, strict: mode === "new" };
+    case "english_get_starred_batch":
+      return { kind: "rotating", lane: `starred:${mode}:${cleanLanePart(input.p_from_day, "any")}:${cleanLanePart(input.p_to_day, "any")}`, strict: false };
+    case "english_get_phrasal_batch":
+      return { kind: "rotating", lane: `phrasal:${mode}`, strict: false };
+    case "english_get_phrasal_maintenance_batch":
+      return { kind: "rotating", lane: `phrasal-maintenance:${mode}`, strict: false };
+    case "english_get_today_extra_batch":
+      return { kind: "rotating", lane: "extra", strict: false };
+    case "english_get_bank_coverage_batch":
+      return { kind: "rotating", lane: `bank-unseen:${cleanLanePart(input.p_category)}`, strict: true };
+    case "english_get_demand_batch":
+      return mode === "all" ? null : { kind: "rotating", lane: `demand:${cleanLanePart(input.p_set_id)}:${mode}`, strict: false };
+    case "english_get_bank_coverage_seen_batch":
+    case "english_get_bank_coverage_review_batch":
+      return { kind: "live" };
+    default:
+      return null;
+  }
+}
+function isCacheableRead(name: string, args?: RpcArgs) {
+  if (sessionReadPolicy(name, args)) return false;
   return name === "english_dashboard_summary" || name === "english_resume_daily" || name.startsWith("english_get_") || name === "english_hindu_progress";
 }
-function shouldRefreshAfterMutation(name: string) {
-  return name === "english_dashboard_summary" || name === "english_resume_daily" || name === "english_get_home_snapshot" || name === "english_hindu_progress" ||
-    /^english_get_.*_(hub|progress|summary|intelligence|today|guidance)$/.test(name);
-}
+function shouldRefreshAfterMutation(name: string) { return MUTATION_REFRESH_RPCS.has(name); }
 function publishFresh<T>(name: string, args: RpcArgs | undefined, data: T) {
   if (!browserReady()) return;
   try { window.dispatchEvent(new CustomEvent<FreshDetail<T>>("ep:v2-rpc-fresh", { detail: { name, args: stableArgs(args), data } })); } catch { /* best effort */ }
@@ -135,17 +191,62 @@ function readOutbox(): OutboxItem[] {
   catch { return []; }
 }
 function writeOutbox(rows: OutboxItem[]) {
+  if (!browserReady()) return false;
+  try { window.localStorage.setItem(OUTBOX_KEY, JSON.stringify(rows)); return true; }
+  catch { return false; }
+}
+function readLocalSessions(): LocalSession[] {
+  if (!browserReady()) return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(LOCAL_SESSION_STORE) || "[]");
+    if (!Array.isArray(parsed)) return [];
+    const cutoff = Date.now() - LOCAL_SESSION_MAX_AGE;
+    return parsed.filter((row: LocalSession) => row && Number(row.at || 0) >= cutoff && Array.isArray(row.ids)).slice(0, 40);
+  } catch { return []; }
+}
+function writeLocalSessions(rows: LocalSession[]) {
   if (!browserReady()) return;
-  try { window.localStorage.setItem(OUTBOX_KEY, JSON.stringify(rows)); } catch { /* best effort */ }
+  try { window.localStorage.setItem(LOCAL_SESSION_STORE, JSON.stringify(rows.slice(0, 40))); } catch { /* best effort fallback only */ }
+}
+function questionIdsFromBatch(data: unknown) {
+  if (!Array.isArray(data)) return [];
+  const ids = data.map(row => {
+    if (!row || typeof row !== "object") return "";
+    const item = row as Record<string, unknown>;
+    return String(item.id ?? item.question_id ?? item.questionId ?? "").trim();
+  }).filter(Boolean);
+  return [...new Set(ids)];
+}
+function recordLocalSession(lane: string, data: unknown) {
+  const ids = questionIdsFromBatch(data);
+  if (!ids.length) return;
+  const rows = readLocalSessions();
+  rows.unshift({ lane, ids, at: Date.now() });
+  writeLocalSessions(rows);
+}
+function localExcludeIds(lane: string, pending: number, strict: boolean) {
+  const rows = readLocalSessions();
+  if (!rows.length) return [];
+  const chosen: LocalSession[] = [];
+  const global = rows[0];
+  const sameLane = rows.find(row => row.lane === lane);
+  if (global) chosen.push(global);
+  if (sameLane && sameLane !== global) chosen.push(sameLane);
+  if (pending > 0 || strict || localProductionSafetyMode()) {
+    const recentCutoff = Date.now() - (strict || localProductionSafetyMode() ? LOCAL_SESSION_MAX_AGE : 2 * 60 * 60 * 1000);
+    rows.filter(row => row.at >= recentCutoff).forEach(row => chosen.push(row));
+  }
+  return [...new Set(chosen.flatMap(row => row.ids))].slice(0, 500);
 }
 function makeAttemptId(questionId: string) { return `v2-${questionId || "Q"}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`; }
 function scheduleFlush(ms = 0) {
   if (!browserReady()) return;
   if (wakeTimer) clearTimeout(wakeTimer);
-  wakeTimer = setTimeout(() => { void flushAnswerOutbox(); }, Math.max(0, ms));
+  wakeTimer = setTimeout(() => { wakeTimer = null; void flushAnswerOutbox(); }, Math.max(0, ms));
 }
 async function networkRpc<T = unknown>(name: string, args?: RpcArgs): Promise<T> {
-  if (localProductionSafetyMode() && !isReadOnlyRpc(name)) return localMutationResult<T>(name, args);
+  const localSafeGateway = name === "english_start_fresh_session";
+  if (localProductionSafetyMode() && !isReadOnlyRpc(name) && !localSafeGateway) return localMutationResult<T>(name, args);
   const { data, error } = await supabaseBrowser().rpc(name, args ?? {});
   if (error) throw error;
   indexQuestionKeys(data);
@@ -153,25 +254,38 @@ async function networkRpc<T = unknown>(name: string, args?: RpcArgs): Promise<T>
 }
 async function revalidateCachedReads() {
   if (!browserReady()) return;
+  if (readOutbox().length) { scheduleCacheRefresh(2500); return; }
   const entries: CacheEntry[] = [];
+  const seen = new Set<string>();
   for (let i = 0; i < window.localStorage.length; i++) {
     const key = window.localStorage.key(i);
     if (!key?.startsWith(CACHE_PREFIX)) continue;
     try {
       const entry = JSON.parse(window.localStorage.getItem(key) || "null") as CacheEntry;
-      if (entry?.name && shouldRefreshAfterMutation(entry.name)) entries.push(entry);
+      const fingerprint = entry?.name ? `${entry.name}:${stableArgsText(entry.args)}` : "";
+      if (entry?.name && isCacheableRead(entry.name, entry.args) && shouldRefreshAfterMutation(entry.name) && !seen.has(fingerprint)) {
+        seen.add(fingerprint);entries.push(entry);
+      }
     } catch { /* ignore */ }
   }
-  await Promise.allSettled(entries.slice(0, 16).map(async entry => {
-    const fresh = await networkRpc(entry.name, entry.args);
-    writeCache(entry.name, entry.args, fresh);
-    publishFresh(entry.name, entry.args, fresh);
-  }));
+  const priority = (name: string) => ["english_get_home_snapshot", "english_dashboard_summary", "english_get_revision_hub", "english_get_saved_revision_hub", "english_get_phrasal_hub", "english_get_starred_hub", "english_get_bank_coverage_hub", "english_get_learning_progress"].indexOf(name);
+  entries.sort((a, b) => {
+    const pa = priority(a.name), pb = priority(b.name);
+    return (pa < 0 ? 99 : pa) - (pb < 0 ? 99 : pb);
+  });
+  const chosen = entries.slice(0, 8);
+  for (let i = 0; i < chosen.length; i += 2) {
+    await Promise.allSettled(chosen.slice(i, i + 2).map(async entry => {
+      const fresh = await networkRpc(entry.name, entry.args);
+      writeCache(entry.name, entry.args, fresh);
+      publishFresh(entry.name, entry.args, fresh);
+    }));
+  }
 }
-function scheduleCacheRefresh(ms = 1200) {
+function scheduleCacheRefresh(ms = 1800) {
   if (!browserReady()) return;
   if (refreshTimer) clearTimeout(refreshTimer);
-  refreshTimer = setTimeout(() => { void revalidateCachedReads(); }, Math.max(0, ms));
+  refreshTimer = setTimeout(() => { refreshTimer = null; void revalidateCachedReads(); }, Math.max(0, ms));
 }
 async function flushAnswerOutbox() {
   if (!browserReady() || outboxRunning || !navigator.onLine) return;
@@ -188,9 +302,10 @@ async function flushAnswerOutbox() {
   try {
     try {
       const result = await networkRpc(item.name, item.args);
-      writeOutbox(readOutbox().filter(x => x.id !== item.id));
+      const remaining = readOutbox().filter(x => x.id !== item.id);
+      writeOutbox(remaining);
       try { window.dispatchEvent(new CustomEvent("ep:answer-durable", { detail: { id: item.id, name: item.name, result } })); } catch { /* ignore */ }
-      if (!localProductionSafetyMode()) scheduleCacheRefresh();
+      if (!localProductionSafetyMode() && !remaining.length) scheduleCacheRefresh(4000);
     } catch {
       const latest = readOutbox();
       const hit = latest.find(x => x.id === item.id);
@@ -222,7 +337,7 @@ async function queueAnswer<T>(name: "english_submit_answer" | "english_submit_hi
   args.p_attempt_id = attemptId;
   const rows = readOutbox();
   if (!rows.some(x => x.id === attemptId)) rows.push({ id: attemptId, name, args, tries: 0, nextAt: 0, queuedAt: Date.now() });
-  writeOutbox(rows);
+  if (!writeOutbox(rows)) throw new Error("Local answer storage is unavailable. Please free browser storage and retry.");
   scheduleFlush(0);
 
   const correct = selected === correctKey;
@@ -232,6 +347,42 @@ async function queueAnswer<T>(name: "english_submit_answer" | "english_submit_hi
   answerLocks.set(lockKey, { at: Date.now(), result });
   setTimeout(() => answerLocks.delete(lockKey), 900);
   return result as T;
+}
+async function prepareFreshSession(maxMs = 1400) {
+  if (localProductionSafetyMode()) return 0;
+  let pending = readOutbox().length;
+  if (!pending || !browserReady() || navigator.onLine === false) return pending;
+  scheduleFlush(0);
+  const deadline = Date.now() + Math.max(0, maxMs);
+  while ((pending = readOutbox().length) > 0 && Date.now() < deadline) {
+    await new Promise(resolve => window.setTimeout(resolve, 75));
+  }
+  return readOutbox().length;
+}
+async function runSessionRead<T>(name: string, args: RpcArgs | undefined, policy: SessionReadPolicy): Promise<T> {
+  if (policy.kind === "live") {
+    await prepareFreshSession();
+    return networkRpc<T>(name, args);
+  }
+  const fingerprint = `${name}:${stableArgsText(args)}`;
+  const existing = freshInflight.get(fingerprint);
+  if (existing) return existing as Promise<T>;
+  const task = (async () => {
+    const pending = await prepareFreshSession();
+    const exclude = localExcludeIds(policy.lane, pending, policy.strict);
+    const fresh = await networkRpc<T>("english_start_fresh_session", {
+      p_rpc: name,
+      p_args: stableArgs(args),
+      p_client_exclude: exclude,
+    });
+    recordLocalSession(policy.lane, fresh);
+    return fresh;
+  })();
+  freshInflight.set(fingerprint, task);
+  try { return await task; }
+  finally {
+    window.setTimeout(() => { if (freshInflight.get(fingerprint) === task) freshInflight.delete(fingerprint); }, 300);
+  }
 }
 function wireReliability() {
   if (!browserReady() || reliabilityWired) return;
@@ -247,8 +398,10 @@ export function supabaseBrowser(): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!url || !key) throw new Error("Supabase environment variables are not configured.");
+  const localSafe = localProductionSafetyMode();
   client = createClient(url, key, {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storage: typeof window === "undefined" ? undefined : window.localStorage },
+    global: localSafe ? { headers: { "x-english-local-safe": "1" } } : undefined,
   });
   wireReliability();
   return client;
@@ -260,7 +413,10 @@ export async function rpc<T = unknown>(name: string, args?: RpcArgs): Promise<T>
   if (localProductionSafetyMode() && !isReadOnlyRpc(effectiveName)) return localMutationResult<T>(name, args);
   if (name === "english_submit_answer" || name === "english_submit_hindu_answer") return queueAnswer<T>(name, args);
 
-  if (isCacheableRead(effectiveName)) {
+  const policy = sessionReadPolicy(effectiveName, args);
+  if (policy) return runSessionRead<T>(effectiveName, args, policy);
+
+  if (isCacheableRead(effectiveName, args)) {
     const cached = readCache<T>(effectiveName, args);
     if (cached !== undefined) {
       void networkRpc<T>(effectiveName, args).then(fresh => { writeCache(effectiveName, args, fresh); publishFresh(effectiveName, args, fresh); }).catch(() => {});
@@ -274,6 +430,14 @@ export async function rpc<T = unknown>(name: string, args?: RpcArgs): Promise<T>
   const result = await networkRpc<T>(effectiveName, args);
   if (/^english_(set_|save_|add_|promote_|update_|start_|reconcile_)/.test(name)) scheduleCacheRefresh();
   return result;
+}
+
+export function learnerErrorMessage(error: unknown, fallback = "Something went wrong. Please try again.") {
+  const message = String((error as { message?: unknown } | null)?.message ?? error ?? "").trim();
+  if (!message) return fallback;
+  if (/authentication required|jwt|not authenticated|session.*expired/i.test(message)) return "Your session needs to be refreshed. Please sign in again.";
+  if (/canceling statement|statement timeout|postgres|postgrest|sqlstate|deadlock|connection reset|failed to fetch|network request|database error/i.test(message)) return fallback;
+  return message;
 }
 
 export function subscribeRpcFresh<T>(name: string, args: RpcArgs | undefined, onFresh: (data: T) => void) {
