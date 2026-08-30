@@ -1,0 +1,35 @@
+name: Validate Maths V2
+
+on:
+  push:
+    branches: [maths-v2-integration]
+    paths:
+      - 'web-v2/**'
+      - 'supabase/managed-migrations/**maths_v2**'
+      - '.github/workflows/validate-maths-v2.yml'
+  pull_request:
+    paths:
+      - 'web-v2/**'
+      - 'supabase/managed-migrations/**maths_v2**'
+
+jobs:
+  build-and-contracts:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web-v2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npm run contracts:maths
+      - run: npm run contracts:gk
+      - run: npm run typecheck
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_build_placeholder
