@@ -74,9 +74,9 @@ jobs:
             git -C .. status --short --untracked-files=no
             exit 1
           fi
-          supabase_secret_prefix="sb_se""cret_"
-          github_pat_prefix="github_""pat_"
-          if git -C .. grep -nE "${supabase_secret_prefix}[A-Za-z0-9_-]{8,}|${github_pat_prefix}[A-Za-z0-9_]+" -- .; then
+          p1="sb_se""cret_"
+          p2="github_""pat_"
+          if git -C .. grep -nE "${p1}[A-Za-z0-9_-]{8,}|${p2}[A-Za-z0-9_]+" -- .; then
             echo "Potential committed secret detected"
             exit 1
           fi
