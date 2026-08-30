@@ -66,8 +66,9 @@ ok('reconnect/visibility/backoff retry',transport.includes('addEventListener("on
 ok('exact pause/resume order',quiz.includes('questions:qs')&&quiz.includes('answers,optionOrders:optionOrders(qs)')&&session.includes('optionOrders?'));
 ok('Previous Next Finish Pause',['Previous','Next','Finish','Pause'].every(x=>quiz.includes(x)));
 ok('browser Back opens Pause',quiz.includes('popstate')&&quiz.includes('setPauseOpen(true)'));
-ok('Pause is header control',quiz.includes('styles.pauseTop')&&quiz.includes('Ⅱ Pause'));
-ok('fixed dock restores exactly four learning tools',quiz.includes('styles.dockTools')&&['Star','Note','Difficult','Flag'].every(x=>quiz.includes(x))&&!/dockTools[\s\S]{0,800}Guessed/.test(quiz));
+ok('Pause stays in fixed quiz tools',quiz.includes('styles.dockTools')&&quiz.includes('>Ⅱ Pause</button>')&&!quiz.includes('styles.pauseTop'));
+ok('fixed dock keeps Star Flag Difficult Pause only',quiz.includes('styles.dockTools')&&['Star','Flag','Difficult','Pause'].every(x=>quiz.includes(x))&&!/dockTools[\s\S]{0,1000}(?:Note|Guessed)/.test(quiz));
+ok('Note is post-answer below explanation',quiz.includes('styles.explanationNoteRow')&&quiz.includes('styles.noteAfter')&&quiz.includes('Add Note'));
 ok('Guessed returns to post-answer panel',quiz.includes('styles.guessAfter')&&quiz.includes('I guessed this')&&quiz.includes('gk_mark_guessed'));
 ok('answer panel restores headed sections',['Explanation','Related Facts','Exam Trap','Memory / Trick','Source'].every(x=>quiz.includes(x))&&quiz.includes('FeedbackSection'));
 ok('Question Intelligence stays separate',quiz.includes('Question Intelligence')&&quiz.includes('gk_get_question_intelligence'));
