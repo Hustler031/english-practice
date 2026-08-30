@@ -39,7 +39,7 @@ begin
       s.last_attempt,
       (
         d.qid=any(coalesce(p_client_exclude,'{}'::text[]))
-        or s.last_attempt >= now()-interval '90 minutes'
+        or coalesce(s.last_attempt >= now()-interval '90 minutes',false)
       ) hard_recent,
       ((d.ord-1)/v_limit)::int priority_band
     from dedup d
