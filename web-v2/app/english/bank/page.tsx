@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useCallback,useEffect,useState } from "react";
 import QuizRunner from "@/components/quiz-runner";
 import { EnglishLoading } from "@/components/english-frame";
-import { rpc } from "@/lib/supabase";
+import { pendingAnswerSaves,supabaseBrowser } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
 
 type Category={id:string;name:string;total:number;exposed:number;available:number;unseen:number;coverage:number;complete:boolean};
@@ -12,13 +12,20 @@ type ReviewItem={id:string;word?:string;question?:string;correct:boolean;starred
 type Detail={id:string;total:number;exposed:number;left:number;coverage:number;newToday:number;attemptedToday:number;todayCorrect:number;todayWrong:number;todayDifficult:number;today?:{attempted:number;correct:number;wrong:number;difficult:number;items:ReviewItem[]};lastSession?:{date:string;attempted:number;correct:number;wrong:number}|null};
 type Pick={kind:"new"|"seen"|"review";category:string;name:string;count:number;mode?:string};
 
+async function bankRpc<T>(name:string,args?:Record<string,unknown>){
+ const {data,error}=await supabaseBrowser().rpc(name,args??{});if(error)throw error;return data as T;
+}
+async function waitForBankAnswerSync(maxMs=5000){
+ const started=Date.now();while(pendingAnswerSaves()>0&&Date.now()-started<maxMs){await new Promise(resolve=>window.setTimeout(resolve,80));}
+}
+
 export default function BankCoveragePage(){
  const ready=useAuthGuard();const[hub,setHub]=useState<Hub|null>(null);const[current,setCurrent]=useState<Category|null>(null);const[detail,setDetail]=useState<Detail|null>(null);const[count,setCount]=useState(10);const[pick,setPick]=useState<Pick|null>(null);const[error,setError]=useState("");
- const refreshHub=useCallback(async()=>setHub(await rpc<Hub>("english_get_bank_coverage_hub")),[]);
- const refreshDetail=useCallback(async(cat:string)=>setDetail(await rpc<Detail>("english_get_bank_coverage_category_detail",{p_category:cat})),[]);
+ const refreshHub=useCallback(async()=>setHub(await bankRpc<Hub>("english_get_bank_coverage_hub")),[]);
+ const refreshDetail=useCallback(async(cat:string)=>setDetail(await bankRpc<Detail>("english_get_bank_coverage_category_detail",{p_category:cat})),[]);
  useEffect(()=>{if(ready)refreshHub().catch((e:any)=>setError(e.message))},[ready,refreshHub]);
  useEffect(()=>{if(current)refreshDetail(current.id).catch((e:any)=>setError(e.message));else setDetail(null)},[current,refreshDetail]);
- const load=useCallback(()=>{if(!pick)return Promise.resolve([]);if(pick.kind==="review")return rpc<any[]>("english_get_bank_coverage_review_batch",{p_category:pick.category,p_mode:pick.mode||"all",p_count:pick.count});if(pick.kind==="seen")return rpc<any[]>("english_get_bank_coverage_seen_batch",{p_category:pick.category,p_count:pick.count});return rpc<any[]>("english_get_bank_coverage_batch",{p_category:pick.category,p_count:pick.count})},[pick]);
+ const load=useCallback(async()=>{if(!pick)return [];await waitForBankAnswerSync();if(pick.kind==="review")return bankRpc<any[]>("english_get_bank_coverage_review_batch",{p_category:pick.category,p_mode:pick.mode||"all",p_count:pick.count});if(pick.kind==="seen")return bankRpc<any[]>("english_get_bank_coverage_seen_batch",{p_category:pick.category,p_count:pick.count});return bankRpc<any[]>("english_get_bank_coverage_batch",{p_category:pick.category,p_count:pick.count})},[pick]);
  if(!ready)return <EnglishLoading text="Checking session…"/>;
  if(pick)return <QuizRunner title={pick.name} backHref="/english/bank" load={load} module="bankCoverage" emptyText="No eligible Bank Coverage questions are available for this action." onExit={()=>{setPick(null);void refreshHub();if(current)void refreshDetail(current.id)}}/>;
  if(current)return <CategoryDetail category={current} detail={detail} count={count} setCount={setCount} back={()=>{setCurrent(null);setCount(10)}} start={(kind,n,mode)=>setPick({kind,category:current.id,name:`Bank Coverage · ${current.name}${kind==="seen"?" · Seen Practice":kind==="review"?" · Today Review":""}`,count:n,mode})}/>;
