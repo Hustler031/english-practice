@@ -38,6 +38,7 @@ type Home = {
     mode: string;
     currentIndex: number;
     target: number;
+    completed?: boolean;
   } | null;
   overall: MathsMetric;
   counts: {
