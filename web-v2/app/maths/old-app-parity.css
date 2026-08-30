@@ -1,0 +1,46 @@
+/* Old Apps Script Maths visual parity layer. Presentation only. */
+html[data-theme="dark"]{--m-bg:#10131a;--m-panel:#171c26;--m-panel-2:#10131a;--m-text:#edf1f7;--m-muted:#9ba5b5;--m-line:#2a3140;--m-primary:#86a0ff;--m-primary-strong:#6e83e2;--m-red:#ff8a8a;--m-purple:#9d7cff;--m-amber:#f0bd57;--m-green:#72d994;--m-indigo:#86a0ff;--m-shadow:0 10px 28px rgba(0,0,0,.22)}
+html[data-theme="light"]{--m-bg:#f5f7fb;--m-panel:#fff;--m-panel-2:#f5f7fb;--m-text:#172033;--m-muted:#6c7584;--m-line:#e4e8ef;--m-primary:#3558d6;--m-primary-strong:#2949c1;--m-red:#c13b3b;--m-purple:#7657cf;--m-amber:#8b6500;--m-green:#16803a;--m-indigo:#3558d6;--m-shadow:0 8px 24px rgba(30,42,70,.06)}
+
+/* Old mock hub: one collapsible chapter-breakdown shell. */
+.m-mock-break-head{position:relative;margin:13px 6px 0!important;padding:12px 42px 27px 13px;border:1px solid var(--m-line);border-radius:15px;background:var(--m-panel);font-size:15px!important;line-height:1.15;cursor:pointer;user-select:none}
+.m-mock-break-head::before{content:"Chapter-wise mock practice";position:absolute;left:13px;bottom:9px;color:var(--m-muted);font-size:10.5px;font-weight:500;letter-spacing:0}
+.m-mock-break-head::after{content:"▾";position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--m-muted);font-size:15px;font-weight:800}
+.m-mock-break-head[data-mock-open="true"]{border-radius:15px 15px 0 0;border-bottom-color:transparent}
+.m-mock-break-head[data-mock-open="true"]::after{content:"▴"}
+.m-mock-chapter-list{display:none!important;margin:0 6px!important;padding:0 9px 9px!important;border:1px solid var(--m-line);border-top:0;border-radius:0 0 15px 15px;background:var(--m-panel);gap:7px!important}
+.m-mock-chapter-list.open{display:grid!important}
+.m-mock-chapter-list .m-row{min-height:66px;padding:10px 11px;border-radius:12px;background:var(--m-bg)}
+.m-mock-chapter-list .m-row-copy b{font-size:14px}
+.m-mock-chapter-list .m-row-copy small{font-size:10.5px}
+.m-mock-chapter-list .m-row-status{background:var(--m-panel);font-size:10px}
+
+/* Old quiz Q pill is the jump trigger. */
+.maths-quiz-mode .m-quiz-head .m-quiz-head-top>span{cursor:pointer;user-select:none;transition:border-color .15s ease,background .15s ease}
+.maths-quiz-mode .m-quiz-head .m-quiz-head-top>span:hover{border-color:color-mix(in srgb,var(--m-primary) 48%,var(--m-line));background:color-mix(in srgb,var(--m-primary) 5%,var(--m-panel))}
+.maths-quiz-mode .m-quiz-head .m-quiz-head-top>span::after{content:"▾";margin-left:6px;color:var(--m-muted);font-size:9px}
+.maths-timer-btn{height:34px;border-radius:10px;background:var(--m-panel);color:var(--m-text);border-color:var(--m-line)}
+.maths-timer-btn.maths-timer-on{border-color:color-mix(in srgb,var(--m-primary) 58%,var(--m-line));background:color-mix(in srgb,var(--m-primary) 8%,var(--m-panel));color:var(--m-primary)}
+
+/* Old four-column jump sheet. */
+.m-old-jump-backdrop{position:fixed;z-index:120;inset:0;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.48)}
+.m-old-jump-sheet{width:min(820px,100%);max-height:85dvh;overflow:auto;padding:16px max(14px,env(safe-area-inset-left)) max(18px,calc(16px + env(safe-area-inset-bottom)));border:1px solid var(--m-line);border-bottom:0;border-radius:18px 18px 0 0;background:var(--m-panel);box-shadow:0 -10px 32px rgba(0,0,0,.18)}
+.m-old-jump-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.m-old-jump-copy small{display:block;margin-bottom:3px;color:var(--m-primary);font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+.m-old-jump-copy strong{display:block;font-size:20px;line-height:1.2;font-weight:900}
+.m-old-jump-close{display:grid;place-items:center;width:34px;height:34px;border:1px solid var(--m-line);border-radius:10px;background:var(--m-panel);color:var(--m-text);font-size:17px;cursor:pointer}
+.m-old-jump-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:14px}
+.m-old-jump-q{min-height:44px;border:1px solid var(--m-line);border-radius:11px;background:var(--m-panel);color:var(--m-text);font-size:14px;font-weight:850;cursor:pointer}
+.m-old-jump-q:hover{border-color:color-mix(in srgb,var(--m-primary) 48%,var(--m-line))}
+.m-old-jump-q.qj-correct{border-color:var(--m-green);background:color-mix(in srgb,var(--m-green) 10%,var(--m-panel));color:var(--m-green)}
+.m-old-jump-q.qj-wrong{border-color:var(--m-red);background:color-mix(in srgb,var(--m-red) 10%,var(--m-panel));color:var(--m-red)}
+.m-old-jump-q.qj-seen{border-color:var(--m-amber);background:color-mix(in srgb,var(--m-amber) 10%,var(--m-panel));color:var(--m-amber)}
+.m-old-jump-q.qj-current{outline:2px solid var(--m-primary);outline-offset:1px}
+
+@media(max-width:560px){
+  .m-mock-break-head{margin-left:3px!important;margin-right:3px!important}
+  .m-mock-chapter-list{margin-left:3px!important;margin-right:3px!important}
+  .m-old-jump-sheet{padding-left:12px;padding-right:12px}
+  .m-old-jump-grid{gap:7px}
+  .m-old-jump-q{min-height:42px;font-size:13px}
+}
