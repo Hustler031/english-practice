@@ -5,10 +5,15 @@ on:
     branches: [english-v2-supabase]
     paths:
       - 'web-v2/**'
+      - 'supabase/managed-migrations/**english**.sql'
+      - '.github/scripts/validate-english-v2-fresh-session.cjs'
       - '.github/workflows/validate-english-v2-web.yml'
   pull_request:
     paths:
       - 'web-v2/**'
+      - 'supabase/managed-migrations/**english**.sql'
+      - '.github/scripts/validate-english-v2-fresh-session.cjs'
+      - '.github/workflows/validate-english-v2-web.yml'
 
 jobs:
   build:
@@ -22,6 +27,26 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --no-audit --no-fund
+      - name: Validate English V2 fresh-session contracts
+        run: node ../.github/scripts/validate-english-v2-fresh-session.cjs
+      - name: Validate existing English reliability and learning contracts
+        run: |
+          cd ..
+          node .github/scripts/validate-english.cjs
+          node .github/scripts/validate-learning.cjs
+          node .github/scripts/validate-reliability.cjs
+          node .github/scripts/validate-starred-origin.cjs
+          node .github/scripts/validate-ui-polish.cjs
+          node .github/scripts/validate-daily-selection.cjs
+          node .github/scripts/validate-star-reliability.cjs
+          node .github/scripts/validate-daily-finish.cjs
+          node .github/scripts/validate-module-sync.cjs
+          node .github/scripts/validate-starred-intelligence.cjs
+          node .github/scripts/validate-smart-saved-phrasal.cjs
+          node .github/scripts/validate-saved-owner-cache.cjs
+          node .github/scripts/validate-phrasal-recall.cjs
+          node .github/scripts/validate-final-hardening.cjs
+          node .github/scripts/validate-boot-cleanup.cjs
       - run: npm run typecheck
       - run: npm run build
         env:
