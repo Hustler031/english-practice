@@ -45,10 +45,15 @@ lacks("Maths UI",app,"Hindu");
 lacks("Maths UI",app,"Phrasal");
 
 try{
- const base="6a529afb470bf6056ed9e42785605f8c9b4c67ba";
- const changed=execFileSync("git",["diff","--name-only",`${base}...HEAD`],{cwd:path.resolve(root,".."),encoding:"utf8"}).trim().split(/\r?\n/).filter(Boolean);
- const forbidden=changed.filter(p=>p.startsWith("web-v2/app/english/")||p.startsWith("web-v2/components/english-")||p.startsWith("web-v2/app/gk/")||p.startsWith("web-v2/lib/gk"));
- if(forbidden.length)failures.push(`English/GK regression boundary violated: ${forbidden.join(", ")}`);
+  // Compare only Maths-branch work against the current production lineage.
+  // A hard-coded historical SHA incorrectly treats later legitimate main changes
+  // as Maths regressions after main is synchronized into this integration branch.
+  const repoRoot=path.resolve(root,"..");
+  const base=execFileSync("git",["merge-base","HEAD","origin/main"],{cwd:repoRoot,encoding:"utf8"}).trim();
+  if(!base)throw new Error("No merge-base found with origin/main");
+  const changed=execFileSync("git",["diff","--name-only",`${base}...HEAD`],{cwd:repoRoot,encoding:"utf8"}).trim().split(/\r?\n/).filter(Boolean);
+  const forbidden=changed.filter(p=>p.startsWith("web-v2/app/english/")||p.startsWith("web-v2/components/english-")||p.startsWith("web-v2/app/gk/")||p.startsWith("web-v2/lib/gk"));
+  if(forbidden.length)failures.push(`English/GK regression boundary violated: ${forbidden.join(", ")}`);
 }catch(e){failures.push(`Unable to verify regression boundary: ${e.message}`)}
 
 if(failures.length){console.error("Maths V2 contract validation FAILED\n- "+failures.join("\n- "));process.exit(1)}
