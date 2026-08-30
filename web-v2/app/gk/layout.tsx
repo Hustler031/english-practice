@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { MouseEvent, ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { clearGkPrivateCache, isGkLocalSafe } from "@/lib/gk-rpc";
@@ -11,6 +12,7 @@ type Theme="dark"|"light";
 function applyTheme(next:Theme,persist=false){document.documentElement.dataset.theme=next;document.documentElement.style.colorScheme=next;const color=next==="light"?"#f5f7fb":"#0d1117";document.querySelectorAll('meta[name="theme-color"]').forEach(el=>el.setAttribute("content",color));if(persist)window.localStorage.setItem("english-theme",next);}
 
 export default function GkLayout({ children }: { children: ReactNode }) {
+ const pathname=usePathname();
  const[theme,setTheme]=useState<Theme>("dark"),[refreshing,setRefreshing]=useState(false),[localSafe,setLocalSafe]=useState(false);
  useEffect(()=>{const saved=window.localStorage.getItem("english-theme");const next:Theme=saved==="light"?"light":"dark";setTheme(next);applyTheme(next);setLocalSafe(isGkLocalSafe());},[]);
  function toggleTheme(){const next:Theme=theme==="dark"?"light":"dark";setTheme(next);applyTheme(next,true);}
@@ -26,6 +28,7 @@ export default function GkLayout({ children }: { children: ReactNode }) {
   if (url.origin !== window.location.origin || url.pathname !== "/gk" || !url.searchParams.has("tab")) return;
   event.preventDefault();event.stopPropagation();window.location.assign(`${url.pathname}${url.search}${url.hash}`);
  }
+ const quizRoute=pathname?.startsWith("/gk/quiz");
  return <div className="gk-app-shell gk-parity-scope" onClickCapture={forceSamePageNavigation}>
   <header className="gk-shell-header">
    <Link href="/gk?tab=home" className="gk-shell-brand" aria-label="GK Mastery home"><strong>GK Mastery</strong><span>SSC GK practice + revision</span></Link>
@@ -36,6 +39,9 @@ export default function GkLayout({ children }: { children: ReactNode }) {
     <button className={`gk-shell-control ${refreshing?"is-refreshing":""}`} type="button" aria-label="Hard refresh GK" title="Hard refresh" onClick={()=>void hardRefresh()} disabled={refreshing}>↻</button>
    </div>
   </header>
-  <div className="gk-shell-body">{children}</div>
+  <div className="gk-shell-body">
+   {quizRoute&&<div className="gk-quiz-backbar"><button className="gk-english-back" type="button" onClick={()=>window.history.back()}>← Back</button></div>}
+   {children}
+  </div>
  </div>;
 }
