@@ -1,0 +1,49 @@
+/* Old Maths quiz layout parity layer. UI only: session, answer and persistence semantics remain in React/Supabase. */
+.maths-app.maths-quiz-mode{padding-bottom:0}
+.maths-quiz-mode .maths-header{min-height:76px;padding:15px 14px 14px}
+.maths-quiz-mode .maths-content{padding:14px 18px 196px}
+.maths-timer-btn{width:auto;min-width:82px;padding:0 11px;font-size:11px;font-weight:850;white-space:nowrap}
+.maths-quiz-mode .m-quiz-shell{position:relative;max-width:none;margin:0}
+.maths-quiz-mode .m-quiz-head{position:relative;top:auto;z-index:auto;margin:0;padding:0;background:transparent;backdrop-filter:none;border:0}
+.maths-quiz-mode .m-quiz-head-top{align-items:flex-end}
+.maths-quiz-mode .m-quiz-head strong{display:block;min-width:0;overflow:visible;text-overflow:clip;white-space:normal;font-size:20px;line-height:1.2;font-weight:900}
+.maths-quiz-mode .m-quiz-head strong::before{content:"QUIZ";display:block;margin-bottom:3px;color:var(--m-primary);font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+.maths-quiz-mode .m-quiz-head span{display:inline-flex;align-items:center;min-height:34px;padding:0 11px;border:1px solid var(--m-line);border-radius:999px;background:var(--m-panel);color:var(--m-muted);font-size:12px;white-space:nowrap}
+.maths-quiz-mode .m-quiz-head span::before{content:"Q "}
+.maths-quiz-mode .m-quiz-progress{height:8px;margin:8px 0 0;border-radius:999px;background:color-mix(in srgb,#dfe4ee 86%,var(--m-line))}
+.maths-quiz-mode .m-quiz-progress i{background:var(--m-primary)}
+.maths-quiz-mode .m-question-card{position:relative;margin-top:58px;padding:16px;border-radius:14px;background:var(--m-panel);box-shadow:none}
+.maths-quiz-mode .m-meta{position:absolute;left:0;right:0;top:-49px;display:flex;flex-wrap:nowrap;gap:6px;margin:0;overflow-x:auto;padding:0 0 2px;scrollbar-width:none}
+.maths-quiz-mode .m-meta::-webkit-scrollbar{display:none}
+.maths-quiz-mode .m-meta span{flex:0 0 auto;padding:6px 11px;border:1px solid var(--m-line);border-radius:999px;background:var(--m-bg);color:var(--m-muted);font-size:12px;font-weight:500}
+.maths-quiz-mode .m-question{margin:10px 0 16px;font-size:clamp(19px,4.8vw,25px);line-height:1.45;font-weight:750}
+.maths-quiz-mode .m-diagram{margin:4px 0 15px;border-radius:14px}
+.maths-quiz-mode .m-options{gap:9px;margin-top:0}
+.maths-quiz-mode .m-option{align-items:flex-start;grid-template-columns:28px minmax(0,1fr);gap:10px;min-height:54px;padding:13px 12px;border-radius:12px;background:var(--m-panel);font-size:16px;line-height:1.4}
+.maths-quiz-mode .m-option b{width:28px;height:28px;border:0;border-radius:8px;background:color-mix(in srgb,var(--m-primary) 16%,var(--m-panel));color:var(--m-primary);font-size:14px}
+.maths-quiz-mode .m-option span{padding-top:2px;font-size:16px;line-height:1.4}
+.maths-quiz-mode .m-option.correct b{background:var(--m-green);color:#fff}
+.maths-quiz-mode .m-option.wrong b{background:var(--m-red);color:#fff}
+.maths-quiz-mode .m-feedback{font-size:12px}
+.maths-quiz-mode .m-answer-box,.maths-quiz-mode .m-explanation{padding:13px}
+.maths-quiz-mode .m-answer-box p,.maths-quiz-mode .m-explanation p{font-size:16px;line-height:1.62}
+.maths-quiz-mode .m-quiz-tools{position:fixed;z-index:72;left:50%;bottom:calc(68px + env(safe-area-inset-bottom));transform:translateX(-50%);width:min(820px,100%);display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin:0;padding:8px 10px 6px;border-top:1px solid var(--m-line);background:color-mix(in srgb,var(--m-panel) 97%,transparent);backdrop-filter:blur(14px)}
+.maths-quiz-mode .m-tool{min-width:0;min-height:48px;padding:8px 4px;border-radius:12px;background:var(--m-panel);font-size:12px}
+.maths-quiz-mode .m-nav-dock{position:fixed;z-index:72;left:50%;bottom:0;transform:translateX(-50%);width:min(820px,100%);display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:0;padding:0 10px max(18px,calc(8px + env(safe-area-inset-bottom)));background:color-mix(in srgb,var(--m-panel) 97%,transparent);backdrop-filter:blur(14px)}
+.maths-quiz-mode .m-nav-dock .m-btn{min-width:0;min-height:52px;padding:9px 6px;border-radius:13px;font-size:16px}
+.maths-quiz-mode .m-nav-dock .m-btn:disabled{opacity:.38;pointer-events:none}
+.maths-quiz-mode .m-jump{display:none}
+@media(max-width:560px){
+  .maths-quiz-mode .maths-content{padding:14px 16px 196px}
+  .maths-quiz-mode .maths-header{min-height:66px;padding:11px 11px}
+  .maths-timer-btn{min-width:72px;padding:0 8px;font-size:10px}
+  .maths-quiz-mode .m-quiz-head strong{font-size:18px}
+  .maths-quiz-mode .m-question-card{padding:14px}
+  .maths-quiz-mode .m-question{font-size:20px}
+  .maths-quiz-mode .m-option{padding:12px 10px;font-size:15px}
+  .maths-quiz-mode .m-option span{font-size:15px}
+  .maths-quiz-mode .m-quiz-tools{gap:5px;padding-left:8px;padding-right:8px}
+  .maths-quiz-mode .m-tool{min-height:47px;font-size:11px}
+  .maths-quiz-mode .m-nav-dock{padding-left:8px;padding-right:8px}
+  .maths-quiz-mode .m-nav-dock .m-btn{min-height:52px;font-size:15px}
+}
