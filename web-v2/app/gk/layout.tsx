@@ -4,8 +4,8 @@ import Link from "next/link";
 import type { MouseEvent, ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { clearGkPrivateCache, isGkLocalSafe } from "@/lib/gk-rpc";
-import styles from "./gk.module.css";
 import "./gk-home-english-parity.css";
+import "./gk-shell-polish.css";
 
 type Theme="dark"|"light";
 function applyTheme(next:Theme,persist=false){document.documentElement.dataset.theme=next;document.documentElement.style.colorScheme=next;const color=next==="light"?"#f5f7fb":"#0d1117";document.querySelectorAll('meta[name="theme-color"]').forEach(el=>el.setAttribute("content",color));if(persist)window.localStorage.setItem("english-theme",next);}
@@ -26,16 +26,16 @@ export default function GkLayout({ children }: { children: ReactNode }) {
   if (url.origin !== window.location.origin || url.pathname !== "/gk" || !url.searchParams.has("tab")) return;
   event.preventDefault();event.stopPropagation();window.location.assign(`${url.pathname}${url.search}${url.hash}`);
  }
- return <div className={`${styles.gkApp} gk-parity-scope`} onClickCapture={forceSamePageNavigation}>
-  <header className={styles.gkHeader}>
-   <Link href="/gk?tab=home" className={styles.gkBrand} aria-label="GK Mastery home"><strong>GK Mastery</strong><span>SSC GK practice + revision</span></Link>
-   <div className={styles.gkHeaderControls}>
-    {localSafe&&<span className={styles.gkSafePill}>Local Safe</span>}
-    <Link href="/" className={styles.gkControlIcon} aria-label="Revision root" title="Revision root">⌂</Link>
-    <button className={styles.gkControlIcon} type="button" aria-label={theme==="dark"?"Switch to light mode":"Switch to dark mode"} onClick={toggleTheme}>{theme==="dark"?"☀":"☾"}</button>
-    <button className={`${styles.gkControlIcon} ${refreshing?styles.gkRefreshing:""}`} type="button" aria-label="Hard refresh GK" title="Hard refresh" onClick={()=>void hardRefresh()} disabled={refreshing}>↻</button>
+ return <div className="gk-app-shell gk-parity-scope" onClickCapture={forceSamePageNavigation}>
+  <header className="gk-shell-header">
+   <Link href="/gk?tab=home" className="gk-shell-brand" aria-label="GK Mastery home"><strong>GK Mastery</strong><span>SSC GK practice + revision</span></Link>
+   <div className="gk-shell-controls">
+    {localSafe&&<span className="gk-shell-safe">Local Safe</span>}
+    <Link href="/" className="gk-shell-control" aria-label="Revision root" title="Revision root">⌂</Link>
+    <button className="gk-shell-control" type="button" aria-label={theme==="dark"?"Switch to light mode":"Switch to dark mode"} onClick={toggleTheme}>{theme==="dark"?"☀":"☾"}</button>
+    <button className={`gk-shell-control ${refreshing?"is-refreshing":""}`} type="button" aria-label="Hard refresh GK" title="Hard refresh" onClick={()=>void hardRefresh()} disabled={refreshing}>↻</button>
    </div>
   </header>
-  <div className={styles.gkBody}>{children}</div>
+  <div className="gk-shell-body">{children}</div>
  </div>;
 }
