@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { EnglishLoading } from "@/components/english-frame";
 import { learnerErrorMessage, localProductionSafetyMode, rpc, supabaseBrowser } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
@@ -25,7 +25,7 @@ const modeMeta:Record<Mode,{label:string;sub:string;count:number}>={
 
 export default function ExamPreparationPage(){
  const ready=useAuthGuard();const[data,setData]=useState<ExamData|null>(null);const[session,setSession]=useState<SprintSession|null>(null);const[creating,setCreating]=useState<Mode|null>(null);const[error,setError]=useState("");const[more,setMore]=useState(false);
- const refresh=useCallback(()=>rpc<ExamData>("english_get_exam_preparation").then(setData),[]);
+ const refresh=useCallback(async()=>{const {data:out,error:e}=await supabaseBrowser().rpc("english_get_exam_preparation");if(e)throw e;setData(out as ExamData);},[]);
  useEffect(()=>{if(ready)refresh().catch((e:any)=>setError(e.message||String(e)));},[ready,refresh]);
  async function start(mode:Mode){
   if(localProductionSafetyMode()){setError("Sprint creation is disabled in Local Safe because this localhost is connected to production data.");return;}
@@ -61,7 +61,11 @@ function SprintRunner({initial,onExit}:{initial:SprintSession;onExit:()=>void}){
    const elapsed=Math.min(900,(initial.durationLimitSeconds||900)-seconds);
    const out=await rpc<SprintSession>("english_finish_sprint",{p_session_id:session.sessionId,p_answers:payload,p_duration_seconds:elapsed});
    setSession(out);setAnalyzing(true);
-   try{const {data:analysis,error:analysisError}=await supabaseBrowser().functions.invoke<any>("english-ssc-sprint",{body:{action:"analyze",sessionId:session.sessionId}});if(analysisError)throw analysisError;setDiagnosis(Array.isArray(analysis?.analysis)?analysis.analysis:[]);const refreshed=await rpc<SprintSession>("english_get_sprint_session",{p_session_id:session.sessionId});setSession(refreshed);}catch(e:any){setError(`Score saved. GPT mistake analysis could not finish: ${e.message||e}`);}finally{setAnalyzing(false)}
+   try{
+    const {data:analysis,error:analysisError}=await supabaseBrowser().functions.invoke<any>("english-ssc-sprint",{body:{action:"analyze",sessionId:session.sessionId}});if(analysisError)throw analysisError;
+    setDiagnosis(Array.isArray(analysis?.analysis)?analysis.analysis:[]);
+    const {data:refreshed,error:refreshError}=await supabaseBrowser().rpc("english_get_sprint_session",{p_session_id:session.sessionId});if(refreshError)throw refreshError;setSession(refreshed as SprintSession);
+   }catch(e:any){setError(`Score saved. GPT mistake analysis could not finish: ${e.message||e}`);}finally{setAnalyzing(false)}
   }catch(e:any){finishedRef.current=false;setError(learnerErrorMessage(e,"Could not submit this Sprint."));}finally{setSubmitting(false)}
  },[answers,initial.durationLimitSeconds,seconds,session,submitting]);
  useEffect(()=>{if(seconds===0&&session.status!=="completed"&&!finishedRef.current)void finish();},[seconds,session.status,finish]);
