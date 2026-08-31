@@ -9,6 +9,7 @@ import { markGkHardRefreshIntent } from "@/lib/gk-session";
 import "./gk-home-english-parity.css";
 import "./gk-shell-polish.css";
 import "./gk-final-intelligence.css";
+import "./gk-final-intelligence-mobile.css";
 
 type Theme="dark"|"light";
 function applyTheme(next:Theme,persist=false){document.documentElement.dataset.theme=next;document.documentElement.style.colorScheme=next;const color=next==="light"?"#f5f7fb":"#0d1117";document.querySelectorAll('meta[name="theme-color"]').forEach(el=>el.setAttribute("content",color));if(persist)window.localStorage.setItem("english-theme",next);}
