@@ -1,12 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { learnerErrorMessage, localProductionSafetyMode, rpc } from "@/lib/supabase";
+import { learnerErrorMessage, localProductionSafetyMode, rpc, supabaseBrowser } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
 
 type ActiveSprint={ok?:boolean;active?:boolean;sessionId?:string;status?:string;currentPosition?:number};
 type MarksPayload={ok?:boolean;items?:{position:number}[]};
 type MarkResult={ok?:boolean;saved?:boolean;subject?:string;pending?:boolean};
+
+async function liveRpc<T>(name:string,args?:Record<string,unknown>):Promise<T>{
+  const {data,error}=await supabaseBrowser().rpc(name,args||{});
+  if(error)throw error;
+  return data as T;
+}
 
 export default function SprintBankCapture(){
   const ready=useAuthGuard();
@@ -23,10 +29,10 @@ export default function SprintBankCapture(){
     if(fetching.current||!ready)return;
     fetching.current=true;
     try{
-      const active=await rpc<ActiveSprint>("english_get_active_sprint");
+      const active=await liveRpc<ActiveSprint>("english_get_active_sprint");
       if(!active?.active||!active.sessionId)return;
       setSessionId(active.sessionId);
-      const saved=await rpc<MarksPayload>("english_get_sprint_bank_marks",{p_session_id:active.sessionId});
+      const saved=await liveRpc<MarksPayload>("english_get_sprint_bank_marks",{p_session_id:active.sessionId});
       setMarks(new Set((saved?.items||[]).map(x=>Number(x.position)).filter(Boolean)));
     }catch{}finally{fetching.current=false}
   },[ready]);
