@@ -1,0 +1,129 @@
+/* Maths V2 visual-language bridge.
+   Keeps coach and preserved legacy pages distinct, but synchronises theme, motion and accent rhythm. */
+
+.maths-app{
+  --maths-indigo:#7182f2;
+  --maths-teal:#42b6a4;
+  --maths-amber:#dfa754;
+  --maths-coral:#ef7865;
+  --maths-violet:#9985e6;
+}
+
+/* The in-app Maths theme toggle is authoritative. Do not let OS colour scheme override coach pages. */
+.mc-shell,.mc-session{color:var(--m-text)}
+.mc-kicker{color:var(--m-primary);opacity:.82}
+.mc-page-head p,.mc-hero p{color:var(--m-muted);opacity:1}
+
+html[data-theme="light"] .mc-hero{
+  color:var(--m-text);
+  background:
+    radial-gradient(110% 135% at 8% 0%,color-mix(in srgb,var(--maths-indigo) 17%,transparent),transparent 57%),
+    linear-gradient(145deg,#fff,color-mix(in srgb,var(--m-panel-2) 72%,#fff 28%));
+  border-color:var(--m-line);
+  box-shadow:0 16px 44px rgba(42,58,102,.09);
+}
+html[data-theme="dark"] .mc-hero{
+  color:var(--m-text);
+  background:
+    radial-gradient(105% 135% at 8% 0%,color-mix(in srgb,var(--maths-indigo) 15%,transparent),transparent 58%),
+    linear-gradient(145deg,var(--m-panel),var(--m-panel-2));
+  border-color:var(--m-line);
+  box-shadow:0 18px 46px rgba(0,0,0,.22);
+}
+
+html[data-theme="light"] .mc-block,
+html[data-theme="light"] .mc-action-card,
+html[data-theme="light"] .mc-question-card,
+html[data-theme="light"] .mc-approach-card,
+html[data-theme="light"] .mc-options button,
+html[data-theme="light"] .mc-field select,
+html[data-theme="light"] .mc-action-grid.compact button,
+html[data-theme="light"] .mc-link-grid a,
+html[data-theme="light"] .mc-list-row,
+html[data-theme="light"] .mc-repair-row,
+html[data-theme="light"] .mc-leak,
+html[data-theme="light"] .mc-sprint-strip>div{
+  color:var(--m-text);
+  border-color:var(--m-line);
+}
+html[data-theme="dark"] .mc-block,
+html[data-theme="dark"] .mc-action-card,
+html[data-theme="dark"] .mc-question-card,
+html[data-theme="dark"] .mc-approach-card,
+html[data-theme="dark"] .mc-options button,
+html[data-theme="dark"] .mc-field select,
+html[data-theme="dark"] .mc-action-grid.compact button,
+html[data-theme="dark"] .mc-link-grid a,
+html[data-theme="dark"] .mc-list-row,
+html[data-theme="dark"] .mc-repair-row,
+html[data-theme="dark"] .mc-leak,
+html[data-theme="dark"] .mc-sprint-strip>div{
+  color:var(--m-text);
+  background:var(--m-panel);
+  border-color:var(--m-line);
+}
+
+html[data-theme="light"] .mc-block{background:linear-gradient(180deg,#fff,color-mix(in srgb,var(--m-panel-2) 34%,#fff 66%))}
+html[data-theme="light"] .mc-block:has(.mc-action-grid){background:linear-gradient(180deg,#fff,color-mix(in srgb,var(--maths-indigo) 7%,#fff 93%))}
+html[data-theme="light"] .mc-block:has(.mc-chip-row){background:linear-gradient(180deg,#fff,color-mix(in srgb,var(--maths-coral) 6%,#fff 94%))}
+html[data-theme="light"] .mc-block:has(.mc-sprint-strip){background:linear-gradient(180deg,#fff,color-mix(in srgb,var(--maths-teal) 6%,#fff 94%))}
+html[data-theme="light"] .mc-block:has(.mc-list){background:linear-gradient(180deg,#fff,color-mix(in srgb,var(--maths-amber) 6%,#fff 94%))}
+html[data-theme="light"] .mc-block:has(.mc-link-grid){background:linear-gradient(180deg,#fff,color-mix(in srgb,var(--maths-violet) 5%,#fff 95%))}
+
+html[data-theme="dark"] .mc-block{background:linear-gradient(180deg,var(--m-panel),var(--m-panel-2))}
+html[data-theme="dark"] .mc-block:has(.mc-action-grid){background:radial-gradient(90% 120% at 7% 0%,color-mix(in srgb,var(--maths-indigo) 9%,transparent),transparent 58%),linear-gradient(180deg,var(--m-panel),var(--m-panel-2))}
+html[data-theme="dark"] .mc-block:has(.mc-chip-row){background:radial-gradient(90% 120% at 7% 0%,color-mix(in srgb,var(--maths-coral) 8%,transparent),transparent 58%),linear-gradient(180deg,var(--m-panel),var(--m-panel-2))}
+html[data-theme="dark"] .mc-block:has(.mc-sprint-strip){background:radial-gradient(90% 120% at 7% 0%,color-mix(in srgb,var(--maths-teal) 8%,transparent),transparent 58%),linear-gradient(180deg,var(--m-panel),var(--m-panel-2))}
+html[data-theme="dark"] .mc-block:has(.mc-list){background:radial-gradient(90% 120% at 7% 0%,color-mix(in srgb,var(--maths-amber) 7%,transparent),transparent 58%),linear-gradient(180deg,var(--m-panel),var(--m-panel-2))}
+html[data-theme="dark"] .mc-block:has(.mc-link-grid){background:radial-gradient(90% 120% at 7% 0%,color-mix(in srgb,var(--maths-violet) 7%,transparent),transparent 58%),linear-gradient(180deg,var(--m-panel),var(--m-panel-2))}
+
+html[data-theme="light"] .mc-action-card{background:var(--m-panel)}
+html[data-theme="dark"] .mc-action-card:nth-child(2){background:linear-gradient(145deg,color-mix(in srgb,var(--maths-violet) 12%,var(--m-panel) 88%),var(--m-panel))}
+html[data-theme="dark"] .mc-action-card:nth-child(3){background:linear-gradient(145deg,color-mix(in srgb,var(--maths-amber) 12%,var(--m-panel) 88%),var(--m-panel))}
+html[data-theme="dark"] .mc-action-card:nth-child(4){background:linear-gradient(145deg,color-mix(in srgb,var(--maths-teal) 12%,var(--m-panel) 88%),var(--m-panel))}
+.mc-action-card.p1{border-color:color-mix(in srgb,var(--maths-coral) 42%,var(--m-line));background:color-mix(in srgb,var(--maths-coral) 9%,var(--m-panel) 91%)}
+
+.mc-score{background:color-mix(in srgb,var(--maths-indigo) 7%,var(--m-panel) 93%);border-color:var(--m-line);color:var(--m-text)}
+.mc-score.performance{background:color-mix(in srgb,var(--maths-teal) 10%,var(--m-panel) 90%)}
+.mc-resume{background:color-mix(in srgb,var(--maths-indigo) 7%,var(--m-panel) 93%);border-color:var(--m-line)}
+.mc-primary{background:var(--m-primary-strong);color:#fff}
+.mc-secondary{background:var(--m-panel-2);color:var(--m-text);border:1px solid var(--m-line)}
+.mc-fast-path{background:color-mix(in srgb,var(--maths-indigo) 8%,var(--m-panel) 92%);border-color:color-mix(in srgb,var(--maths-indigo) 24%,var(--m-line))}
+.mc-diagnosis{background:color-mix(in srgb,var(--maths-amber) 10%,var(--m-panel) 90%)}
+.mc-diagnosis-grid button,.mc-confidence button{background:var(--m-panel);color:var(--m-text);border-color:var(--m-line)}
+.mc-selection button{border-color:var(--m-line)}
+.mc-selection button.active{background:var(--m-primary-strong);color:#fff}
+.mc-progress i{background:var(--maths-teal)}
+.mc-session-status b.urgent{color:var(--m-red)}
+html[data-theme="light"] .mc-session-head,html[data-theme="light"] .mc-session-nav{background:color-mix(in srgb,var(--m-bg) 94%,transparent)}
+html[data-theme="dark"] .mc-session-head,html[data-theme="dark"] .mc-session-nav{background:color-mix(in srgb,var(--m-bg) 94%,transparent)}
+.mc-session-nav button,.mc-session-nav select{background:var(--m-panel);border-color:var(--m-line);color:var(--m-text)}
+.mc-session-nav .next,.mc-session-nav .finish{background:var(--m-primary-strong);color:#fff}
+
+/* Bridge preserved m-* pages to the same tactile rhythm without redesigning them. */
+.m-group-card,.m-library-card,.m-quick-card,.m-row,.m-card,.m-actions-shell,.m-action,.m-soft-btn,.m-back,.maths-icon-btn{
+  transition:transform .18s ease,border-color .18s ease,background-color .18s ease,box-shadow .18s ease,color .18s ease;
+}
+.m-group-card,.m-library-card{position:relative;overflow:hidden}
+.m-group-card::before,.m-library-card::before{
+  content:"";position:absolute;left:12px;right:12px;top:0;height:2px;border-radius:0 0 999px 999px;background:var(--maths-indigo);opacity:.72;
+}
+.m-group-card:nth-child(2n)::before,.m-library-card:nth-child(2n)::before{background:var(--maths-teal)}
+.m-group-card:nth-child(3n)::before,.m-library-card:nth-child(3n)::before{background:var(--maths-amber)}
+.m-group-card:nth-child(4n)::before,.m-library-card:nth-child(4n)::before{background:var(--maths-violet)}
+.m-row-status{background:color-mix(in srgb,var(--m-primary) 5%,var(--m-panel) 95%)}
+
+@media(hover:hover){
+  .m-group-card:hover,.m-library-card:hover,.m-quick-card:hover,.m-row:hover{transform:translateY(-1px);box-shadow:0 9px 22px color-mix(in srgb,var(--m-text) 7%,transparent)}
+  .m-action:hover,.m-soft-btn:hover,.m-back:hover,.maths-icon-btn:hover{transform:translateY(-1px)}
+}
+.m-group-card:active,.m-library-card:active,.m-quick-card:active,.m-row:active,.m-action:active,.mc-action-card:active,.mc-link-grid a:active,.mc-primary:active,.mc-secondary:active{transform:scale(.992)}
+
+@keyframes mathsPageIn{from{opacity:.72;transform:translateY(5px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:no-preference){
+  .maths-content>.mc-shell,.maths-content>.m-home,.maths-content>.m-title,.maths-content>.m-metric-strip{animation:mathsPageIn .26s ease-out both}
+}
+@media(prefers-reduced-motion:reduce){
+  .m-group-card,.m-library-card,.m-quick-card,.m-row,.m-card,.m-actions-shell,.m-action,.m-soft-btn,.m-back,.maths-icon-btn{transition:none!important}
+  .m-group-card:hover,.m-library-card:hover,.m-quick-card:hover,.m-row:hover,.m-action:hover,.m-soft-btn:hover,.m-back:hover,.maths-icon-btn:hover{transform:none!important}
+}
