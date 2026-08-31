@@ -16,6 +16,7 @@ type StarredHub={stats:{focus:number;manualDifficult?:number;difficult?:number}}
 type HinduWord={id:string};
 type Intelligence={queues?:Record<string,number>;daily?:{actionableRemaining:number;suppressed?:number};coreCoverage?:{percent:number}};
 type HomeSnapshot={ok:boolean;studyDay:number;summary:Summary;intelligence:Intelligence;phrasal:PhrasalHub;bank:BankHub;saved:SavedHub;starred:StarredHub;hindu:HinduWord[]};
+type ExamSummary={daysLeft:number;goalMarks:number};
 
 const quick = [
  ["📰", "The Hindu – Today", "Fresh vocabulary batch", "/english/hindu?return=/english", "hindu"],
@@ -37,6 +38,7 @@ function fallbackStudyDay(){
 export default function EnglishHome() {
  const ready=useAuthGuard();
  const[snapshot,setSnapshot]=useState<HomeSnapshot|null>(null);
+ const[exam,setExam]=useState<ExamSummary|null>(null);
  const[error,setError]=useState("");
  const[paused,setPaused]=useState<PausedQuizSession|null>(null);
 
@@ -46,6 +48,7 @@ export default function EnglishHome() {
   const accept=(x:HomeSnapshot)=>{if(alive){setSnapshot(x);setError("");}};
   const unsubscribe=subscribeRpcFresh<HomeSnapshot>("english_get_home_snapshot",undefined,accept);
   rpc<HomeSnapshot>("english_get_home_snapshot").then(accept).catch((e:any)=>{if(alive)setError(e.message)});
+  rpc<ExamSummary>("english_get_exam_preparation").then(x=>{if(alive)setExam(x)}).catch(()=>{});
   setPaused(readPausedQuiz());
   return()=>{alive=false;unsubscribe();};
  },[ready]);
@@ -92,6 +95,8 @@ export default function EnglishHome() {
   {dailyComplete&&<section className="practice-more-card compact-extra-card"><div className="practice-more-copy"><span className="eyebrow">Optional · after Daily</span><h2>Focused extra practice</h2><p>Wrong, Difficult, Marked · Weak/PW</p></div><Link className="btn primary" href="/english/extra?count=20">Start 20</Link></section>}
 
   {paused&&<section className="section-block"><Link className="resume-card" href="/english/resume"><span>Ⅱ</span><span><b>Resume paused practice</b><small>{paused.title} · {paused.index+1} / {paused.questions.length}</small></span><i>›</i></Link></section>}
+
+  <section className="exam-home-row"><Link href="/english/exam"><span><b>EXAM PREPARATION</b><small>{exam?`${exam.daysLeft} Days Left · Sprint · ${exam.goalMarks}+ Goal`:"SSC Sprint · 45+ Goal"}</small></span><i>›</i></Link></section>
 
   <section className="section-block"><div className="section-title-line"><h2>Quick Start</h2><AddWordSheet label="＋ Add Word"/></div><div className="study-list">{quick.map(([icon,title,sub,href,accent])=><Link className={`study-row home-quick-row accent-${accent}`} href={href} key={href}><span className="row-icon">{icon}</span><span className="row-copy"><b>{title}</b><small>{sub}</small></span><span className="row-status">{status(accent)}</span><i>›</i></Link>)}</div></section>
  </>;

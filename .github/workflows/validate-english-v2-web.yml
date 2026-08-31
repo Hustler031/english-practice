@@ -2,22 +2,30 @@ name: Validate English V2 Web
 
 on:
   push:
-    branches: [english-v2-supabase]
+    branches: [english-v2-supabase, english-v2-30d-mastery-sprint]
     paths:
       - 'web-v2/**'
       - 'supabase/managed-migrations/**english**.sql'
+      - 'supabase/functions/english-ssc-sprint/**'
       - '.github/scripts/validate-english-v2-fresh-session.cjs'
       - '.github/scripts/validate-english-v2-interaction-cooldown.cjs'
       - '.github/scripts/validate-english-v2-fresh-session-module-audit.cjs'
+      - '.github/scripts/validate-english-v2-mastery-sprint.cjs'
+      - '.github/scripts/validate-english-v2-starred-counter.cjs'
+      - '.github/scripts/validate-english-v2-search-path.cjs'
       - '.github/english-v2-fresh-session-module-audit.md'
       - '.github/workflows/validate-english-v2-web.yml'
   pull_request:
     paths:
       - 'web-v2/**'
       - 'supabase/managed-migrations/**english**.sql'
+      - 'supabase/functions/english-ssc-sprint/**'
       - '.github/scripts/validate-english-v2-fresh-session.cjs'
       - '.github/scripts/validate-english-v2-interaction-cooldown.cjs'
       - '.github/scripts/validate-english-v2-fresh-session-module-audit.cjs'
+      - '.github/scripts/validate-english-v2-mastery-sprint.cjs'
+      - '.github/scripts/validate-english-v2-starred-counter.cjs'
+      - '.github/scripts/validate-english-v2-search-path.cjs'
       - '.github/english-v2-fresh-session-module-audit.md'
       - '.github/workflows/validate-english-v2-web.yml'
 
@@ -43,6 +51,8 @@ jobs:
         working-directory: web-v2
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -62,11 +72,14 @@ jobs:
           psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260830180000_english_quiz_session_freshness.sql
           psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260830181000_english_source_group_fresh_session.sql
           psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260830210000_english_interaction_cooldown.sql
-      - name: Validate English V2 fresh-session contracts
+      - name: Validate English V2 fresh-session and mastery contracts
         run: |
           node ../.github/scripts/validate-english-v2-fresh-session.cjs
           node ../.github/scripts/validate-english-v2-interaction-cooldown.cjs
           node ../.github/scripts/validate-english-v2-fresh-session-module-audit.cjs
+          node ../.github/scripts/validate-english-v2-mastery-sprint.cjs
+          node ../.github/scripts/validate-english-v2-starred-counter.cjs
+          node ../.github/scripts/validate-english-v2-search-path.cjs
       - name: Validate existing English reliability and learning contracts
         run: |
           cd ..
@@ -85,6 +98,22 @@ jobs:
           node .github/scripts/validate-phrasal-recall.cjs
           node .github/scripts/validate-final-hardening.cjs
           node .github/scripts/validate-boot-cleanup.cjs
+      - name: Validate shared GK contracts
+        run: npm run contracts:gk
+      - name: Verify Maths source boundary and contracts
+        run: |
+          set -euo pipefail
+          BASE="$(git -C .. merge-base HEAD origin/main)"
+          CHANGED_MATHS="$(git -C .. diff --name-only "$BASE...HEAD" -- 'web-v2/app/maths/**' 'web-v2/components/maths-*' 'web-v2/lib/maths*' 'supabase/managed-migrations/*maths*.sql' || true)"
+          if [ -n "$CHANGED_MATHS" ]; then
+            echo "Unexpected Maths internals changed on English branch:"
+            echo "$CHANGED_MATHS"
+            exit 1
+          fi
+          MAIN_SHA="$(git -C .. rev-parse refs/remotes/origin/main)"
+          trap 'git -C .. update-ref refs/remotes/origin/main "$MAIN_SHA"' EXIT
+          git -C .. update-ref refs/remotes/origin/main "$(git -C .. rev-parse HEAD)"
+          npm run contracts:maths
       - run: npm run typecheck
       - run: npm run build
         env:
