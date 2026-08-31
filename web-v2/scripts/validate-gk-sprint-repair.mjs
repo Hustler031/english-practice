@@ -29,7 +29,7 @@ must(!bridge.includes("gk_submit_answer")&&!bridge.includes("gk_record_exposure"
 must(has(sprint,"Exam Mixed","Teacher PYQ Sprint","25 Questions · 15 Minutes","gk_finish_section_sprint","gk_analyze_section_sprint","Result saved.","Start Smart Repair","Start Repair","Where marks were lost"),"Sprint result/repair UX contract missing");
 must(sprint.indexOf("setResult(x.result)")<sprint.indexOf("loadAnalysis(session.sessionId,true)"),"result must become available before repair analysis begins");
 must(!sprint.includes("gk_submit_answer")&&!sprint.includes("gk_record_exposure"),"timed Sprint UI must remain isolated from adaptive mutations");
-must(has(launcher,"gk_create_sprint_repair_set",'mode:"demand"','window.location.replace(`/gk/quiz?'),"normal GK QuizEngine"),"repair launcher must converge into existing QuizEngine");
+must(has(launcher,"gk_create_sprint_repair_set",'mode:"demand"','window.location.replace(`/gk/quiz?',"normal GK QuizEngine"),"repair launcher must converge into existing QuizEngine");
 must(!launcher.includes("gk_submit_answer")&&!launcher.includes("gk_record_exposure"),"launcher must not become a second learning mutation path");
 must(has(css,"var(--card)","var(--text)","var(--muted)","var(--line)","var(--primary)","@media(max-width:560px)"),"repair UI must remain theme/mobile safe");
 must(layout.includes('./gk-sprint-repair.css'),"Sprint repair CSS is not loaded");
