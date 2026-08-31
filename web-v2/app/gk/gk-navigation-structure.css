@@ -17,8 +17,9 @@
 .gk-parity-scope main[class*="quiz"] [class*="quizDock"]{width:min(700px,100%)!important}
 .gk-sprint-dock{width:min(676px,calc(100% - 24px))!important}
 
-/* Active Sprint has its own exam dock/back control; do not stack the shell nav under it. */
-.gk-app-shell:has(.gk-sprint-exam) .gk-shell-bottomnav,.gk-app-shell:has(.gk-sprint-exam) .gk-route-backbar{display:none}
+/* Active Sprint has its own exam dock/back control; do not stack shell chrome under it. */
+.gk-app-shell:has(.gk-sprint-exam) .gk-shell-bottomnav,.gk-app-shell:has(.gk-sprint-exam) .gk-route-backbar,.gk-app-shell:has(.gk-sprint-exam) .gk-shell-header{display:none}
+.gk-app-shell:has(.gk-sprint-exam) .gk-shell-body{min-height:100dvh}
 
 /* Progress becomes overview-first; secondary information opens on demand. */
 .gk-intel-section-stack{display:grid;gap:10px}
@@ -37,7 +38,10 @@
 .gk-parity-scope main[class*="quiz"] [class*="question"] [class*="statement"]{display:block;margin-top:9px;padding-top:9px;line-height:1.52;white-space:normal}
 .gk-parity-scope main[class*="quiz"] [class*="question"] [class*="statement"]:first-child{margin-top:0;padding-top:0}
 .gk-parity-scope main[class*="quiz"] [class*="question"] [class*="statement"]+ [class*="statement"]{border-top:1px solid color-mix(in srgb,var(--line) 72%,transparent)}
-.gk-parity-scope main[class*="quiz"] [class*="question"] [class*="statement"]>strong{display:inline-flex;vertical-align:middle;margin:0 8px 3px 0;padding:4px 7px;border-radius:8px;background:color-mix(in srgb,var(--primary) 9%,var(--card-2));color:var(--primary);font-size:.72em;font-weight:900;letter-spacing:.01em}
+.gk-parity-scope main[class*="quiz"] [class*="question"] [class*="statement"]>strong,.gk-sprint-questiontext>[class*="statement"]>strong{display:inline-flex;vertical-align:middle;margin:0 8px 3px 0;padding:4px 7px;border-radius:8px;background:color-mix(in srgb,var(--primary) 9%,var(--card-2));color:var(--primary);font-size:.72em;font-weight:900;letter-spacing:.01em}
+.gk-sprint-questiontext{margin:0 0 18px;font-size:clamp(1.05rem,3.4vw,1.3rem);font-weight:650;line-height:1.55;white-space:normal}
+.gk-sprint-questiontext>[class*="statement"]{display:block;margin-top:9px;padding-top:9px;line-height:1.52}
+.gk-sprint-questiontext>[class*="statement"]:first-child{margin-top:0;padding-top:0}.gk-sprint-questiontext>[class*="statement"]+[class*="statement"]{border-top:1px solid color-mix(in srgb,var(--line) 72%,transparent)}
 
 .gk-sprint-examidentity{display:flex;align-items:center;gap:10px}.gk-sprint-back{min-height:38px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);font:inherit;font-size:11px;font-weight:850;white-space:nowrap}
 
