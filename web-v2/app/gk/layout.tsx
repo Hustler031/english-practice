@@ -12,6 +12,7 @@ import "./gk-final-intelligence.css";
 import "./gk-final-intelligence-mobile.css";
 import "./gk-lively-polish.css";
 import "./gk-navigation-structure.css";
+import "./gk-practice-hierarchy.css";
 
 type Theme="dark"|"light";
 type ShellTab="home"|"content"|"practice"|"demand"|"progress"|null;
@@ -19,7 +20,6 @@ const NAV:Array<[Exclude<ShellTab,null>,string,string,string]>=[
  ["home","⌂","Home","/gk?tab=home"],
  ["content","▤","Content","/gk?tab=content"],
  ["practice","◎","Practice","/gk?tab=practice"],
- ["demand","◆","On Demand","/gk?tab=demand"],
  ["progress","▥","Progress","/gk/intelligence"]
 ];
 function applyTheme(next:Theme,persist=false){document.documentElement.dataset.theme=next;document.documentElement.style.colorScheme=next;const color=next==="light"?"#f5f7fb":"#0d1117";document.querySelectorAll('meta[name="theme-color"]').forEach(el=>el.setAttribute("content",color));if(persist)window.localStorage.setItem("english-theme",next);}
@@ -50,7 +50,7 @@ export default function GkLayout({ children }: { children: ReactNode }) {
  const intelligenceDetail=pathname?.startsWith("/gk/intelligence")&&/[?&](subject|concept|question)=/.test(routeQuery);
  const teacherDetail=pathname?.startsWith("/gk/teacher")&&/[?&]series=/.test(routeQuery);
  const routeBack=pathname?.startsWith("/gk/intelligence")&&!intelligenceDetail?{href:"/gk?tab=home",label:"GK Home"}:pathname?.startsWith("/gk/teacher")&&!teacherDetail?{href:"/gk?tab=practice",label:"Practice"}:pathname?.startsWith("/gk/sprint")?{href:"/gk?tab=home",label:"GK Home"}:null;
- const showTeacherEntry=pathname==="/gk"&&shellTab==="practice";
+ const practiceRoot=pathname==="/gk"&&shellTab==="practice"&&!new URLSearchParams(routeQuery).get("view");
  return <div className="gk-app-shell gk-parity-scope" onClickCapture={forceSamePageNavigation}>
   <header className="gk-shell-header">
    <Link href="/gk?tab=home" className="gk-shell-brand" aria-label="GK Mastery home"><strong>GK Mastery</strong><span>SSC GK practice + revision</span></Link>
@@ -65,7 +65,14 @@ export default function GkLayout({ children }: { children: ReactNode }) {
   <div className="gk-shell-body">
    {quizRoute&&<div className="gk-quiz-backbar"><button className="gk-english-back" type="button" onClick={()=>window.history.back()}>← Back</button></div>}
    {routeBack&&<div className="gk-route-backbar"><a className="gk-route-back" href={routeBack.href}>← {routeBack.label}</a></div>}
-   {showTeacherEntry&&<a className="gk-practice-teacher-entry" href="/gk/teacher"><span>▣</span><span><b>Teacher PYQ</b><small>Topic-wise + Mixed teacher source practice</small></span><strong>›</strong></a>}
+   {practiceRoot&&<section className="gk-practice-prelude" aria-label="Practice priorities">
+    <div className="gk-practice-heading"><span>Practice</span><h1>Teacher PYQ first</h1><p>Teacher source practice is the main GK lane. Smart tools below repair and reinforce that same knowledge history.</p></div>
+    <article className="gk-practice-teacher-hero">
+     <div className="gk-practice-teacher-main"><div className="gk-practice-teacher-copy"><span className="gk-practice-primary-label">PRIMARY PRACTICE</span><h2>Teacher PYQ</h2><p>Topic-wise for concept building, Mixed PYQ for exam transfer. One canonical learning history across both.</p></div><Link className="gk-practice-teacher-open" href="/gk/teacher">Open full library ›</Link></div>
+     <div className="gk-practice-teacher-actions"><Link href="/gk/teacher?series=TEACHER_TOPIC_PYQ"><b>Topic-wise PYQ</b><small>Build + repair concepts</small></Link><Link href="/gk/teacher?series=TEACHER_MIXED_PYQ"><b>Mixed PYQ</b><small>Interleaved exam transfer</small></Link><Link href="/gk/quiz?teacherSeries=TEACHER_TOPIC_PYQ&mode=smart&lane=MIXED&count=20&title=Teacher%20PYQ%20%C2%B7%20Smart"><b>Smart Teacher 20</b><small>Priority-based teacher retrieval</small></Link></div>
+    </article>
+    <article className="gk-booster-future"><div className="gk-booster-head"><div><span className="gk-booster-kicker">Future support lane</span><h2>GPT Booster</h2></div><span className="gk-booster-status">Future-ready</span></div><p>Verified GPT-generated practice can land here later without replacing teacher authority or creating a second mastery system.</p><div className="gk-booster-slots"><span>Weakness Fix</span><span>Confusion Cards</span><span>Reverse Recall</span><span>Exam Traps</span></div></article>
+   </section>}
    {children}
   </div>
   {dedicatedRoute&&<nav className="gk-shell-bottomnav" aria-label="GK navigation">{NAV.map(([tab,icon,label,href])=><a key={tab} className={shellTab===tab?"is-active":""} href={href}><span>{icon}</span><small>{label}</small></a>)}</nav>}
