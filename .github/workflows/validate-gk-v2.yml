@@ -3,7 +3,7 @@ name: Validate GK V2
 on:
   workflow_dispatch:
   push:
-    branches: [gk-v2-integration]
+    branches: [gk-v2-integration, gk-v2-final-intelligence]
     paths:
       - 'web-v2/**'
       - 'supabase/managed-migrations/**'
@@ -53,11 +53,12 @@ jobs:
         run: |
           psql -h 127.0.0.1 -U postgres -d gk_ci -v ON_ERROR_STOP=1 -f scripts/gk-ci-bootstrap.sql
           psql -h 127.0.0.1 -U postgres -d gk_ci -v ON_ERROR_STOP=1 -f ../supabase/recovery-baselines/gk_v2_reconstructed_pre25704_baseline.sql
-          for f in ../supabase/managed-migrations/20260830*_gk*.sql; do
+          for f in ../supabase/managed-migrations/2026083*_gk*.sql; do
             echo "Applying $f"
             psql -h 127.0.0.1 -U postgres -d gk_ci -v ON_ERROR_STOP=1 -f "$f"
           done
           psql -h 127.0.0.1 -U postgres -d gk_ci -v ON_ERROR_STOP=1 -f scripts/gk-ci-runtime-assertions.sql
+          psql -h 127.0.0.1 -U postgres -d gk_ci -v ON_ERROR_STOP=1 -f scripts/gk-ci-final-intelligence-assertions.sql
       - name: GK behavioral contracts
         run: npm run contracts:gk
       - name: TypeScript
