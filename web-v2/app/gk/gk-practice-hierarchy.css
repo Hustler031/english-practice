@@ -1,0 +1,51 @@
+/* Final GK practice hierarchy + theme normalization. Loaded last. */
+.gk-shell-header{background:color-mix(in srgb,var(--bg) 96%,transparent)!important;color:var(--text)}
+:root[data-theme="dark"] .gk-shell-header{box-shadow:0 1px 0 color-mix(in srgb,var(--line) 76%,transparent)}
+:root[data-theme="light"] .gk-shell-header{box-shadow:0 8px 24px rgba(42,51,70,.05)}
+
+/* On Demand remains a legacy-compatible route, but is no longer a primary navigation destination. */
+.gk-parity-scope main[class*="shell"] [class*="bottomNav"]{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+.gk-parity-scope main[class*="shell"] [class*="bottomNav"]>a:nth-child(4){display:none!important}
+.gk-shell-bottomnav{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+
+/* Practice root: Teacher PYQ is the visual and product authority. */
+.gk-practice-prelude{display:grid;gap:12px;padding:8px 14px 0}
+.gk-practice-heading{padding:2px 1px 1px}
+.gk-practice-heading>span{display:block;color:var(--muted);font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+.gk-practice-heading h1{margin:4px 0 4px;font-size:26px;letter-spacing:-.03em;line-height:1.08}
+.gk-practice-heading p{margin:0;color:var(--muted);font-size:11px;line-height:1.45}
+.gk-app-shell:has(.gk-practice-prelude) .gk-shell-body main[class*="shell"]>[class*="tabIntro"]{display:none!important}
+
+.gk-practice-teacher-hero{overflow:hidden;border:1px solid color-mix(in srgb,var(--primary) 34%,var(--line));border-radius:19px;background:linear-gradient(145deg,color-mix(in srgb,var(--primary) 14%,var(--card)),var(--card) 62%);box-shadow:inset 3px 0 0 var(--primary),0 10px 28px color-mix(in srgb,var(--bg) 76%,transparent)}
+.gk-practice-teacher-main{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:12px;padding:16px 16px 13px}
+.gk-practice-teacher-copy{min-width:0}.gk-practice-primary-label{display:inline-flex;align-items:center;min-height:22px;padding:3px 7px;border:1px solid color-mix(in srgb,var(--primary) 25%,var(--line));border-radius:999px;background:var(--primary-2);color:var(--primary);font-size:9px;font-weight:950;letter-spacing:.07em}
+.gk-practice-teacher-copy h2{margin:7px 0 4px;font-size:21px;letter-spacing:-.025em}.gk-practice-teacher-copy p{margin:0;color:var(--muted);font-size:11px;line-height:1.45}
+.gk-practice-teacher-open{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:7px 10px;border:1px solid color-mix(in srgb,var(--primary) 24%,var(--line));border-radius:11px;background:color-mix(in srgb,var(--primary) 9%,var(--card));color:var(--text);font-size:10px;font-weight:900;text-decoration:none;white-space:nowrap}
+.gk-practice-teacher-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;padding:0 13px 13px}
+.gk-practice-teacher-actions a{display:grid;gap:3px;min-height:60px;padding:9px 10px;border:1px solid color-mix(in srgb,var(--primary) 17%,var(--line));border-radius:12px;background:color-mix(in srgb,var(--card-2) 68%,var(--card));color:var(--text);text-decoration:none}
+.gk-practice-teacher-actions b{font-size:11px}.gk-practice-teacher-actions small{color:var(--muted);font-size:9px;line-height:1.3}
+.gk-practice-teacher-actions a:first-child{background:var(--primary);border-color:var(--primary);color:#17162f}.gk-practice-teacher-actions a:first-child small{color:#292752;opacity:.82}
+
+/* Future GPT lane is explicit without inventing content. */
+.gk-booster-future{padding:13px 14px;border:1px dashed color-mix(in srgb,var(--primary) 28%,var(--line));border-radius:16px;background:color-mix(in srgb,var(--card-2) 46%,var(--card))}
+.gk-booster-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.gk-booster-head>div{min-width:0}.gk-booster-kicker{display:block;color:var(--muted);font-size:9px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.gk-booster-head h2{margin:4px 0 0;font-size:16px}.gk-booster-status{display:inline-flex;padding:4px 7px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--muted);font-size:9px;font-weight:850;white-space:nowrap}
+.gk-booster-future>p{margin:7px 0 10px;color:var(--muted);font-size:10px;line-height:1.45}.gk-booster-slots{display:flex;gap:6px;flex-wrap:wrap}.gk-booster-slots span{padding:6px 8px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--muted);font-size:9px;font-weight:800}
+
+/* Secondary practice tools become compact rows under the primary Teacher/GPT lanes. */
+.gk-app-shell:has(.gk-practice-prelude) .gk-shell-body main[class*="shell"]>[class*="actionGrid"]{display:grid!important;grid-template-columns:1fr!important;gap:7px!important;margin-top:14px}
+.gk-app-shell:has(.gk-practice-prelude) .gk-shell-body main[class*="shell"]>[class*="actionGrid"]::before{content:"Smart practice tools";display:block;margin:2px 0 1px;color:var(--muted);font-size:10px;font-weight:900;letter-spacing:.07em;text-transform:uppercase}
+.gk-app-shell:has(.gk-practice-prelude) .gk-shell-body main[class*="shell"]>[class*="actionGrid"]>[class*="actionCard"]{min-height:58px!important;padding:9px 11px!important;border-radius:13px!important;gap:10px!important}
+.gk-app-shell:has(.gk-practice-prelude) .gk-shell-body main[class*="shell"]>[class*="actionGrid"]>[class*="actionCard"]>[class*="actionIcon"]{font-size:19px!important;width:24px;text-align:center}
+.gk-app-shell:has(.gk-practice-prelude) .gk-shell-body main[class*="shell"]>[class*="actionGrid"]>[class*="actionCard"] b{font-size:13px!important}
+.gk-app-shell:has(.gk-practice-prelude) .gk-shell-body main[class*="shell"]>[class*="actionGrid"]>[class*="actionCard"] small{margin-top:2px!important;font-size:10px!important}
+.gk-app-shell:has(.gk-practice-prelude) .gk-shell-body main[class*="shell"]>[class*="actionGrid"]>[class*="actionCard"] em{margin-left:auto}
+.gk-app-shell:has(.gk-practice-prelude) .gk-shell-body main[class*="shell"]>[class*="section"]{margin-top:18px}
+
+/* Keep both themes coherent: no dark-only shell slab in light mode, no washed surfaces in dark mode. */
+:root[data-theme="dark"] .gk-practice-teacher-hero{background:linear-gradient(145deg,color-mix(in srgb,var(--primary) 12%,#151b24),#151b24 64%)}
+:root[data-theme="dark"] .gk-booster-future{background:color-mix(in srgb,#1a2230 70%,#151b24)}
+:root[data-theme="light"] .gk-practice-teacher-hero{box-shadow:inset 3px 0 0 var(--primary),0 10px 24px rgba(42,51,70,.06)}
+:root[data-theme="light"] .gk-booster-future{background:#f8faff}
+
+@media(max-width:520px){.gk-practice-prelude{padding:7px 12px 0}.gk-practice-heading h1{font-size:23px}.gk-practice-teacher-main{grid-template-columns:1fr;padding:14px 14px 11px}.gk-practice-teacher-open{justify-self:start}.gk-practice-teacher-actions{grid-template-columns:1fr;padding:0 11px 11px}.gk-practice-teacher-actions a{min-height:52px}.gk-booster-future{padding:12px}.gk-booster-slots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.gk-booster-slots span{text-align:center}}
+@media(prefers-reduced-motion:reduce){.gk-practice-teacher-actions a,.gk-practice-teacher-open{transition:none}}
