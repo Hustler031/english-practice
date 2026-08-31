@@ -21,7 +21,7 @@ function outputText(payload: any) {
 async function openaiJson(name: string, schema: Record<string, unknown>, instructions: string, input: unknown) {
   const key = Deno.env.get("OPENAI_API_KEY");
   if (!key) throw new Error("OPENAI_API_KEY is not configured for english-ssc-sprint");
-  const model = Deno.env.get("OPENAI_MODEL") || "gpt-5.6-terra";
+  const model = "gpt-5.6-luna";
   const res = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
