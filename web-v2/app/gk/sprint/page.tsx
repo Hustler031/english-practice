@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { gkRpc, isGkLocalSafe } from "@/lib/gk-rpc";
 import { useAuthGuard } from "@/lib/use-auth";
 import type { GkQuestion } from "@/lib/gk-types";
@@ -16,23 +16,24 @@ const KEY="revision:v2:gk:section-sprint:v1";
 const quiz=(p:Record<string,string|number>)=>`/gk/quiz?${new URLSearchParams(Object.entries(p).map(([k,v])=>[k,String(v)]))}`;
 function mmss(seconds:number){const s=Math.max(0,Math.ceil(seconds));return `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;}
 function phaseCopy(p:Plan["phase"]){return p==="EARLY"?"Concept repair first · Topic-wise emphasis":p==="MIDDLE"?"Balanced Topic-wise + Mixed retrieval":"Mixed retrieval + timed transfer + weak repair";}
+function scoreAnswers(answers:Record<string,Answer>,total:number):Result{const vals=Object.values(answers),correct=vals.filter(x=>x.correct).length,wrong=vals.length-correct;return {score:Math.round((correct*2-wrong*.5)*100)/100,maxScore:total*2,correct,wrong,unattempted:Math.max(0,total-vals.length),accuracy:vals.length?Math.round(correct*1000/vals.length)/10:0,averageTimeMs:vals.length?Math.round(vals.reduce((a,x)=>a+x.responseMs,0)/vals.length):0};}
 
 export default function GkSprintPage(){
  const ready=useAuthGuard();
  const[plan,setPlan]=useState<Plan|null>(null),[session,setSession]=useState<SprintSession|null>(null),[answers,setAnswers]=useState<Record<string,Answer>>({}),[index,setIndex]=useState(0),[left,setLeft]=useState(900),[result,setResult]=useState<Result|null>(null),[error,setError]=useState("");
- const questionStart=useRef(Date.now());
- useEffect(()=>{if(!ready)return;let live=true;gkRpc<Plan>("gk_get_sprint_plan").then(x=>{if(live&&x?.ok)setPlan(x)}).catch(()=>{if(live)setError("Sprint plan could not be refreshed.")});const saved=localStorage.getItem(KEY);if(saved&&!isGkLocalSafe()){gkRpc<SprintSession>("gk_get_section_sprint_session",{p_session_id:saved}).then(x=>{if(!live||!x?.ok)return;if(x.completed&&x.result){setResult(x.result);localStorage.removeItem(KEY);return;}setSession(x);setAnswers(x.answers||{});}).catch(()=>localStorage.removeItem(KEY));}return()=>{live=false};},[ready]);
- useEffect(()=>{if(!session||result)return;const start=new Date(session.startedAt).getTime();const tick=()=>{const remain=Math.max(0,session.durationSeconds-(Date.now()-start)/1000);setLeft(remain);if(remain<=0)void finish();};tick();const id=window.setInterval(tick,1000);return()=>window.clearInterval(id);},[session,result]);
+ const questionStart=useRef(Date.now()),answersRef=useRef<Record<string,Answer>>({}),finishing=useRef(false);
+ useEffect(()=>{answersRef.current=answers},[answers]);
+ useEffect(()=>{if(!ready)return;let live=true;gkRpc<Plan>("gk_get_sprint_plan").then(x=>{if(live&&x?.ok)setPlan(x)}).catch(()=>{if(live)setError("Sprint plan could not be refreshed.")});const saved=localStorage.getItem(KEY);if(saved&&!isGkLocalSafe()){gkRpc<SprintSession>("gk_get_section_sprint_session",{p_session_id:saved}).then(x=>{if(!live||!x?.ok)return;if(x.completed&&x.result){setResult(x.result);localStorage.removeItem(KEY);return;}setSession(x);setAnswers(x.answers||{});answersRef.current=x.answers||{};}).catch(()=>localStorage.removeItem(KEY));}return()=>{live=false};},[ready]);
+ useEffect(()=>{if(!session||result)return;const start=new Date(session.startedAt).getTime();const tick=()=>{const remain=Math.max(0,session.durationSeconds-(Date.now()-start)/1000);setLeft(remain);if(remain<=0)void finish(answersRef.current);};tick();const id=window.setInterval(tick,1000);return()=>window.clearInterval(id);},[session,result]);
  useEffect(()=>{questionStart.current=Date.now();},[index]);
  const q=session?.questions[index];
  const answered=q?answers[q.id]:undefined;
  const answeredCount=Object.keys(answers).length;
- const localResult=useMemo<Result>(()=>{const vals=Object.values(answers),correct=vals.filter(x=>x.correct).length,wrong=vals.length-correct,total=session?.questions.length||25;return {score:Math.round((correct*2-wrong*.5)*100)/100,maxScore:total*2,correct,wrong,unattempted:Math.max(0,total-vals.length),accuracy:vals.length?Math.round(correct*1000/vals.length)/10:0,averageTimeMs:vals.length?Math.round(vals.reduce((a,x)=>a+x.responseMs,0)/vals.length):0};},[answers,session]);
- async function startExam(){setError("");try{if(isGkLocalSafe()){const questions=await gkRpc<GkQuestion[]>("gk_get_batch",{p_mode:"random",p_count:25,p_lane:"MAIN"});setSession({ok:true,sessionId:`local-sprint-${Date.now()}`,durationSeconds:900,startedAt:new Date().toISOString(),questions});setAnswers({});setIndex(0);setResult(null);return;}const x=await gkRpc<SprintSession>("gk_start_section_sprint",{p_count:25});if(!x?.ok)throw new Error();localStorage.setItem(KEY,x.sessionId);setSession(x);setAnswers({});setIndex(0);setResult(null);}catch{setError("Section Sprint could not start.");}}
- function choose(key:string){if(!q||answered||result)return;const responseMs=Math.max(0,Date.now()-questionStart.current);setAnswers(a=>({...a,[q.id]:{selected:key,correct:key===q.correctKey,responseMs}}));}
- async function finish(){if(!session||result)return;setError("");try{if(isGkLocalSafe()){setResult(localResult);return;}const x=await gkRpc<{ok:boolean;result:Result;learningHistoryChanged:boolean}>("gk_finish_section_sprint",{p_session_id:session.sessionId,p_answers:answers});if(!x?.ok)throw new Error();setResult(x.result);localStorage.removeItem(KEY);}catch{setError("Result save did not complete. Your answers remain on this screen; retry Finish.");}}
+ async function startExam(){setError("");finishing.current=false;try{if(isGkLocalSafe()){const questions=await gkRpc<GkQuestion[]>("gk_get_batch",{p_mode:"random",p_count:25,p_lane:"MAIN"});setSession({ok:true,sessionId:`local-sprint-${Date.now()}`,durationSeconds:900,startedAt:new Date().toISOString(),questions});setAnswers({});answersRef.current={};setIndex(0);setResult(null);return;}const x=await gkRpc<SprintSession>("gk_start_section_sprint",{p_count:25});if(!x?.ok)throw new Error();localStorage.setItem(KEY,x.sessionId);setSession(x);setAnswers({});answersRef.current={};setIndex(0);setResult(null);}catch{setError("Section Sprint could not start.");}}
+ function choose(key:string){if(!q||answered||result)return;const responseMs=Math.max(0,Date.now()-questionStart.current),next={...answersRef.current,[q.id]:{selected:key,correct:key===q.correctKey,responseMs}};answersRef.current=next;setAnswers(next);}
+ async function finish(latest=answersRef.current){if(!session||result||finishing.current)return;finishing.current=true;setError("");try{if(isGkLocalSafe()){setResult(scoreAnswers(latest,session.questions.length));return;}const x=await gkRpc<{ok:boolean;result:Result;learningHistoryChanged:boolean}>("gk_finish_section_sprint",{p_session_id:session.sessionId,p_answers:latest});if(!x?.ok||x.learningHistoryChanged)throw new Error();setResult(x.result);localStorage.removeItem(KEY);}catch{finishing.current=false;setError("Result save did not complete. Your answers remain on this screen; retry Finish.");}}
  if(!ready)return <main className="gk-intel-page"><div className="loading-copy">Checking session…</div></main>;
- if(result)return <ResultView result={result} onRestart={()=>{setSession(null);setAnswers({});setIndex(0);setResult(null);setLeft(900)}}/>;
+ if(result)return <ResultView result={result} onRestart={()=>{finishing.current=false;setSession(null);setAnswers({});answersRef.current={};setIndex(0);setResult(null);setLeft(900)}}/>;
  if(session&&q)return <main className="gk-sprint-exam">
    <header className="gk-sprint-examhead"><div><span>GK Section Sprint</span><b>Question {index+1} of {session.questions.length}</b></div><div className={left<=120?"gk-sprint-timer is-low":"gk-sprint-timer"}>{mmss(left)}</div></header>
    <div className="gk-sprint-progress"><i style={{width:`${((index+1)/session.questions.length)*100}%`}}/></div>
