@@ -20,6 +20,8 @@ import "./blue-explanation-header-trial.css";
 import "./session-rotation-ui-fixes.css";
 import "./mastery-sprint.css";
 import "./exam-final-polish.css";
+import "./sprint-report-history.css";
+import "./sprint-subject-bank.css";
 import "./route-context-compact-fix.css";
 
 export const metadata: Metadata = {
