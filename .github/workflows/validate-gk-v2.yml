@@ -3,7 +3,7 @@ name: Validate GK V2
 on:
   workflow_dispatch:
   push:
-    branches: [gk-v2-integration, gk-v2-final-intelligence, gk-v2-lively-cache-freshness-polish]
+    branches: [gk-v2-integration, gk-v2-final-intelligence, gk-v2-lively-cache-freshness-polish, gk-v2-sprint-repair-intelligence]
     paths:
       - 'web-v2/**'
       - 'supabase/managed-migrations/**'
@@ -59,6 +59,7 @@ jobs:
           done
           psql -h 127.0.0.1 -U postgres -d gk_ci -v ON_ERROR_STOP=1 -f scripts/gk-ci-runtime-assertions.sql
           psql -h 127.0.0.1 -U postgres -d gk_ci -v ON_ERROR_STOP=1 -f scripts/gk-ci-final-intelligence-assertions.sql
+          psql -h 127.0.0.1 -U postgres -d gk_ci -v ON_ERROR_STOP=1 -f scripts/gk-ci-sprint-repair-assertions.sql
       - name: GK behavioral contracts
         run: npm run contracts:gk
       - name: TypeScript
