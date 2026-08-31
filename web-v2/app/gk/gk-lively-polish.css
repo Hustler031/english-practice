@@ -1,0 +1,48 @@
+.gk-intel-page,.gk-sprint-exam{color:var(--text)}
+.gk-intel-title,.gk-intel-card,.gk-intel-metric,.gk-sprint-options button,.gk-sprint-dock{background:var(--card);border-color:var(--line);color:var(--text)}
+.gk-intel-title{position:relative;overflow:hidden;background:linear-gradient(145deg,color-mix(in srgb,var(--primary) 7%,var(--card)),var(--card) 64%)}
+.gk-intel-title::after{content:"";position:absolute;right:-46px;top:-58px;width:150px;height:150px;border-radius:50%;background:color-mix(in srgb,var(--primary) 10%,transparent);pointer-events:none}
+.gk-intel-title>*,.gk-sprint-feature>*{position:relative;z-index:1}
+.gk-intel-title p,.gk-intel-card p,.gk-sprint-feature p{color:var(--muted);opacity:1}
+.gk-intel-primary,.gk-sprint-feature button,.gk-sprint-dock button.is-primary{background:var(--primary);color:#17162f}
+.gk-intel-secondary,.gk-intel-actions a,.gk-intel-actions button,.gk-shell-intelligence{background:color-mix(in srgb,var(--primary) 7%,var(--card));border-color:color-mix(in srgb,var(--primary) 18%,var(--line));color:var(--text)}
+.gk-intel-actions a:hover,.gk-intel-actions button:hover,.gk-shell-intelligence:hover{background:color-mix(in srgb,var(--primary) 12%,var(--card))}
+.gk-intel-metric{box-shadow:inset 0 3px 0 color-mix(in srgb,var(--primary) 58%,transparent)}
+.gk-intel-metric:nth-child(2){box-shadow:inset 0 3px 0 color-mix(in srgb,var(--ok) 58%,transparent)}
+.gk-intel-metric:nth-child(3){box-shadow:inset 0 3px 0 color-mix(in srgb,#7f7cff 58%,transparent)}
+.gk-intel-metric:nth-child(4){box-shadow:inset 0 3px 0 color-mix(in srgb,var(--warn) 62%,transparent)}
+.gk-intel-metric small,.gk-intel-seriesrow small,.gk-intel-subject small,.gk-intel-cardhead>small,.gk-sprint-plan small,.gk-sprint-plan strong{color:var(--muted);opacity:1}
+.gk-intel-grid2>.gk-intel-card:first-child{background:linear-gradient(145deg,color-mix(in srgb,var(--bad) 5%,var(--card)),var(--card));border-color:color-mix(in srgb,var(--bad) 20%,var(--line))}
+.gk-intel-grid2>.gk-intel-card:nth-child(2){background:linear-gradient(145deg,color-mix(in srgb,var(--ok) 5%,var(--card)),var(--card));border-color:color-mix(in srgb,var(--ok) 18%,var(--line))}
+.gk-intel-cardhead>b{background:color-mix(in srgb,var(--primary) 8%,var(--card));border:1px solid color-mix(in srgb,var(--primary) 14%,var(--line));color:var(--text)}
+.gk-intel-grid2>.gk-intel-card:first-child .gk-intel-cardhead>b{background:color-mix(in srgb,var(--bad) 9%,var(--card));border-color:color-mix(in srgb,var(--bad) 18%,var(--line))}
+.gk-intel-grid2>.gk-intel-card:nth-child(2) .gk-intel-cardhead>b{background:color-mix(in srgb,var(--ok) 9%,var(--card));border-color:color-mix(in srgb,var(--ok) 18%,var(--line))}
+.gk-intel-bar{background:color-mix(in srgb,var(--line) 82%,var(--card-2))}
+.gk-intel-bar i{background:var(--primary);opacity:.9}
+.gk-intel-grid2>.gk-intel-card:nth-child(2) .gk-intel-bar i{background:var(--ok)}
+.gk-intel-seriesrow,.gk-intel-subject{border-color:var(--line)}
+.gk-intel-subject{border-radius:12px;padding-left:8px;padding-right:8px;transition:background-color .12s ease,border-color .12s ease}
+.gk-intel-subject:hover{background:color-mix(in srgb,var(--primary) 6%,var(--card))}
+.gk-intel-subject>span{padding:5px 8px;border-radius:999px;background:color-mix(in srgb,var(--primary) 7%,var(--card));color:var(--muted);opacity:1}
+.gk-intel-progress-truth>div{padding:10px 11px;border:1px solid var(--line);border-radius:13px;background:color-mix(in srgb,var(--card-2) 62%,var(--card))}
+.gk-intel-progress-truth>div:nth-child(3) .gk-intel-bar i,.gk-intel-progress-truth>div:nth-child(4) .gk-intel-bar i{background:var(--ok)}
+.gk-intel-timeline>div{background:color-mix(in srgb,var(--primary) 5%,var(--card-2));border:1px solid var(--line)}
+.gk-intel-notice{color:var(--text)}
+.gk-sprint-feature{background:linear-gradient(135deg,color-mix(in srgb,var(--primary) 12%,var(--card)),color-mix(in srgb,var(--warn) 7%,var(--card)));border-color:color-mix(in srgb,var(--primary) 24%,var(--line));color:var(--text)}
+.gk-sprint-examhead{background:color-mix(in srgb,var(--bg) 94%,transparent);backdrop-filter:blur(12px)}
+.gk-sprint-timer{background:color-mix(in srgb,var(--primary) 8%,var(--card));color:var(--text)}
+.gk-sprint-timer.is-low{background:color-mix(in srgb,var(--bad) 11%,var(--card))}
+.gk-sprint-progress{background:var(--line)}
+.gk-sprint-progress i{background:var(--primary);opacity:1}
+.gk-sprint-options button.is-selected{background:color-mix(in srgb,var(--primary) 9%,var(--card));border-color:color-mix(in srgb,var(--primary) 45%,var(--line))}
+.gk-sprint-options button b{background:color-mix(in srgb,var(--primary) 9%,var(--card-2));color:var(--primary)}
+.gk-sprint-dock{box-shadow:0 12px 32px color-mix(in srgb,var(--bg) 65%,transparent)}
+.gk-sprint-dock button{background:color-mix(in srgb,var(--card-2) 80%,var(--card));color:var(--text)}
+.gk-sprint-pause{display:flex;align-items:center;gap:8px}
+.gk-sprint-pause button{min-height:40px;padding:9px 12px;border:1px solid var(--line);border-radius:11px;background:var(--card);color:var(--text);font:inherit;font-weight:800}
+.gk-sprint-paused{padding:28px 18px;text-align:center;border:1px solid color-mix(in srgb,var(--primary) 22%,var(--line));border-radius:18px;background:linear-gradient(145deg,color-mix(in srgb,var(--primary) 7%,var(--card)),var(--card))}
+.gk-sprint-paused h2{margin:4px 0 8px}.gk-sprint-paused p{margin:0;color:var(--muted);line-height:1.5}.gk-sprint-paused button{margin-top:18px;min-width:170px;padding:12px 16px;border:0;border-radius:12px;background:var(--primary);color:#17162f;font-weight:900}
+[data-theme="light"] .gk-intel-title,[data-theme="light"] .gk-intel-card,[data-theme="light"] .gk-intel-metric,[data-theme="light"] .gk-sprint-feature,[data-theme="light"] .gk-sprint-options button,[data-theme="light"] .gk-sprint-dock{box-shadow:0 10px 26px rgba(42,51,70,.06)}
+[data-theme="light"] .gk-intel-title,[data-theme="light"] .gk-intel-card,[data-theme="light"] .gk-intel-metric,[data-theme="light"] .gk-sprint-feature{color:var(--text)}
+@media(max-width:720px){.gk-intel-title,.gk-intel-card{border-radius:18px}.gk-intel-metric{border-radius:15px}.gk-intel-kpis{gap:9px}.gk-intel-metric strong{font-size:1.34rem}.gk-intel-subject{padding-top:12px;padding-bottom:12px}}
+@media(prefers-reduced-motion:reduce){.gk-intel-subject{transition:none}}
