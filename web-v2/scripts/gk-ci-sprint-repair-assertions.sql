@@ -97,7 +97,9 @@ BEGIN
   END IF;
 END $$;
 
--- Other users cannot read or analyze this user's Sprint diagnostics.
+-- Other users cannot read or analyze this user's Sprint diagnostics. Exercise this
+-- direct-table assertion as the real authenticated role; postgres/superusers bypass RLS.
+set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000002',false);
 DO $$
 DECLARE x jsonb;
@@ -106,6 +108,7 @@ BEGIN
   IF coalesce((x->>'ok')::boolean,true) IS NOT FALSE THEN RAISE EXCEPTION 'Cross-user Sprint analysis read leaked'; END IF;
   IF exists(select 1 from gk.exam_diagnostics where session_id='SPRINT-CI') THEN RAISE EXCEPTION 'RLS leaked another user diagnostics'; END IF;
 END $$;
+reset role;
 
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000001',false);
 DO $$
