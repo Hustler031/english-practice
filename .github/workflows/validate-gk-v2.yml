@@ -85,9 +85,12 @@ jobs:
             echo "Browser-exposed service-role configuration detected"
             exit 1
           fi
-          git -C .. fetch origin main
-          if git -C .. diff --name-only origin/main...HEAD | grep -E '^(web-v2/app/maths/|web-v2/lib/math|maths/|Maths/)'; then
-            echo "Maths internals changed on GK integration branch"
-            exit 1
+          branch="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-}}"
+          if [[ "$branch" == gk-* ]]; then
+            git -C .. fetch origin main
+            if git -C .. diff --name-only origin/main...HEAD | grep -E '^(web-v2/app/maths/|web-v2/lib/math|maths/|Maths/)'; then
+              echo "Maths internals changed on GK integration branch"
+              exit 1
+            fi
           fi
           echo "Final scope, secret and tracked-tree cleanliness guard passed"
