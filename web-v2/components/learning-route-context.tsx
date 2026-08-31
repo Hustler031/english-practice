@@ -49,8 +49,8 @@ export default function LearningRouteContext(){
  if(path==="/english/starred")return <section className="route-context route-context-compact" aria-label="Active Starred routing: Moved to Fast Track, Moved to Targeted">
   <span className="route-context-label">Routing</span>
   <span className="route-context-chip route-context-static" title="Current active Starred questions"><b>{data.starred.active}</b><small>Active</small></span>
-  <Link className="route-context-chip" href="/english/route-view?route=fast_track&origin=From%20Starred" title={`${data.starred.fastTrackMastered} mastered · ${data.starred.fastTrackRemaining} remaining`}><b>{data.starred.movedFastTrack}</b><small>Fast</small></Link>
-  <Link className="route-context-chip" href="/english/route-view?route=targeted&origin=From%20Starred" title="Moved by real weakness / failure evidence"><b>{data.starred.movedTargeted}</b><small>Targeted</small></Link>
+  <Link className="route-context-chip" href="/english/route-view?route=fast_track&origin=From%20Starred" title={`${data.starred.movedFastTrack} Starred questions have ever moved to Fast Track · ${data.starred.fastTrackMastered} mastered · ${data.starred.fastTrackRemaining} remaining`}><b>{data.starred.movedFastTrack}</b><small>→ Fast</small></Link>
+  <Link className="route-context-chip" href="/english/route-view?route=targeted&origin=From%20Starred" title={`${data.starred.movedTargeted} Starred questions have ever moved to Targeted from real weakness / failure evidence`}><b>{data.starred.movedTargeted}</b><small>→ Targeted</small></Link>
  </section>;
 
  return <section className="route-context route-context-compact" aria-label="MY SAVED LEARNING STATUS: Fast Track, Targeted, Unclassified">
