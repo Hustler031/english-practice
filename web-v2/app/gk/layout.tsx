@@ -40,6 +40,7 @@ export default function GkLayout({ children }: { children: ReactNode }) {
    <Link href="/gk?tab=home" className="gk-shell-brand" aria-label="GK Mastery home"><strong>GK Mastery</strong><span>SSC GK practice + revision</span></Link>
    <div className="gk-shell-controls">
     {localSafe&&<span className="gk-shell-safe">Local Safe</span>}
+    {!quizRoute&&<Link href="/gk/teacher" className="gk-shell-intelligence">Teacher PYQ</Link>}
     {!quizRoute&&<Link href="/gk/intelligence" className="gk-shell-intelligence">Progress</Link>}
     {!quizRoute&&<Link href="/gk/sprint" className="gk-shell-intelligence">Sprint</Link>}
     <Link href="/" className="gk-shell-control" aria-label="Revision root" title="Revision root">⌂</Link>
