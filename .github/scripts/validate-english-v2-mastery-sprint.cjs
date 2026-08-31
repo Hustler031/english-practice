@@ -16,6 +16,8 @@ const files={
  sprintFix:'supabase/managed-migrations/20260831204500_english_exam_sprint_fix.sql',
  reconcile:'supabase/managed-migrations/20260831205000_english_route_reconciliation_and_views.sql',
  intent:'supabase/managed-migrations/20260831205500_english_fast_track_failure_intent.sql',
+ optionMap:'supabase/managed-migrations/20260831206000_english_sprint_promotion_option_keys.sql',
+ savedRoute:'supabase/managed-migrations/20260831206500_english_saved_route_eligibility.sql',
  edge:'supabase/functions/english-ssc-sprint/index.ts',
  home:'web-v2/app/english/page.tsx',
  exam:'web-v2/app/english/exam/page.tsx',
@@ -51,12 +53,15 @@ has(T.reconcile,["fast_track_status='waiting'","now()+interval '1 day'"], 'Keep-
 // Required origin inventory and drill-down.
 for(const origin of ['Bank Coverage','From Starred','From My Saved','Manual Fast Track','Recovered Weak','Recovered Persistent Weak','Recovered Difficult','Recovered Targeted'])ok(T.fast.includes(origin),`Fast Track view exposes origin ${origin}`);
 has(T.routeView,['Status','Category','View All Questions','Correct Answer','Explanation','Learning Route','Route history'], 'Route viewer groups first and supports detailed evidence drill-down');
+has(T.routeView,['const load=useCallback(async(nextStatus:string|null,nextCategory:string|null)','},[config]);'], 'Route drill-down filter fetch is stable and not recreated by filter state');
 has(T.reconcile,['english_get_route_view','routeHistory','fastTrackMasteredAt'], 'Route drill-down RPC returns history and mastery evidence');
 
 // Starred and Saved remain semantic overlays, not duplicate learning states.
 has(T.context,['Active Starred','Moved to Fast Track','Moved to Targeted','From%20Starred'], 'Starred indicators show active and historical routing');
 has(T.context,['MY SAVED LEARNING STATUS','Fast Track','Targeted','Unclassified','From%20My%20Saved'], 'My Saved indicators separate permanent membership from learning route');
 has(T.route,['english.route_is_saved','english.saved_items'], 'Saved membership is read independently from route state');
+has(T.savedRoute,['saved_revision_candidates_all','saved_revision_candidates','r.route=\'fast_track\'','version\',\'V5\''], 'My Saved preserves permanent membership while excluding Fast Track from deep revision eligibility');
+has(T.savedRoute,["'saved',sa.saved","'eligible',se.eligible","'fastTrack',greatest(0,sa.saved-sa.mastered-se.eligible)"], 'My Saved hub reports all membership but route-aware practice eligibility');
 
 // Progress KPI / recovery.
 has(T.context,['FAST TRACK MASTERY','Ready to Verify','Total Routed','Targeted Recovery'], 'Progress context shows Fast Track and Targeted recovery KPI');
@@ -86,6 +91,7 @@ has(T.edge,['Reading Comprehension','passage-dependent','exactly one defensible 
 has(T.edge,['GPT Generated','GPT Variant of Known Concept'], 'GPT generator uses truthful generated source labels');
 ok(!T.edge.includes('sourceType: { type: "string", enum: ["SSC PYQ"'), 'GPT cannot self-label generated content as SSC PYQ');
 has(T.sprint,['english.sprint_items','canonical_question_id','GPT SSC Sprint','if act=\'Targeted Mastery\''], 'Sprint items are separate and only genuine Targeted action promotes a GPT item canonically');
+has(T.optionMap,['sprint_option_text','i.options,\'A\'','i.options,\'B\'','i.options,\'C\'','i.options,\'D\'','Sprint option mapping incomplete'], 'GPT Sprint promotion maps options by A-D keys rather than JSON array position');
 has(T.edge,['Careless','Time Pressure','Misread','Targeted Mastery','No Route Change'], 'GPT analyst separates execution errors from learning gaps');
 
 // Read freshness + Local Safe.
@@ -99,7 +105,7 @@ has(T.layout,['./mastery-sprint.css'], 'Mastery Sprint CSS loaded last in root l
 has(T.css,['env(safe-area-inset-bottom)','@media(max-width:720px)','sprint-palette','route-context-links-three'], 'Mobile safe-area and responsive polish included');
 
 // SQL delimiter sanity for new migrations.
-for(const key of ['baseline','route','routeFix','sprint','sprintFix','reconcile','intent'])balancedDollar(T[key],key);
+for(const key of ['baseline','route','routeFix','sprint','sprintFix','reconcile','intent','optionMap','savedRoute'])balancedDollar(T[key],key);
 
 console.log(`\nEnglish V2 mastery-sprint contracts: ${passed} passed, ${failed} failed`);
 if(failed)process.exit(1);
