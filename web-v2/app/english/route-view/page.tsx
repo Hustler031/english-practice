@@ -23,8 +23,8 @@ function title(route:Route,origin:string|null){const base=route==="fast_track"?"
 export default function RouteViewPage(){
  const ready=useAuthGuard();const[config,setConfig]=useState<{route:Route;origin:string|null}>({route:"fast_track",origin:null});const[data,setData]=useState<ViewData|null>(null);const[status,setStatus]=useState<string|null>(null);const[category,setCategory]=useState<string|null>(null);const[showItems,setShowItems]=useState(false);const[open,setOpen]=useState<string|null>(null);const[loading,setLoading]=useState(false);const[error,setError]=useState("");
  useEffect(()=>setConfig(queryConfig()),[]);
- const load=useCallback(async(nextStatus:string|null=status,nextCategory:string|null=category)=>{setLoading(true);setError("");try{const {data:out,error:e}=await supabaseBrowser().rpc("english_get_route_view",{p_route:config.route,p_origin:config.origin,p_status:nextStatus,p_category:nextCategory,p_limit:200,p_offset:0});if(e)throw e;setData(out as ViewData);}catch(e:any){setError(e.message||String(e));}finally{setLoading(false)}},[config,status,category]);
- useEffect(()=>{if(ready)void load(null,null);},[ready,config,load]);
+ const load=useCallback(async(nextStatus:string|null,nextCategory:string|null)=>{setLoading(true);setError("");try{const {data:out,error:e}=await supabaseBrowser().rpc("english_get_route_view",{p_route:config.route,p_origin:config.origin,p_status:nextStatus,p_category:nextCategory,p_limit:200,p_offset:0});if(e)throw e;setData(out as ViewData);}catch(e:any){setError(e.message||String(e));}finally{setLoading(false)}},[config]);
+ useEffect(()=>{if(ready)void load(null,null);},[ready,load]);
  const backHref=config.route==="fast_track"?"/english/fast-track":config.origin==="From My Saved"?"/english/saved":config.origin==="From Starred"?"/english/starred":"/english/revision";
  const selectStatus=(value:string|null)=>{setStatus(value);setCategory(null);setShowItems(true);void load(value,null)};
  const selectCategory=(value:string|null)=>{setCategory(value);setStatus(null);setShowItems(true);void load(null,value)};
