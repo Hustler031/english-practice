@@ -12,6 +12,7 @@ const MAX_AGE=12*60*60*1000;
 const BACKOFF=[1000,2500,5000,15000,30000,60000];
 const DURABLE=new Set(["gk_submit_answer","gk_record_exposure","gk_mark_guessed","gk_set_starred","gk_set_difficult","gk_set_flag","gk_save_note","gk_save_session"]);
 const MUTATION=/^gk_(?:submit_|record_|mark_|set_|save_|start_|create_|finish_|complete_)/;
+const LIVE_SESSION_READ=/(?:_batch|_session)$/;
 const PAUSED_KEYS=[`${ROOT}paused-session:v3`,`${ROOT}paused-session:v2`,`${ROOT}paused-session:v1`];
 let running=false;let timer:ReturnType<typeof setTimeout>|null=null;let wired=false;let activeUser="";
 
@@ -21,7 +22,7 @@ const stableText=(a?:Args)=>JSON.stringify(stable(a));
 const cachePrefix=(uid:string)=>`${ROOT}${uid}:rpc-cache:`;
 const outboxKey=(uid:string)=>`${ROOT}${uid}:mutation-outbox:v2`;
 const key=(uid:string,n:string,a?:Args)=>`${cachePrefix(uid)}${n}:${stableText(a)}`;
-function cacheable(n:string){return n.startsWith("gk_get_");}
+function cacheable(n:string){return n.startsWith("gk_get_")&&!LIVE_SESSION_READ.test(n);}
 function localHost(){if(!browser())return false;return ["localhost","127.0.0.1","::1"].includes(window.location.hostname);}
 export function isGkLocalSafe(){return localHost()&&process.env.NEXT_PUBLIC_ALLOW_GK_LOCAL_MUTATIONS!=="true";}
 async function userId(){const{data}=await supabaseBrowser().auth.getSession();const uid=data.session?.user?.id||"";if(!uid)throw new Error("Authentication required");activeUser=uid;return uid;}
