@@ -18,7 +18,11 @@ const lacks=(label,text,needle)=>{if(text.includes(needle))failures.push(`${labe
 
 for(const label of ["Home","Chapters","Library","On Demand","Progress"])has("Maths nav",frame,`label:\"${label}\"`);
 const staticRoutes=["","chapters","library","ondemand","progress","mocks","formulas","calculation","concepts","demand","new","starred","generated","session","resume"];
-for(const name of staticRoutes){const p=name?`app/maths/${name}/page.tsx`:"app/maths/page.tsx";if(!exists(p))failures.push(`Static route missing: ${p}`);else has(`Static route ${name||"home"}`,read(p),"MathsApp");}
+for(const name of staticRoutes){
+  const p=name?`app/maths/${name}/page.tsx`:"app/maths/page.tsx";
+  if(!exists(p))failures.push(`Static route missing: ${p}`);
+  else hasRegex(`Static route ${name||"home"}`,read(p),/Maths(?:App|CoachHome|ReadinessPage|CalculationPage|CoachSessionPage)/,"Maths route component");
+}
 if(exists("app/maths/[[...slug]]/page.tsx"))failures.push("Dynamic catch-all must not exist under output: export");
 for(const section of ["chapters","library","ondemand","progress","mocks","formulas","calculation","concepts","demand","new","starred","generated","session","resume"]){
   const escaped=section.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
@@ -45,9 +49,6 @@ lacks("Maths UI",app,"Hindu");
 lacks("Maths UI",app,"Phrasal");
 
 try{
-  // Compare only Maths-branch work against the current production lineage.
-  // A hard-coded historical SHA incorrectly treats later legitimate main changes
-  // as Maths regressions after main is synchronized into this integration branch.
   const repoRoot=path.resolve(root,"..");
   const base=execFileSync("git",["merge-base","HEAD","origin/main"],{cwd:repoRoot,encoding:"utf8"}).trim();
   if(!base)throw new Error("No merge-base found with origin/main");

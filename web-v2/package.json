@@ -8,7 +8,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "contracts:gk": "node scripts/validate-gk-contracts.mjs && node scripts/validate-gk-evidence-parity.mjs && node scripts/validate-gk-final-audit.mjs && node scripts/validate-gk-final-intelligence.mjs && node scripts/validate-gk-lively-cache-freshness.mjs",
-    "contracts:maths": "node scripts/validate-maths-contracts.mjs"
+    "contracts:maths": "node scripts/validate-maths-contracts.mjs && node scripts/validate-maths-coach.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.112.4",
