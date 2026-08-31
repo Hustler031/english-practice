@@ -20,6 +20,7 @@ import "./blue-explanation-header-trial.css";
 import "./session-rotation-ui-fixes.css";
 import "./mastery-sprint.css";
 import "./exam-final-polish.css";
+import "./sprint-report-history.css";
 
 export const metadata: Metadata = {
   title: "English Mastery",
