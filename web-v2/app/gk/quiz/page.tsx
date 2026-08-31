@@ -8,6 +8,7 @@ import PauseSheet from "@/components/pause-sheet";
 import { canAutoRestoreGkPaused, clearGkPaused, consumeGkReloadIntent, readGkPaused, saveGkPaused, type GkPausedAnswer } from "@/lib/gk-session";
 import { makeDisplayOptions, restoreDisplayOptions, type DisplayOption } from "@/lib/options";
 import type { GkLane,GkQuestion } from "@/lib/gk-types";
+import QuestionText from "../question-text";
 import styles from "../gk.module.css";
 import polish from "../gk-lively-quiz.module.css";
 
@@ -16,15 +17,11 @@ type Answers=Record<string,GkPausedAnswer>;
 type Meta={lane:GkLane;mode:string;title:string};
 type DailyPayload={ok:boolean;sessionId:string;title:string;mode:string;position?:number;answers?:Answers;optionOrders?:Record<string,string[]>;questions:GkQuestion[]};
 type ResumePayload={ok:boolean;session:null|{sessionId:string;title:string;mode:string;position:number;answers?:Answers;optionOrders?:Record<string,string[]>;params?:Record<string,unknown>;questions:GkQuestion[]}};
-type QuestionSegment={marker?:string;text:string};
 
 function makeSessionId(){return `gk-session-${Date.now()}-${Math.random().toString(36).slice(2,9)}`;}
 function hydrateQuestions(rows:GkQuestion[],orders?:Record<string,string[]>):DisplayQuestion[]{return (rows||[]).map(q=>{const order=orders?.[q.id];const displayOptions=order?restoreDisplayOptions(q.options||[],order):makeDisplayOptions(q.content_type,q.options||[],false,q.question);return {...q,displayOptions};});}
 function optionOrders(rows:DisplayQuestion[]){return rows.reduce<Record<string,string[]>>((out,q)=>{out[q.id]=q.displayOptions.map(o=>o.canonicalKey);return out;},{});}
 function RichText({text}:{text:string}){const parts=String(text||"").split(/(\*\*[^*]+\*\*)/g);return <>{parts.map((part,i)=>/^\*\*[^*]+\*\*$/.test(part)?<strong key={i}>{part.slice(2,-2)}</strong>:<span key={i}>{part}</span>)}</>}
-function markerParts(line:string):QuestionSegment{const hit=line.match(/^(\d+[.)]|\(\d+\)|Statement\s+\d+[:.)]?)(?:\s+)(.*)$/i);return hit?{marker:hit[1],text:hit[2]}:{text:line};}
-function splitStatementQuestion(text:string):QuestionSegment[]{const raw=String(text||"");const physical=raw.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);if(physical.length>1)return physical.map(markerParts);const t=raw.trim();if(!t)return[{text:""}];const re=/(^|\s)(\d+[.)]|\(\d+\)|Statement\s+\d+[:.)]?)(?=\s)/gi;const hits=[...t.matchAll(re)].map(m=>({start:Number(m.index||0)+(m[1]?.length||0),marker:m[2],n:Number((m[2].match(/\d+/)||["0"])[0])}));const sequential=hits.length>=2&&hits[0].n===1&&hits.every((h,i)=>i===0||h.n===hits[i-1].n+1);if(!sequential)return[{text:t}];const out:QuestionSegment[]=[];const intro=t.slice(0,hits[0].start).trim();if(intro)out.push({text:intro});hits.forEach((h,i)=>{const end=i+1<hits.length?hits[i+1].start:t.length;const body=t.slice(h.start+h.marker.length,end).trim();out.push({marker:h.marker,text:body});});return out;}
-function QuestionText({text}:{text:string}){const rendered=splitStatementQuestion(text),structured=rendered.some(x=>x.marker);return <>{rendered.map((line,i)=>line.marker?<span className={styles.statement} key={i}><strong>{line.marker}</strong><span>{line.text}</span></span>:<span className={structured||rendered.length>1?styles.statement:undefined} key={i}>{line.text}</span>)}</>}
 function intelNumber(v:unknown){return Number(v||0);}
 function FeedbackSection({title,text}:{title:string;text?:string}){if(!text)return null;const tone=title==="Related Facts"?polish.facts:title==="Exam Trap"?polish.trap:title==="Memory / Trick"?polish.memory:polish.explanation,icon=title==="Related Facts"?"↗":title==="Exam Trap"?"!":title==="Memory / Trick"?"✦":"💡";return <div className={`${polish.feedbackCard} ${tone}`}><h4><span className={polish.icon}>{icon}</span>{title}</h4><p><RichText text={text}/></p></div>}
 
