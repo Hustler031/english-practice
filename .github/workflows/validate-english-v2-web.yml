@@ -12,6 +12,7 @@ on:
       - '.github/scripts/validate-english-v2-fresh-session-module-audit.cjs'
       - '.github/scripts/validate-english-v2-mastery-sprint.cjs'
       - '.github/scripts/validate-english-v2-starred-counter.cjs'
+      - '.github/scripts/validate-english-v2-search-path.cjs'
       - '.github/english-v2-fresh-session-module-audit.md'
       - '.github/workflows/validate-english-v2-web.yml'
   pull_request:
@@ -24,6 +25,7 @@ on:
       - '.github/scripts/validate-english-v2-fresh-session-module-audit.cjs'
       - '.github/scripts/validate-english-v2-mastery-sprint.cjs'
       - '.github/scripts/validate-english-v2-starred-counter.cjs'
+      - '.github/scripts/validate-english-v2-search-path.cjs'
       - '.github/english-v2-fresh-session-module-audit.md'
       - '.github/workflows/validate-english-v2-web.yml'
 
@@ -77,6 +79,7 @@ jobs:
           node ../.github/scripts/validate-english-v2-fresh-session-module-audit.cjs
           node ../.github/scripts/validate-english-v2-mastery-sprint.cjs
           node ../.github/scripts/validate-english-v2-starred-counter.cjs
+          node ../.github/scripts/validate-english-v2-search-path.cjs
       - name: Validate existing English reliability and learning contracts
         run: |
           cd ..
