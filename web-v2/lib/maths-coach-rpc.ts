@@ -11,16 +11,22 @@ async function rawRpc<T>(name: string, args?: RpcArgs): Promise<T> {
   return data as T;
 }
 
-const coachCriticalWrites = new Set([
-  "maths_submit_answer",
-  "maths_finish_session",
-  "maths_save_session_position",
-  "maths_confirm_diagnosis",
-  "maths_record_confidence",
-  "maths_record_selection",
-  "maths_record_approach_recall",
-  "maths_refill_calculation_session",
-]);
+// Only score-critical writes in timed modes bypass the legacy outbox.
+// Ordinary Maths sessions continue through mathsRpc and retain offline/durable retry semantics.
+const coachCriticalWrites = new Set(["maths_submit_answer", "maths_finish_session"]);
+function isTimedSavedSession(sessionId: string) {
+  if (typeof window === "undefined" || !sessionId) return false;
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key?.startsWith("maths:v2:session:") || !key.endsWith(`:${sessionId}`)) continue;
+      const session = JSON.parse(localStorage.getItem(key) || "null") as MathsSession | null;
+      const mode = String(session?.mode || "").toLowerCase();
+      return mode === "section_sprint" || (mode === "calculation_speed" && Boolean(session?.params?.calculationTimed));
+    }
+  } catch {}
+  return false;
+}
 
 export async function mathsCoachRpc<T = unknown>(name: string, args?: RpcArgs): Promise<T> {
   if (mathsLocalSafe() && /^maths_start_(daily|repair|mixed|sprint|calculation)$/.test(name)) {
@@ -29,7 +35,8 @@ export async function mathsCoachRpc<T = unknown>(name: string, args?: RpcArgs): 
     if (session?.sessionId) rememberMathsSession(session);
     return out;
   }
-  if (!mathsLocalSafe() && coachCriticalWrites.has(name)) return rawRpc<T>(name, args);
+  const sessionId = String(args?.p_session_id ?? "");
+  if (!mathsLocalSafe() && coachCriticalWrites.has(name) && isTimedSavedSession(sessionId)) return rawRpc<T>(name, args);
   return mathsRpc<T>(name, args);
 }
 
