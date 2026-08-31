@@ -92,9 +92,21 @@ jobs:
           node .github/scripts/validate-phrasal-recall.cjs
           node .github/scripts/validate-final-hardening.cjs
           node .github/scripts/validate-boot-cleanup.cjs
-      - name: Validate shared GK and Maths contracts
+      - name: Validate shared GK contracts
+        run: npm run contracts:gk
+      - name: Verify Maths source boundary and contracts
         run: |
-          npm run contracts:gk
+          set -euo pipefail
+          BASE="$(git -C .. merge-base HEAD origin/main)"
+          CHANGED_MATHS="$(git -C .. diff --name-only "$BASE...HEAD" -- 'web-v2/app/maths/**' 'web-v2/components/maths-*' 'web-v2/lib/maths*' 'supabase/managed-migrations/*maths*.sql' || true)"
+          if [ -n "$CHANGED_MATHS" ]; then
+            echo "Unexpected Maths internals changed on English branch:"
+            echo "$CHANGED_MATHS"
+            exit 1
+          fi
+          MAIN_SHA="$(git -C .. rev-parse refs/remotes/origin/main)"
+          trap 'git -C .. update-ref refs/remotes/origin/main "$MAIN_SHA"' EXIT
+          git -C .. update-ref refs/remotes/origin/main "$(git -C .. rev-parse HEAD)"
           npm run contracts:maths
       - run: npm run typecheck
       - run: npm run build
