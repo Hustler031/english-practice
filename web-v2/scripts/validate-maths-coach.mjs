@@ -36,17 +36,27 @@ for(const marker of ["deadlineAt","formatClock","maths_finish_session","maths_su
 for(const marker of ["mathsLocalSafe","coachCriticalWrites","maths_get_local_safe_start_v45"]) has("Local Safe",rpc,marker);
 has("Readiness-first Progress",progress,"MathsReadinessPage");
 has("Maths CSS",layout,'"./maths-coach.css"');
+has("Maths visual sync",layout,'"./maths-visual-sync.css"');
+if(!exists("app/maths/maths-visual-sync.css"))failures.push("Maths visual sync stylesheet missing");
+else{
+  const visual=read("app/maths/maths-visual-sync.css");
+  for(const marker of ['html[data-theme="light"] .mc-hero','html[data-theme="dark"] .mc-hero','prefers-reduced-motion','mathsPageIn','.m-group-card'])has("Maths visual sync",visual,marker);
+}
 if(pkg.scripts?.["contracts:maths"]!=="node scripts/validate-maths-contracts.mjs && node scripts/validate-maths-coach.mjs")failures.push("package.json: contracts:maths must include coach validator");
 for(const file of [
   "20260831095812_maths_v2_performance_intelligence_foundation.sql",
   "20260831100518_maths_v2_performance_coach_practice.sql",
   "20260831103315_maths_v2_timer_identity_and_weekly_coach_hardening.sql",
   "20260831110000_maths_v2_question_fast_path_read.sql",
-  "20260831111200_maths_v2_external_reviewed_canonical_ingest.sql"
+  "20260831111200_maths_v2_external_reviewed_canonical_ingest.sql",
+  "20260831170500_maths_v2_final_audit_repair_and_mock_hardening.sql"
 ]){
   if(!exists(`../supabase/managed-migrations/${file}`))failures.push(`Coach migration mirror missing: ${file}`);
 }
 const external=read("../supabase/managed-migrations/20260831111200_maths_v2_external_reviewed_canonical_ingest.sql");
 for(const marker of ["maths_create_canonical_from_external_stage","review_created_canonical","external_review_confirmed","EXT_"])has("External canonical review",external,marker);
+const audit=read("../supabase/managed-migrations/20260831170500_maths_v2_final_audit_repair_and_mock_hardening.sql");
+for(const marker of ["target_repairs","repairQueueIds","selectedQuestionIds","reviewMatched","evidencePromoted","unattempted"])has("Final audit hardening",audit,marker);
+if(/update maths\.repair_queue[\s\S]*where user_id=uid and status in\('open','waiting_confirmation'\)[\s\S]*and \(due_at<=now\(\) or priority='P0'\)[\s\S]*and \(p_reason is null or reason=upper\(p_reason\)\);/.test(audit))failures.push("Final audit hardening: broad repair-queue in_progress update reintroduced");
 if(failures.length){console.error("Maths coach contract validation FAILED\n- "+failures.join("\n- "));process.exit(1)}
 console.log("Maths coach contract validation PASS");
