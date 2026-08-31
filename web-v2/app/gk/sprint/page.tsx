@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { gkRpc, isGkLocalSafe, subscribeGkFresh } from "@/lib/gk-rpc";
 import { useAuthGuard } from "@/lib/use-auth";
 import type { GkQuestion } from "@/lib/gk-types";
+import QuestionText from "../question-text";
 
 type PlanAction={key:string;title:string;count:number;mode:string;lane:string};
 type Plan={ok:boolean;phase:"EARLY"|"MIDDLE"|"FINAL";counts:{total:number;exposed:number;weak:number;due:number;guessed:number;unseen_teacher:number;current_affairs:number};actions:PlanAction[]};
@@ -48,7 +49,7 @@ export default function GkSprintPage(){
    <header className="gk-sprint-examhead"><div className="gk-sprint-examidentity"><button className="gk-sprint-back" onClick={leaveExam}>← Sprint</button><div><span>GK Section Sprint</span><b>Question {index+1} of {session.questions.length}</b></div></div><div className="gk-sprint-pause"><button onClick={paused?resumeExam:pauseExam}>{paused?"▶ Resume":"Ⅱ Pause"}</button><div className={left<=120?"gk-sprint-timer is-low":"gk-sprint-timer"}>{mmss(left)}</div></div></header>
    <div className="gk-sprint-progress"><i style={{width:`${((index+1)/session.questions.length)*100}%`}}/></div>
    {error&&<div className="gk-intel-notice">{error}</div>}
-   {paused?<section className="gk-sprint-paused"><span>Section Sprint paused</span><h2>Your timer is frozen.</h2><p>Resume when you are free. Your question, answers and remaining time are preserved on this device.</p><button onClick={resumeExam}>Resume Sprint</button></section>:<><section className="gk-sprint-question"><div className="gk-sprint-meta">{q.subject||"GK"}{q.topic?` · ${q.topic}`:""}</div><h1>{q.question}</h1><div className="gk-sprint-options">{q.options.map(o=><button key={o.key} className={answered?.selected===o.key?"is-selected":""} onClick={()=>choose(o.key)} disabled={!!answered}><b>{o.key}</b><span>{o.text}</span></button>)}</div></section>
+   {paused?<section className="gk-sprint-paused"><span>Section Sprint paused</span><h2>Your timer is frozen.</h2><p>Resume when you are free. Your question, answers and remaining time are preserved on this device.</p><button onClick={resumeExam}>Resume Sprint</button></section>:<><section className="gk-sprint-question"><div className="gk-sprint-meta">{q.subject||"GK"}{q.topic?` · ${q.topic}`:""}</div><div className="gk-sprint-questiontext"><QuestionText text={q.question}/></div><div className="gk-sprint-options">{q.options.map(o=><button key={o.key} className={answered?.selected===o.key?"is-selected":""} onClick={()=>choose(o.key)} disabled={!!answered}><b>{o.key}</b><span>{o.text}</span></button>)}</div></section>
    <footer className="gk-sprint-dock"><button onClick={()=>setIndex(x=>Math.max(0,x-1))} disabled={index===0}>← Previous</button><span>{answeredCount}/{session.questions.length} attempted</span>{index===session.questions.length-1?<button className="is-primary" onClick={()=>void finish()}>Finish</button>:<button className="is-primary" onClick={()=>setIndex(x=>Math.min(session.questions.length-1,x+1))}>Next →</button>}</footer></>}
   </main>;
  return <main className="gk-intel-page">
