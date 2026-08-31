@@ -49,7 +49,8 @@ for(const file of [
   "20260831103315_maths_v2_timer_identity_and_weekly_coach_hardening.sql",
   "20260831110000_maths_v2_question_fast_path_read.sql",
   "20260831111200_maths_v2_external_reviewed_canonical_ingest.sql",
-  "20260831170500_maths_v2_final_audit_repair_and_mock_hardening.sql"
+  "20260831170500_maths_v2_final_audit_repair_and_mock_hardening.sql",
+  "20260831171500_maths_v2_final_audit_historical_reason_inference.sql"
 ]){
   if(!exists(`../supabase/managed-migrations/${file}`))failures.push(`Coach migration mirror missing: ${file}`);
 }
@@ -58,5 +59,7 @@ for(const marker of ["maths_create_canonical_from_external_stage","review_create
 const audit=read("../supabase/managed-migrations/20260831170500_maths_v2_final_audit_repair_and_mock_hardening.sql");
 for(const marker of ["target_repairs","repairQueueIds","selectedQuestionIds","reviewMatched","evidencePromoted","unattempted"])has("Final audit hardening",audit,marker);
 if(/update maths\.repair_queue[\s\S]*where user_id=uid and status in\('open','waiting_confirmation'\)[\s\S]*and \(due_at<=now\(\) or priority='P0'\)[\s\S]*and \(p_reason is null or reason=upper\(p_reason\)\);/.test(audit))failures.push("Final audit hardening: broad repair-queue in_progress update reintroduced");
+const inference=read("../supabase/managed-migrations/20260831171500_maths_v2_final_audit_historical_reason_inference.sql");
+for(const marker of ["derived_timing_inference","wrong_fast","correct_slow","inferenceBackfill","inference_confidence"])has("Historical inference backfill",inference,marker);
 if(failures.length){console.error("Maths coach contract validation FAILED\n- "+failures.join("\n- "));process.exit(1)}
 console.log("Maths coach contract validation PASS");
