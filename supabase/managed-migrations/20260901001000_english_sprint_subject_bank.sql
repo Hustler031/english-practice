@@ -53,6 +53,7 @@ begin
   if not found then raise exception 'Sprint item not found'; end if;
   subj:=english.sprint_bank_subject(i.category,i.question_type);
 
+  -- Reuse a genuinely identical canonical question when it already exists; otherwise preserve this exact generated Sprint item.
   select q.question_id into qid
   from english.questions q
   where q.active
