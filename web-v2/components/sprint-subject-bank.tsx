@@ -32,6 +32,7 @@ export default function SprintSubjectBank(){
   const ready=useAuthGuard();
   const[data,setData]=useState<Overview|null>(null);
   const[error,setError]=useState("");
+  const[expanded,setExpanded]=useState(false);
 
   const load=useCallback(async()=>{
     if(!ready)return;
@@ -55,12 +56,17 @@ export default function SprintSubjectBank(){
 
   if(!ready)return null;
   const rows=Array.isArray(data?.subjects)?data!.subjects!:[];
-  return <section className="sprint-subject-bank" aria-label="Subject-wise Sprint Question Bank">
-    <header><div><strong>Subject-wise Sprint Bank</strong><span>Only questions you choose from Sprints live here.</span></div><b>{data?.total??0}</b></header>
-    {error&&<div className="compact-error sprint-bank-error" role="alert">{error}</div>}
-    <div className="sprint-bank-subject-grid">{rows.map(row=><Link key={row.subject} className={`sprint-bank-subject-card ${row.count?"has-items":"empty"}`} href={`/english/exam/bank/${slugBySubject[row.subject]||"grammar"}`}>
-      <span><strong>{row.subject}</strong><small>{hintBySubject[row.subject]||"Saved Sprint questions"}</small></span><b>{row.count}<i>›</i></b>
-    </Link>)}</div>
-    {!rows.length&&!error&&<p className="sprint-bank-empty">Save a useful Sprint question with <b>+ Bank</b>; it will appear here after the Sprint is completed.</p>}
+  return <section className={`sprint-subject-bank ${expanded?"is-expanded":"is-collapsed"}`} aria-label="Subject-wise Sprint Question Bank">
+    <header>
+      <div><strong>Subject-wise Sprint Bank</strong><span>Only questions you choose from Sprints live here.</span></div>
+      <button className="sprint-section-collapse" type="button" aria-expanded={expanded} aria-label={`${expanded?"Collapse":"Expand"} Subject-wise Sprint Bank`} onClick={()=>setExpanded(x=>!x)}><b>{data?.total??0}</b><i>{expanded?"⌃":"⌄"}</i></button>
+    </header>
+    {expanded&&<>
+      {error&&<div className="compact-error sprint-bank-error" role="alert">{error}</div>}
+      <div className="sprint-bank-subject-grid">{rows.map(row=><Link key={row.subject} className={`sprint-bank-subject-card ${row.count?"has-items":"empty"}`} href={`/english/exam/bank/${slugBySubject[row.subject]||"grammar"}`}>
+        <span><strong>{row.subject}</strong><small>{hintBySubject[row.subject]||"Saved Sprint questions"}</small></span><b>{row.count}<i>›</i></b>
+      </Link>)}</div>
+      {!rows.length&&!error&&<p className="sprint-bank-empty">Save a useful Sprint question with <b>+ Bank</b>; it will appear here after the Sprint is completed.</p>}
+    </>}
   </section>;
 }
