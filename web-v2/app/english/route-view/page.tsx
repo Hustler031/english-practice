@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { EnglishLoading } from "@/components/english-frame";
 import { supabaseBrowser } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
@@ -53,7 +53,7 @@ export default function RouteViewPage(){
   const readyCount=data?.statuses?.find(x=>String(x.status).toLowerCase()==="ready")?.count||0;
   const waiting=data?.statuses?.find(x=>String(x.status).toLowerCase()==="waiting")?.count||0;
   const remaining=Math.max(0,(data?.total||0)-mastered);
-  const rows=useMemo(()=>data?.items||[],[data]);
+  const rows=data?.items||[];
 
   const selectStatus=(value:string|null)=>{setStatus(value);setCategory(null);setShowItems(true);void load(value,null)};
   const selectCategory=(value:string|null)=>{setCategory(value);setStatus(null);setShowItems(true);void load(null,value)};

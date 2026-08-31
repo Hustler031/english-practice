@@ -13,14 +13,51 @@ type Overview={
  targeted?:{active:number;eligible7Day:number;recovered7To14Day:number;recoveryRate:number|null};
 };
 
+let overviewCache:Overview|null=null;
+
 export default function LearningRouteContext(){
- const path=usePathname();const[data,setData]=useState<Overview|null>(null);const[error,setError]=useState("");
+ const path=usePathname();
+ const[data,setData]=useState<Overview|null>(()=>overviewCache);
+ const[error,setError]=useState("");
  const relevant=path==="/english/progress"||path==="/english/starred"||path==="/english/saved";
- useEffect(()=>{if(!relevant)return;let alive=true;supabaseBrowser().rpc("english_get_learning_route_overview").then(({data:out,error:e})=>{if(!alive)return;if(e)setError(e.message);else setData(out as Overview)});return()=>{alive=false}},[relevant,path]);
+
+ useEffect(()=>{
+  if(!relevant)return;
+  let alive=true;
+  supabaseBrowser().rpc("english_get_learning_route_overview").then(({data:out,error:e})=>{
+   if(!alive)return;
+   if(e){setError(e.message);return;}
+   const next=out as Overview;
+   overviewCache=next;
+   setData(next);
+   setError("");
+  });
+  return()=>{alive=false};
+ },[relevant,path]);
+
  if(!relevant)return null;
- if(error)return <div className="route-context-error" title={error}>Learning-route status will refresh when the backend is available.</div>;
- if(!data)return <div className="route-context route-context-loading"><span>Syncing learning routes…</span></div>;
- if(path==="/english/progress")return <section className="route-context route-progress-context"><Link href="/english/fast-track"><span><small>FAST TRACK MASTERY</small><b>Verified / Mastered {data.fastTrack.mastered}</b><em>Ready to Verify {data.fastTrack.readyToVerify} · Total Routed {data.fastTrack.total}</em></span><i>›</i></Link>{data.targeted&&<div className="route-recovery-kpi"><span>Targeted Recovery</span><b>{data.targeted.recoveryRate==null?"Building 7–14d evidence":`${data.targeted.recoveryRate}%`}</b></div>}</section>;
- if(path==="/english/starred")return <section className="route-context route-starred-context"><div className="route-context-title"><small>STARRED ROUTING</small><b>Active Starred {data.starred.active}</b></div><div className="route-context-links"><Link href="/english/route-view?route=fast_track&origin=From%20Starred"><span>Moved to Fast Track</span><b>{data.starred.movedFastTrack}</b><small>{data.starred.fastTrackMastered} mastered · {data.starred.fastTrackRemaining} remaining</small><i>›</i></Link><Link href="/english/route-view?route=targeted&origin=From%20Starred"><span>Moved to Targeted</span><b>{data.starred.movedTargeted}</b><small>Real weakness / failure evidence</small><i>›</i></Link></div></section>;
- return <section className="route-context route-saved-context"><div className="route-context-title"><small>MY SAVED LEARNING STATUS</small><b>{data.saved.total} permanent saved items</b></div><div className="route-context-links route-context-links-three"><Link href="/english/route-view?route=fast_track&origin=From%20My%20Saved"><span>Fast Track</span><b>{data.saved.fastTrack}</b><small>{data.saved.fastTrackMastered} mastered · {data.saved.fastTrackRemaining} remaining</small><i>›</i></Link><Link href="/english/route-view?route=targeted&origin=From%20My%20Saved"><span>Targeted</span><b>{data.saved.targeted}</b><small>{data.saved.recoveredStable} recovered/stable · {data.saved.stillLearning} still learning</small><i>›</i></Link><Link href="/english/route-view?route=unclassified&origin=From%20My%20Saved"><span>Unclassified</span><b>{data.saved.unclassified}</b><small>Insufficient route evidence</small><i>›</i></Link></div></section>;
+ if(!data&&error)return null;
+ if(!data)return <div className="route-context route-context-loading" aria-label="Loading learning route status"><i/><i/><i/></div>;
+
+ if(path==="/english/progress")return <section className="route-context route-context-compact" aria-label="Learning route status">
+  <span className="route-context-label">Routes</span>
+  <Link className="route-context-chip" href="/english/fast-track" title={`${data.fastTrack.total} total Fast Track items`}><b>{data.fastTrack.mastered}</b><small>Mastered</small></Link>
+  <Link className="route-context-chip" href="/english/fast-track" title="Ready to Verify"><b>{data.fastTrack.readyToVerify}</b><small>Ready</small></Link>
+  {data.targeted&&<span className="route-context-chip route-context-static" title="Targeted recovery based on 7–14 day evidence"><b>{data.targeted.recoveryRate==null?"—":`${data.targeted.recoveryRate}%`}</b><small>Recovery</small></span>}
+ </section>;
+
+ if(path==="/english/starred")return <section className="route-context route-context-compact" aria-label="Starred learning routes">
+  <span className="route-context-label">Routing</span>
+  <span className="route-context-chip route-context-static" title="Current active Starred questions"><b>{data.starred.active}</b><small>Active</small></span>
+  <Link className="route-context-chip" href="/english/route-view?route=fast_track&origin=From%20Starred" title={`${data.starred.fastTrackMastered} mastered · ${data.starred.fastTrackRemaining} remaining`}><b>{data.starred.movedFastTrack}</b><small>Fast</small></Link>
+  <Link className="route-context-chip" href="/english/route-view?route=targeted&origin=From%20Starred" title="Moved by real weakness / failure evidence"><b>{data.starred.movedTargeted}</b><small>Targeted</small></Link>
+ </section>;
+
+ return <section className="route-context route-context-compact" aria-label="Saved learning routes">
+  <span className="route-context-label">Saved</span>
+  <span className="route-context-chip route-context-static" title="Permanent saved items"><b>{data.saved.total}</b><small>Total</small></span>
+  <Link className="route-context-chip" href="/english/route-view?route=fast_track&origin=From%20My%20Saved" title={`${data.saved.fastTrackMastered} mastered · ${data.saved.fastTrackRemaining} remaining`}><b>{data.saved.fastTrack}</b><small>Fast</small></Link>
+  <Link className="route-context-chip" href="/english/route-view?route=targeted&origin=From%20My%20Saved" title={`${data.saved.recoveredStable} recovered/stable · ${data.saved.stillLearning} still learning`}><b>{data.saved.targeted}</b><small>Targeted</small></Link>
+  <Link className="route-context-chip" href="/english/route-view?route=unclassified&origin=From%20My%20Saved" title="Insufficient route evidence"><b>{data.saved.unclassified}</b><small>Other</small></Link>
+ </section>;
 }
