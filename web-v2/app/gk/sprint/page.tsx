@@ -1,0 +1,52 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { gkRpc, isGkLocalSafe } from "@/lib/gk-rpc";
+import { useAuthGuard } from "@/lib/use-auth";
+import type { GkQuestion } from "@/lib/gk-types";
+
+type PlanAction={key:string;title:string;count:number;mode:string;lane:string};
+type Plan={ok:boolean;phase:"EARLY"|"MIDDLE"|"FINAL";counts:{total:number;exposed:number;weak:number;due:number;guessed:number;unseen_teacher:number;current_affairs:number};actions:PlanAction[]};
+type Answer={selected:string;correct:boolean;responseMs:number};
+type Result={score:number;maxScore:number;correct:number;wrong:number;unattempted:number;accuracy:number;averageTimeMs:number};
+type SprintSession={ok:boolean;sessionId:string;durationSeconds:number;startedAt:string;questions:GkQuestion[];answers?:Record<string,Answer>;completed?:boolean;result?:Result};
+
+const KEY="revision:v2:gk:section-sprint:v1";
+const quiz=(p:Record<string,string|number>)=>`/gk/quiz?${new URLSearchParams(Object.entries(p).map(([k,v])=>[k,String(v)]))}`;
+function mmss(seconds:number){const s=Math.max(0,Math.ceil(seconds));return `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;}
+function phaseCopy(p:Plan["phase"]){return p==="EARLY"?"Concept repair first · Topic-wise emphasis":p==="MIDDLE"?"Balanced Topic-wise + Mixed retrieval":"Mixed retrieval + timed transfer + weak repair";}
+
+export default function GkSprintPage(){
+ const ready=useAuthGuard();
+ const[plan,setPlan]=useState<Plan|null>(null),[session,setSession]=useState<SprintSession|null>(null),[answers,setAnswers]=useState<Record<string,Answer>>({}),[index,setIndex]=useState(0),[left,setLeft]=useState(900),[result,setResult]=useState<Result|null>(null),[error,setError]=useState("");
+ const questionStart=useRef(Date.now());
+ useEffect(()=>{if(!ready)return;let live=true;gkRpc<Plan>("gk_get_sprint_plan").then(x=>{if(live&&x?.ok)setPlan(x)}).catch(()=>{if(live)setError("Sprint plan could not be refreshed.")});const saved=localStorage.getItem(KEY);if(saved&&!isGkLocalSafe()){gkRpc<SprintSession>("gk_get_section_sprint_session",{p_session_id:saved}).then(x=>{if(!live||!x?.ok)return;if(x.completed&&x.result){setResult(x.result);localStorage.removeItem(KEY);return;}setSession(x);setAnswers(x.answers||{});}).catch(()=>localStorage.removeItem(KEY));}return()=>{live=false};},[ready]);
+ useEffect(()=>{if(!session||result)return;const start=new Date(session.startedAt).getTime();const tick=()=>{const remain=Math.max(0,session.durationSeconds-(Date.now()-start)/1000);setLeft(remain);if(remain<=0)void finish();};tick();const id=window.setInterval(tick,1000);return()=>window.clearInterval(id);},[session,result]);
+ useEffect(()=>{questionStart.current=Date.now();},[index]);
+ const q=session?.questions[index];
+ const answered=q?answers[q.id]:undefined;
+ const answeredCount=Object.keys(answers).length;
+ const localResult=useMemo<Result>(()=>{const vals=Object.values(answers),correct=vals.filter(x=>x.correct).length,wrong=vals.length-correct,total=session?.questions.length||25;return {score:Math.round((correct*2-wrong*.5)*100)/100,maxScore:total*2,correct,wrong,unattempted:Math.max(0,total-vals.length),accuracy:vals.length?Math.round(correct*1000/vals.length)/10:0,averageTimeMs:vals.length?Math.round(vals.reduce((a,x)=>a+x.responseMs,0)/vals.length):0};},[answers,session]);
+ async function startExam(){setError("");try{if(isGkLocalSafe()){const questions=await gkRpc<GkQuestion[]>("gk_get_batch",{p_mode:"random",p_count:25,p_lane:"MAIN"});setSession({ok:true,sessionId:`local-sprint-${Date.now()}`,durationSeconds:900,startedAt:new Date().toISOString(),questions});setAnswers({});setIndex(0);setResult(null);return;}const x=await gkRpc<SprintSession>("gk_start_section_sprint",{p_count:25});if(!x?.ok)throw new Error();localStorage.setItem(KEY,x.sessionId);setSession(x);setAnswers({});setIndex(0);setResult(null);}catch{setError("Section Sprint could not start.");}}
+ function choose(key:string){if(!q||answered||result)return;const responseMs=Math.max(0,Date.now()-questionStart.current);setAnswers(a=>({...a,[q.id]:{selected:key,correct:key===q.correctKey,responseMs}}));}
+ async function finish(){if(!session||result)return;setError("");try{if(isGkLocalSafe()){setResult(localResult);return;}const x=await gkRpc<{ok:boolean;result:Result;learningHistoryChanged:boolean}>("gk_finish_section_sprint",{p_session_id:session.sessionId,p_answers:answers});if(!x?.ok)throw new Error();setResult(x.result);localStorage.removeItem(KEY);}catch{setError("Result save did not complete. Your answers remain on this screen; retry Finish.");}}
+ if(!ready)return <main className="gk-intel-page"><div className="loading-copy">Checking session…</div></main>;
+ if(result)return <ResultView result={result} onRestart={()=>{setSession(null);setAnswers({});setIndex(0);setResult(null);setLeft(900)}}/>;
+ if(session&&q)return <main className="gk-sprint-exam">
+   <header className="gk-sprint-examhead"><div><span>GK Section Sprint</span><b>Question {index+1} of {session.questions.length}</b></div><div className={left<=120?"gk-sprint-timer is-low":"gk-sprint-timer"}>{mmss(left)}</div></header>
+   <div className="gk-sprint-progress"><i style={{width:`${((index+1)/session.questions.length)*100}%`}}/></div>
+   {error&&<div className="gk-intel-notice">{error}</div>}
+   <section className="gk-sprint-question"><div className="gk-sprint-meta">{q.subject||"GK"}{q.topic?` · ${q.topic}`:""}</div><h1>{q.question}</h1><div className="gk-sprint-options">{q.options.map(o=><button key={o.key} className={answered?.selected===o.key?"is-selected":""} onClick={()=>choose(o.key)} disabled={!!answered}><b>{o.key}</b><span>{o.text}</span></button>)}</div></section>
+   <footer className="gk-sprint-dock"><button onClick={()=>setIndex(x=>Math.max(0,x-1))} disabled={index===0}>← Previous</button><span>{answeredCount}/{session.questions.length} attempted</span>{index===session.questions.length-1?<button className="is-primary" onClick={()=>void finish()}>Finish</button>:<button className="is-primary" onClick={()=>setIndex(x=>Math.min(session.questions.length-1,x+1))}>Next →</button>}</footer>
+  </main>;
+ return <main className="gk-intel-page">
+  <section className="gk-intel-title"><div><span>30-Day Exam Readiness</span><h1>SSC GK Sprint</h1><p>{plan?phaseCopy(plan.phase):"Adaptive work based on your current retention evidence."}</p></div><Link href="/gk/intelligence" className="gk-intel-secondary">View readiness</Link></section>
+  {error&&<div className="gk-intel-notice">{error}</div>}
+  <section className="gk-sprint-feature"><div><span>Exam Mode</span><h2>25 Questions · 15 Minutes</h2><p>+2 correct · −0.50 wrong · 0 unattempted. This exam ledger is isolated from adaptive mastery.</p></div><button onClick={()=>void startExam()}>Start Section Sprint</button></section>
+  <section className="gk-intel-card"><div className="gk-intel-cardhead"><div><span>Today</span><h2>Recommended work</h2></div>{plan&&<b>{plan.phase} phase</b>}</div><div className="gk-sprint-plan">{(plan?.actions||[]).map(a=>a.key==="section"?<button key={a.key} onClick={()=>void startExam()}><span>◷</span><div><b>{a.title}</b><small>25Q timed exam transfer</small></div><strong>Start ›</strong></button>:<Link key={a.key} href={quiz({mode:a.mode,lane:a.lane,count:Math.max(1,a.count||10),title:a.title})}><span>{a.key==="weak"?"☀":a.key==="night"?"☾":a.key==="teacher"?"▣":a.key==="current"?"◉":"↻"}</span><div><b>{a.title}</b><small>{a.count>0?`${a.count} currently eligible`:"Open recommended lane"}</small></div><strong>›</strong></Link>)}</div></section>
+  {plan&&<section className="gk-intel-card"><div className="gk-intel-cardhead"><div><span>Adaptive emphasis</span><h2>{phaseCopy(plan.phase)}</h2></div></div><div className="gk-intel-week"><div className="gk-intel-metric"><strong>{plan.counts.weak}</strong><span>Weak</span></div><div className="gk-intel-metric"><strong>{plan.counts.due}</strong><span>Due</span></div><div className="gk-intel-metric"><strong>{plan.counts.unseen_teacher}</strong><span>Unseen teacher PYQ</span></div></div></section>}
+ </main>;
+}
+
+function ResultView({result,onRestart}:{result:Result;onRestart:()=>void}){return <main className="gk-intel-page"><section className="gk-intel-title"><div><span>Section Sprint Result</span><h1>{result.score} / {result.maxScore}</h1><p>Timed exam evidence is reported separately; it does not prove or erase adaptive mastery.</p></div><button className="gk-intel-primary" onClick={onRestart}>New Sprint</button></section><section className="gk-intel-kpis"><div className="gk-intel-metric"><strong>{result.correct}</strong><span>Correct</span></div><div className="gk-intel-metric"><strong>{result.wrong}</strong><span>Wrong</span></div><div className="gk-intel-metric"><strong>{result.unattempted}</strong><span>Unattempted</span></div><div className="gk-intel-metric"><strong>{result.accuracy}%</strong><span>Accuracy</span><small>{(result.averageTimeMs/1000).toFixed(1)}s avg/question</small></div></section><div className="gk-intel-actions"><Link href="/gk/sprint">Back to Sprint</Link><Link href="/gk/intelligence">Review weak knowledge</Link></div></main>}
