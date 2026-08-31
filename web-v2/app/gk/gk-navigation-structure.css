@@ -1,0 +1,46 @@
+/* GK route/navigation normalization. Loaded last so it can safely correct legacy route-local layout. */
+.gk-route-backbar{padding:12px 14px 0}
+.gk-route-back{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:7px 11px;border:1px solid var(--line);border-radius:10px;background:color-mix(in srgb,var(--card-2) 72%,var(--card));color:var(--text);font-size:11px;font-weight:850;text-decoration:none}
+.gk-route-back:hover{border-color:color-mix(in srgb,var(--primary) 30%,var(--line));background:color-mix(in srgb,var(--primary) 6%,var(--card))}
+
+.gk-practice-teacher-entry{margin:12px 14px 0;padding:12px 13px;display:grid;grid-template-columns:36px minmax(0,1fr) auto;align-items:center;gap:10px;border:1px solid color-mix(in srgb,var(--primary) 22%,var(--line));border-left:3px solid var(--primary);border-radius:14px;background:linear-gradient(145deg,color-mix(in srgb,var(--primary) 7%,var(--card)),var(--card));color:var(--text);text-decoration:none}
+.gk-practice-teacher-entry>span:first-child{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:var(--primary-2);color:var(--primary);font-size:17px;font-weight:900}
+.gk-practice-teacher-entry b,.gk-practice-teacher-entry small{display:block}.gk-practice-teacher-entry b{font-size:13px}.gk-practice-teacher-entry small{margin-top:3px;color:var(--muted);font-size:10px;line-height:1.35}.gk-practice-teacher-entry>strong{font-size:18px;color:var(--muted)}
+
+/* Dedicated routes share the same five-tab navigation instead of inventing header shortcuts. */
+.gk-shell-bottomnav{position:fixed;z-index:64;left:50%;bottom:0;transform:translateX(-50%);width:min(700px,100%);display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px;padding:7px max(7px,env(safe-area-inset-right)) calc(7px + env(safe-area-inset-bottom)) max(7px,env(safe-area-inset-left));border-top:1px solid var(--line);background:color-mix(in srgb,var(--card) 97%,transparent);backdrop-filter:blur(12px)}
+.gk-shell-bottomnav a{display:grid;place-items:center;gap:2px;min-height:47px;padding:4px 2px;border-radius:11px;color:var(--muted);font-size:10px;text-decoration:none;transition:background-color .14s ease,color .14s ease,transform .1s ease}
+.gk-shell-bottomnav a>span{font-size:19px;line-height:1}.gk-shell-bottomnav a>small{font-size:9px}.gk-shell-bottomnav a.is-active{background:var(--primary-2);color:var(--primary);font-weight:900}.gk-shell-bottomnav a:active{transform:scale(.97)}
+
+/* The legacy /gk bottom nav is still owned by page.tsx; constrain it to the shell on desktop. */
+.gk-parity-scope [class*="bottomNav"]{left:50%!important;right:auto!important;width:min(700px,100%)!important;transform:translateX(-50%)}
+.gk-parity-scope main[class*="quiz"] [class*="quizDock"]{width:min(700px,100%)!important}
+.gk-sprint-dock{width:min(676px,calc(100% - 24px))!important}
+
+/* Active Sprint has its own exam dock/back control; do not stack the shell nav under it. */
+.gk-app-shell:has(.gk-sprint-exam) .gk-shell-bottomnav,.gk-app-shell:has(.gk-sprint-exam) .gk-route-backbar{display:none}
+
+/* Progress becomes overview-first; secondary information opens on demand. */
+.gk-intel-section-stack{display:grid;gap:10px}
+.gk-intel-fold{overflow:hidden;border:1px solid var(--line);border-radius:17px;background:var(--card)}
+.gk-intel-fold>summary{list-style:none;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;padding:15px 16px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.gk-intel-fold>summary::-webkit-details-marker{display:none}
+.gk-intel-fold>summary>div{min-width:0}.gk-intel-fold>summary span{display:block;color:var(--muted);font-size:10px;font-weight:850;letter-spacing:.07em;text-transform:uppercase}.gk-intel-fold>summary b{display:block;margin-top:3px;font-size:15px}.gk-intel-fold>summary small{display:block;margin-top:3px;color:var(--muted);font-size:10px;line-height:1.35}
+.gk-intel-fold>summary::after{content:"+";display:grid;place-items:center;width:30px;height:30px;border:1px solid var(--line);border-radius:10px;background:var(--card-2);color:var(--muted);font-size:17px;font-weight:700}
+.gk-intel-fold[open]>summary::after{content:"−";color:var(--primary)}
+.gk-intel-fold[open]>summary{border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--primary) 3%,var(--card))}
+.gk-intel-fold-body{padding:14px 16px 16px}
+.gk-intel-fold-body>.gk-intel-card{padding:0;border:0;background:transparent;box-shadow:none}
+.gk-intel-fold-link{display:inline-flex;margin-top:12px;min-height:38px;align-items:center;padding:8px 11px;border:1px solid var(--line);border-radius:10px;background:color-mix(in srgb,var(--primary) 6%,var(--card));color:var(--text);font-size:11px;font-weight:850;text-decoration:none}
+
+/* Assertion–Reason and statement questions read as deliberate blocks, not one paragraph. */
+.gk-parity-scope main[class*="quiz"] [class*="question"] [class*="statement"]{display:block;margin-top:9px;padding-top:9px;line-height:1.52;white-space:normal}
+.gk-parity-scope main[class*="quiz"] [class*="question"] [class*="statement"]:first-child{margin-top:0;padding-top:0}
+.gk-parity-scope main[class*="quiz"] [class*="question"] [class*="statement"]+ [class*="statement"]{border-top:1px solid color-mix(in srgb,var(--line) 72%,transparent)}
+.gk-parity-scope main[class*="quiz"] [class*="question"] [class*="statement"]>strong{display:inline-flex;vertical-align:middle;margin:0 8px 3px 0;padding:4px 7px;border-radius:8px;background:color-mix(in srgb,var(--primary) 9%,var(--card-2));color:var(--primary);font-size:.72em;font-weight:900;letter-spacing:.01em}
+
+.gk-sprint-examidentity{display:flex;align-items:center;gap:10px}.gk-sprint-back{min-height:38px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);font:inherit;font-size:11px;font-weight:850;white-space:nowrap}
+
+@media(min-width:760px){.gk-shell-bottomnav,.gk-parity-scope [class*="bottomNav"]{border-left:1px solid var(--line);border-right:1px solid var(--line);border-radius:14px 14px 0 0}.gk-practice-teacher-entry{margin-left:14px;margin-right:14px}}
+@media(max-width:420px){.gk-shell-controls>a.gk-shell-intelligence:first-of-type{display:inline-flex}.gk-shell-intelligence{height:32px!important;padding:0 7px!important;font-size:.64rem!important}.gk-route-backbar{padding:9px 12px 0}.gk-practice-teacher-entry{margin:9px 12px 0}.gk-sprint-examidentity{gap:7px}.gk-sprint-back{padding:7px 8px;font-size:10px}.gk-intel-fold>summary{padding:13px}.gk-intel-fold-body{padding:12px 13px 14px}}
+@media(prefers-reduced-motion:reduce){.gk-shell-bottomnav a{transition:none}}
