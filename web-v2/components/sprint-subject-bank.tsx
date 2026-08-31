@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { learnerErrorMessage, rpc, subscribeRpcFresh } from "@/lib/supabase";
+import { learnerErrorMessage, localProductionSafetyMode, rpc, subscribeRpcFresh } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
 
 type SubjectRow={subject:string;count:number};
@@ -35,7 +35,10 @@ export default function SprintSubjectBank(){
 
   const load=useCallback(async()=>{
     if(!ready)return;
-    try{const out=await rpc<Overview>("english_get_sprint_bank_overview");setData(out);setError("")}catch(e:any){setError(learnerErrorMessage(e,"Could not load the Sprint Question Bank."))}
+    try{
+      if(!localProductionSafetyMode())await rpc("english_finalize_completed_sprint_bank_marks").catch(()=>undefined);
+      const out=await rpc<Overview>("english_get_sprint_bank_overview");setData(out);setError("");
+    }catch(e:any){setError(learnerErrorMessage(e,"Could not load the Sprint Question Bank."))}
   },[ready]);
 
   useEffect(()=>{if(ready)void load()},[ready,load]);
