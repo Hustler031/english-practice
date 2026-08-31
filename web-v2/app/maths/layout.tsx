@@ -4,5 +4,6 @@ import "./maths.css";
 import "./quiz-old-layout.css";
 import "./old-app-parity.css";
 import "./maths-coach.css";
+import "./maths-lively.css";
 
 export default function MathsLayout({children}:{children:ReactNode}){return <MathsFrame>{children}</MathsFrame>;}
