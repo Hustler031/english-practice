@@ -39,21 +39,21 @@ export default function LearningRouteContext(){
  if(!data&&error)return null;
  if(!data)return <div className="route-context route-context-loading" aria-label="Loading learning route status"><i/><i/><i/></div>;
 
- if(path==="/english/progress")return <section className="route-context route-context-compact" aria-label="Learning route status">
+ if(path==="/english/progress")return <section className="route-context route-context-compact" aria-label="FAST TRACK MASTERY: Ready to Verify, Total Routed, Targeted Recovery">
   <span className="route-context-label">Routes</span>
   <Link className="route-context-chip" href="/english/fast-track" title={`${data.fastTrack.total} total Fast Track items`}><b>{data.fastTrack.mastered}</b><small>Mastered</small></Link>
   <Link className="route-context-chip" href="/english/fast-track" title="Ready to Verify"><b>{data.fastTrack.readyToVerify}</b><small>Ready</small></Link>
   {data.targeted&&<span className="route-context-chip route-context-static" title="Targeted recovery based on 7–14 day evidence"><b>{data.targeted.recoveryRate==null?"—":`${data.targeted.recoveryRate}%`}</b><small>Recovery</small></span>}
  </section>;
 
- if(path==="/english/starred")return <section className="route-context route-context-compact" aria-label="Starred learning routes">
+ if(path==="/english/starred")return <section className="route-context route-context-compact" aria-label="Active Starred routing: Moved to Fast Track, Moved to Targeted">
   <span className="route-context-label">Routing</span>
   <span className="route-context-chip route-context-static" title="Current active Starred questions"><b>{data.starred.active}</b><small>Active</small></span>
   <Link className="route-context-chip" href="/english/route-view?route=fast_track&origin=From%20Starred" title={`${data.starred.fastTrackMastered} mastered · ${data.starred.fastTrackRemaining} remaining`}><b>{data.starred.movedFastTrack}</b><small>Fast</small></Link>
   <Link className="route-context-chip" href="/english/route-view?route=targeted&origin=From%20Starred" title="Moved by real weakness / failure evidence"><b>{data.starred.movedTargeted}</b><small>Targeted</small></Link>
  </section>;
 
- return <section className="route-context route-context-compact" aria-label="Saved learning routes">
+ return <section className="route-context route-context-compact" aria-label="MY SAVED LEARNING STATUS: Fast Track, Targeted, Unclassified">
   <span className="route-context-label">Saved</span>
   <span className="route-context-chip route-context-static" title="Permanent saved items"><b>{data.saved.total}</b><small>Total</small></span>
   <Link className="route-context-chip" href="/english/route-view?route=fast_track&origin=From%20My%20Saved" title={`${data.saved.fastTrackMastered} mastered · ${data.saved.fastTrackRemaining} remaining`}><b>{data.saved.fastTrack}</b><small>Fast</small></Link>
