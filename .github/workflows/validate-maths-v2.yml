@@ -4,13 +4,24 @@ on:
   push:
     branches: [maths-v2-integration]
     paths:
-      - 'web-v2/**'
-      - 'supabase/managed-migrations/**maths_v2**'
+      - 'web-v2/app/maths/**'
+      - 'web-v2/components/maths-*'
+      - 'web-v2/lib/maths*'
+      - 'web-v2/scripts/validate-maths-*'
+      - 'web-v2/package.json'
+      - 'web-v2/package-lock.json'
+      - 'supabase/managed-migrations/**maths**'
       - '.github/workflows/validate-maths-v2.yml'
   pull_request:
     paths:
-      - 'web-v2/**'
-      - 'supabase/managed-migrations/**maths_v2**'
+      - 'web-v2/app/maths/**'
+      - 'web-v2/components/maths-*'
+      - 'web-v2/lib/maths*'
+      - 'web-v2/scripts/validate-maths-*'
+      - 'web-v2/package.json'
+      - 'web-v2/package-lock.json'
+      - 'supabase/managed-migrations/**maths**'
+      - '.github/workflows/validate-maths-v2.yml'
 
 jobs:
   build-and-contracts:
