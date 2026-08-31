@@ -11,15 +11,24 @@ import "./gk-shell-polish.css";
 import "./gk-final-intelligence.css";
 import "./gk-final-intelligence-mobile.css";
 import "./gk-lively-polish.css";
+import "./gk-navigation-structure.css";
 
 type Theme="dark"|"light";
+type ShellTab="home"|"content"|"practice"|"demand"|"progress"|null;
+const NAV:Array<[Exclude<ShellTab,null>,string,string,string]>=[
+ ["home","⌂","Home","/gk?tab=home"],
+ ["content","▤","Content","/gk?tab=content"],
+ ["practice","◎","Practice","/gk?tab=practice"],
+ ["demand","◆","On Demand","/gk?tab=demand"],
+ ["progress","▥","Progress","/gk/intelligence"]
+];
 function applyTheme(next:Theme,persist=false){document.documentElement.dataset.theme=next;document.documentElement.style.colorScheme=next;const color=next==="light"?"#f5f7fb":"#0d1117";document.querySelectorAll('meta[name="theme-color"]').forEach(el=>el.setAttribute("content",color));if(persist)window.localStorage.setItem("english-theme",next);}
 
 export default function GkLayout({ children }: { children: ReactNode }) {
  const pathname=usePathname();
- const[theme,setTheme]=useState<Theme>("dark"),[refreshing,setRefreshing]=useState(false),[localSafe,setLocalSafe]=useState(false);
+ const[theme,setTheme]=useState<Theme>("dark"),[refreshing,setRefreshing]=useState(false),[localSafe,setLocalSafe]=useState(false),[shellTab,setShellTab]=useState<ShellTab>(null),[routeQuery,setRouteQuery]=useState("");
  useEffect(()=>{const saved=window.localStorage.getItem("english-theme");const next:Theme=saved==="light"?"light":"dark";setTheme(next);applyTheme(next);setLocalSafe(isGkLocalSafe());},[]);
- useEffect(()=>{if(pathname!=="/gk")return;const p=new URLSearchParams(window.location.search);if(p.get("tab")==="progress")window.location.replace("/gk/intelligence");},[pathname]);
+ useEffect(()=>{const search=window.location.search;setRouteQuery(search);if(pathname==="/gk"){const p=new URLSearchParams(search);if(p.get("tab")==="progress"){window.location.replace("/gk/intelligence");return;}const tab=(p.get("tab")||"home") as Exclude<ShellTab,null>;setShellTab(["home","content","practice","demand"].includes(tab)?tab:"home");return;}if(pathname?.startsWith("/gk/intelligence")){setShellTab("progress");return;}if(pathname?.startsWith("/gk/teacher")){setShellTab("practice");return;}setShellTab(null);},[pathname]);
  function toggleTheme(){const next:Theme=theme==="dark"?"light":"dark";setTheme(next);applyTheme(next,true);}
  async function hardRefresh(){if(refreshing)return;setRefreshing(true);markGkHardRefreshIntent();clearGkPrivateCache();try{if("caches" in window){const names=await window.caches.keys();await Promise.allSettled(names.map(name=>window.caches.delete(name)));}}catch{}const target=new URL(window.location.href);target.searchParams.set("_refresh",Date.now().toString());window.location.replace(target.toString());}
  function forceSamePageNavigation(event: MouseEvent<HTMLDivElement>) {
@@ -37,14 +46,17 @@ export default function GkLayout({ children }: { children: ReactNode }) {
   event.preventDefault();event.stopPropagation();window.location.assign(`${url.pathname}${url.search}${url.hash}`);
  }
  const quizRoute=pathname?.startsWith("/gk/quiz");
+ const dedicatedRoute=!quizRoute&&pathname!=="/gk";
+ const intelligenceDetail=pathname?.startsWith("/gk/intelligence")&&/[?&](subject|concept|question)=/.test(routeQuery);
+ const teacherDetail=pathname?.startsWith("/gk/teacher")&&/[?&]series=/.test(routeQuery);
+ const routeBack=pathname?.startsWith("/gk/intelligence")&&!intelligenceDetail?{href:"/gk?tab=home",label:"GK Home"}:pathname?.startsWith("/gk/teacher")&&!teacherDetail?{href:"/gk?tab=practice",label:"Practice"}:pathname?.startsWith("/gk/sprint")?{href:"/gk?tab=home",label:"GK Home"}:null;
+ const showTeacherEntry=pathname==="/gk"&&shellTab==="practice";
  return <div className="gk-app-shell gk-parity-scope" onClickCapture={forceSamePageNavigation}>
   <header className="gk-shell-header">
    <Link href="/gk?tab=home" className="gk-shell-brand" aria-label="GK Mastery home"><strong>GK Mastery</strong><span>SSC GK practice + revision</span></Link>
    <div className="gk-shell-controls">
     {localSafe&&<span className="gk-shell-safe">Local Safe</span>}
-    {!quizRoute&&<Link href="/gk/teacher" className="gk-shell-intelligence">Teacher PYQ</Link>}
-    {!quizRoute&&<Link href="/gk/intelligence" className="gk-shell-intelligence">Progress</Link>}
-    {!quizRoute&&<Link href="/gk/sprint" className="gk-shell-intelligence">Sprint</Link>}
+    {!quizRoute&&<Link href="/gk/sprint" className={`gk-shell-intelligence ${pathname?.startsWith("/gk/sprint")?"is-active":""}`}>Sprint</Link>}
     <Link href="/" className="gk-shell-control" aria-label="Revision root" title="Revision root">⌂</Link>
     <button className="gk-shell-control" type="button" aria-label={theme==="dark"?"Switch to light mode":"Switch to dark mode"} onClick={toggleTheme}>{theme==="dark"?"☀":"☾"}</button>
     <button className={`gk-shell-control ${refreshing?"is-refreshing":""}`} type="button" aria-label="Hard refresh GK" title="Hard refresh" onClick={()=>void hardRefresh()} disabled={refreshing}>↻</button>
@@ -52,7 +64,10 @@ export default function GkLayout({ children }: { children: ReactNode }) {
   </header>
   <div className="gk-shell-body">
    {quizRoute&&<div className="gk-quiz-backbar"><button className="gk-english-back" type="button" onClick={()=>window.history.back()}>← Back</button></div>}
+   {routeBack&&<div className="gk-route-backbar"><a className="gk-route-back" href={routeBack.href}>← {routeBack.label}</a></div>}
+   {showTeacherEntry&&<a className="gk-practice-teacher-entry" href="/gk/teacher"><span>▣</span><span><b>Teacher PYQ</b><small>Topic-wise + Mixed teacher source practice</small></span><strong>›</strong></a>}
    {children}
   </div>
+  {dedicatedRoute&&<nav className="gk-shell-bottomnav" aria-label="GK navigation">{NAV.map(([tab,icon,label,href])=><a key={tab} className={shellTab===tab?"is-active":""} href={href}><span>{icon}</span><small>{label}</small></a>)}</nav>}
  </div>;
 }
