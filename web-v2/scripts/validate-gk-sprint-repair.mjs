@@ -23,7 +23,7 @@ must(has(migration,"gk_get_sprint_repair_batch","not is_failed and teacher_pyq",
 must(!migration.toLowerCase().includes("delete from gk.attempts")&&!migration.toLowerCase().includes("delete from gk.exposures")&&!migration.toLowerCase().includes("delete from gk.sessions"),"historical evidence deletion is forbidden");
 for(const fn of ["gk_finish_section_sprint","gk_analyze_section_sprint"]){const start=migration.indexOf(`function public.${fn}`),end=migration.indexOf("$$;",start);const body=migration.slice(start,end);must(!body.includes("insert into gk.attempts")&&!body.includes("insert into gk.exposures")&&!body.includes("question_state"),`${fn} must not mutate adaptive learning evidence`);}
 must(has(migration,"evidenceConfidence","Limited evidence","Developing evidence","Reliable evidence","greatest(p.exposure_count,case when p.attempts>0 then 1 else 0 end)"),"Progress evidence-confidence / attempted-as-seen guard missing");
-must(has(bridge,"gk_create_sprint_repair_set","gk_get_sprint_repair_batch","gk.demand_sets","kind,'sprint_repair'"),"repair bridge must reuse canonical Demand selector container");
+must(has(bridge,"gk_create_sprint_repair_set","gk_get_sprint_repair_batch","gk.demand_sets","'sprint_repair'"),"repair bridge must reuse canonical Demand selector container");
 must(!bridge.includes("gk_submit_answer")&&!bridge.includes("gk_record_exposure"),"repair-set preparation must not mutate learning evidence");
 
 must(has(sprint,"Exam Mixed","Teacher PYQ Sprint","25 Questions · 15 Minutes","gk_finish_section_sprint","gk_analyze_section_sprint","Result saved.","Start Smart Repair","Start Repair","Where marks were lost"),"Sprint result/repair UX contract missing");
