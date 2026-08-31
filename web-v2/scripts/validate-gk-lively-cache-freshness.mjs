@@ -81,10 +81,10 @@ has("Theme-safe GK shell",practice,'background:color-mix(in srgb,var(--bg) 96%,t
 has("Four-item primary nav",practice,'repeat(4,minmax(0,1fr))');
 has("Legacy On Demand hidden",practice,'nth-child(4)');
 has("Compact secondary practice",practice,'Smart practice tools');
-has("Future Booster slots",practice,'Weakness Fix');
-has("Future Booster slots",practice,'Confusion Cards');
-has("Future Booster slots",practice,'Reverse Recall');
-has("Future Booster slots",practice,'Exam Traps');
+has("Future Booster slots",layout,'Weakness Fix');
+has("Future Booster slots",layout,'Confusion Cards');
+has("Future Booster slots",layout,'Reverse Recall');
+has("Future Booster slots",layout,'Exam Traps');
 
 if(failures.length){console.error("GK lively/cache/freshness contracts FAILED\n- "+failures.join("\n- "));process.exit(1)}
 console.log("GK lively/cache/freshness contracts PASS");
