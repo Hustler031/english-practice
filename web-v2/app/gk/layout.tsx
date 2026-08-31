@@ -13,6 +13,7 @@ import "./gk-final-intelligence-mobile.css";
 import "./gk-lively-polish.css";
 import "./gk-navigation-structure.css";
 import "./gk-practice-hierarchy.css";
+import "./gk-sprint-repair.css";
 
 type Theme="dark"|"light";
 type ShellTab="home"|"content"|"practice"|"demand"|"progress"|null;
