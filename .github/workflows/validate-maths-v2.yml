@@ -38,6 +38,8 @@ jobs:
           node-version: '22'
       - run: npm install --no-audit --no-fund
       - run: npm run contracts:maths
+        env:
+          MATHS_ENFORCE_SOURCE_BOUNDARY: ${{ github.head_ref == 'maths-v2-integration' || github.ref_name == 'maths-v2-integration' }}
       - run: npm run contracts:gk
       - run: npm run typecheck
       - run: npm run build
