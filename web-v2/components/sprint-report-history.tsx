@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { learnerErrorMessage, rpc } from "@/lib/supabase";
+import { learnerErrorMessage, rpc, subscribeRpcFresh } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
 
 type Mode="standard"|"weakness"|"trap"|"mistakes";
@@ -44,6 +44,18 @@ export default function SprintReportHistory(){
   },[ready]);
 
   useEffect(()=>{if(ready)void load()},[ready,load]);
+
+  useEffect(()=>{
+    if(!ready)return;
+    const stopRecent=subscribeRpcFresh<RecentPayload>("english_get_recent_sprint_reports",{p_days:5},fresh=>{
+      if(!fresh?.ok)return;
+      setReports(Array.isArray(fresh.items)?fresh.items:[]);setLoading(false);setError("");
+    });
+    const stopFallback=subscribeRpcFresh<ExamFallback>("english_get_exam_preparation",undefined,fresh=>{
+      if(Array.isArray(fresh?.recentSprints))setReports(fresh.recentSprints);
+    });
+    return()=>{stopRecent();stopFallback()};
+  },[ready]);
 
   useEffect(()=>{
     if(!ready||typeof document==="undefined")return;
