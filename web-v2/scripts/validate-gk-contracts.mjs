@@ -5,6 +5,7 @@ const root=process.cwd();
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 const home=read('app/gk/page.tsx');
 const quiz=read('app/gk/quiz/page.tsx');
+const questionText=read('app/gk/question-text.tsx');
 const transport=read('lib/gk-rpc.ts');
 const session=read('lib/gk-session.ts');
 const options=read('lib/options.ts');
@@ -14,7 +15,7 @@ const base=read('../supabase/managed-migrations/20260830025704_gk_v2_local_safe_
 const views=read('../supabase/managed-migrations/20260830032146_gk_v2_view_parity_reads.sql');
 const starredGroups=read('../supabase/managed-migrations/20260830032730_gk_v2_starred_group_view_parity.sql');
 const migration=[base,views,starredGroups].join('\n');
-const all=[home,quiz,transport,session,options,css,migration].join('\n');
+const all=[home,quiz,questionText,transport,session,options,css,migration].join('\n');
 let failed=0;
 const ok=(name,condition)=>condition?console.log(`✓ ${name}`):(console.error(`✗ ${name}`),failed++);
 
@@ -81,7 +82,7 @@ function statementLines(raw){const lines=String(raw||'').split(/\r?\n/).map(x=>x
 ok('statement inline split',statementLines('1. First 2. Second 3. Third').length===3);
 ok('statement multiline preserved',statementLines('1. First\n2. Second\n3. Third').length===3);
 ok('normal numerical prose untouched',statementLines('Article 280 was discussed in 1.5 hours and value 2.0 was noted.').length===1);
-ok('statement renderer gated',quiz.includes('const sequential=hits.length>=2')&&quiz.includes('styles.statement'));
+ok('statement renderer gated',questionText.includes('const sequential=hits.length>=2')&&questionText.includes('styles.statement'));
 
 for(const x of ['Learning Overview','Knowledge Health','Subject Mastery','Weak Concepts','Current Affairs Health','Starred Revision Health','Guessed Knowledge Health','Difficult Resolution','Lecture / Source Coverage'])ok(`progress: ${x}`,home.includes(x));
 ok('first-attempt metric is raw first-answer evidence',base.includes('distinct on (a.question_id)')&&base.includes('order by a.question_id,a.attempted_at,a.attempt_id'));
