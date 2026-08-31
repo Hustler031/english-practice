@@ -46,6 +46,8 @@
 :root[data-theme="dark"] .gk-booster-future{background:color-mix(in srgb,#1a2230 70%,#151b24)}
 :root[data-theme="light"] .gk-practice-teacher-hero{box-shadow:inset 3px 0 0 var(--primary),0 10px 24px rgba(42,51,70,.06)}
 :root[data-theme="light"] .gk-booster-future{background:#f8faff}
+:root[data-theme="light"] .gk-practice-teacher-actions a:first-child{color:#fff}
+:root[data-theme="light"] .gk-practice-teacher-actions a:first-child small{color:rgba(255,255,255,.86)}
 
 @media(max-width:520px){.gk-practice-prelude{padding:7px 12px 0}.gk-practice-heading h1{font-size:23px}.gk-practice-teacher-main{grid-template-columns:1fr;padding:14px 14px 11px}.gk-practice-teacher-open{justify-self:start}.gk-practice-teacher-actions{grid-template-columns:1fr;padding:0 11px 11px}.gk-practice-teacher-actions a{min-height:52px}.gk-booster-future{padding:12px}.gk-booster-slots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.gk-booster-slots span{text-align:center}}
 @media(prefers-reduced-motion:reduce){.gk-practice-teacher-actions a,.gk-practice-teacher-open{transition:none}}
