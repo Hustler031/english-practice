@@ -25,7 +25,7 @@ export default function RouteViewPage(){
  useEffect(()=>setConfig(queryConfig()),[]);
  const load=useCallback(async(nextStatus:string|null,nextCategory:string|null)=>{setLoading(true);setError("");try{const {data:out,error:e}=await supabaseBrowser().rpc("english_get_route_view",{p_route:config.route,p_origin:config.origin,p_status:nextStatus,p_category:nextCategory,p_limit:200,p_offset:0});if(e)throw e;setData(out as ViewData);}catch(e:any){setError(e.message||String(e));}finally{setLoading(false)}},[config]);
  useEffect(()=>{if(ready)void load(null,null);},[ready,load]);
- const backHref=config.route==="fast_track"?"/english/fast-track":config.origin==="From My Saved"?"/english/saved":config.origin==="From Starred"?"/english/starred":"/english/revision";
+ const backHref=config.origin==="From My Saved"?"/english/saved":config.origin==="From Starred"?"/english/starred":config.route==="fast_track"?"/english/fast-track":"/english/revision";
  const selectStatus=(value:string|null)=>{setStatus(value);setCategory(null);setShowItems(true);void load(value,null)};
  const selectCategory=(value:string|null)=>{setCategory(value);setStatus(null);setShowItems(true);void load(null,value)};
  const currentTitle=title(config.route,config.origin);
