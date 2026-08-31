@@ -3,7 +3,7 @@ name: Validate GK V2
 on:
   workflow_dispatch:
   push:
-    branches: [gk-v2-integration, gk-v2-final-intelligence]
+    branches: [gk-v2-integration, gk-v2-final-intelligence, gk-v2-lively-cache-freshness-polish]
     paths:
       - 'web-v2/**'
       - 'supabase/managed-migrations/**'
