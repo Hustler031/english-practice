@@ -1,0 +1,9 @@
+@media(max-width:420px){
+  .gk-shell-header{gap:6px}
+  .gk-shell-brand span{display:none}
+  .gk-shell-brand strong{font-size:.82rem}
+  .gk-shell-controls{gap:3px}
+  .gk-shell-intelligence{display:inline-flex;height:32px;padding:0 6px;font-size:.62rem;border-radius:9px}
+  .gk-shell-controls>a.gk-shell-intelligence:first-of-type{display:none}
+  .gk-shell-control{width:32px;height:32px;min-width:32px}
+}
