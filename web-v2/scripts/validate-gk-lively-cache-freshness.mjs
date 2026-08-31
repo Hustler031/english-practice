@@ -11,6 +11,7 @@ const sprint=read("app/gk/sprint/page.tsx");
 const layout=read("app/gk/layout.tsx");
 const lively=read("app/gk/gk-lively-polish.css");
 const nav=read("app/gk/gk-navigation-structure.css");
+const practice=read("app/gk/gk-practice-hierarchy.css");
 const explain=read("app/gk/gk-lively-quiz.module.css");
 const failures=[];
 const has=(label,text,needle)=>{if(!text.includes(needle))failures.push(`${label}: missing ${needle}`)};
@@ -62,8 +63,11 @@ has("Sprint structured renderer",sprint,'QuestionText text={q.question}');
 
 has("Lively stylesheet",layout,'./gk-lively-polish.css');
 has("Navigation stylesheet",layout,'./gk-navigation-structure.css');
-has("Teacher moved to Practice",layout,'gk-practice-teacher-entry');
+has("Practice hierarchy stylesheet",layout,'./gk-practice-hierarchy.css');
+has("Teacher primary Practice",layout,'gk-practice-teacher-hero');
+has("GPT Booster future lane",layout,'gk-booster-future');
 has("Dedicated bottom nav",layout,'gk-shell-bottomnav');
+lacks("No primary On Demand nav",layout,'["demand","◆","On Demand"');
 lacks("No duplicate Teacher header",layout,'href="/gk/teacher" className="gk-shell-intelligence"');
 lacks("No duplicate Progress header",layout,'href="/gk/intelligence" className="gk-shell-intelligence"');
 for(const token of ['var(--card)','var(--text)','var(--muted)','var(--line)','var(--primary)','var(--ok)','var(--bad)','var(--warn)'])has("Theme-safe lively CSS",lively,token);
@@ -73,6 +77,14 @@ has("Desktop nav clamp",nav,'width:min(700px,100%)');
 has("Sprint dock clamp",nav,'gk-sprint-dock');
 has("Progress folds CSS",nav,'gk-intel-fold');
 has("Assertion reason CSS",nav,'gk-sprint-questiontext');
+has("Theme-safe GK shell",practice,'background:color-mix(in srgb,var(--bg) 96%,transparent)');
+has("Four-item primary nav",practice,'repeat(4,minmax(0,1fr))');
+has("Legacy On Demand hidden",practice,'nth-child(4)');
+has("Compact secondary practice",practice,'Smart practice tools');
+has("Future Booster slots",practice,'Weakness Fix');
+has("Future Booster slots",practice,'Confusion Cards');
+has("Future Booster slots",practice,'Reverse Recall');
+has("Future Booster slots",practice,'Exam Traps');
 
 if(failures.length){console.error("GK lively/cache/freshness contracts FAILED\n- "+failures.join("\n- "));process.exit(1)}
 console.log("GK lively/cache/freshness contracts PASS");
