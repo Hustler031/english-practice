@@ -127,6 +127,12 @@ export default function MathsHome() {
   const pendingParts = (data.resume?.title ?? "Practice").split("·").map(x => x.trim()).filter(Boolean);
   const pendingTitle = pendingParts[0] || "Practice";
   const pendingSub = pendingParts.slice(1).join(" · ") || pretty(data.resume?.mode ?? "Practice");
+  const pendingMode = String(data.resume?.mode || "").toLowerCase();
+  const pendingTimed = pendingMode === "section_sprint"
+    || (pendingMode === "calculation_speed" && /10[- ]min calculation drill/i.test(String(data.resume?.title || "")));
+  const pendingHref = data.resume
+    ? `${pendingTimed ? "/maths/exam/session" : "/maths/session"}?id=${encodeURIComponent(data.resume.sessionId)}`
+    : "/maths";
   const daysLeft = Math.max(0, 30 - Math.max(1, data.studyDay) + 1);
 
   return <div className="m-home">
@@ -143,8 +149,8 @@ export default function MathsHome() {
         : <button className="m-hero-cta" type="button" disabled={busy} onClick={() => void start("maths_start_daily")}>{busy ? "Starting…" : daily.done > 0 || daily.sessionId ? `Continue Day ${data.studyDay} · ${daily.remaining} left` : `Start Day ${data.studyDay} · ${daily.remaining} left`}</button>}
     </section>
 
-    {data.resume && !data.resume.completed && <Link className="m-pending" href={`/maths/session?id=${encodeURIComponent(data.resume.sessionId)}`}>
-      <span><b>Pending · {pendingTitle}</b><small>{pendingSub}</small></span><i>›</i>
+    {data.resume && !data.resume.completed && <Link className="m-pending" href={pendingHref}>
+      <span><b>Pending · {pendingTitle}</b><small>{pendingTimed ? `${pendingSub} · timed session` : pendingSub}</small></span><i>›</i>
     </Link>}
 
     <section className="mex-home-row" aria-label="Maths Exam Preparation">
