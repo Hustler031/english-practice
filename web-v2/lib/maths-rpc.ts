@@ -153,7 +153,12 @@ export async function prefetchMathsPath(path:string){
 function scheduleMathsWarm(ms=1200){
   if(!browser())return;
   if(warmTimer)clearTimeout(warmTimer);
-  warmTimer=setTimeout(()=>{warmTimer=null;if(readOutbox().length){scheduleMathsWarm(1800);return;}void prefetchMathsCore();},Math.max(0,ms));
+  warmTimer=setTimeout(()=>{
+    warmTimer=null;
+    if(window.location.pathname.startsWith("/maths/session"))return;
+    if(readOutbox().length){scheduleMathsWarm(1800);return;}
+    void prefetchMathsCore();
+  },Math.max(0,ms));
 }
 
 function readOutbox():PendingWrite[]{if(!browser()||!activeOwnerId)return[];try{const x=JSON.parse(localStorage.getItem(outboxKey())||"[]");return Array.isArray(x)?x.filter(row=>row?.ownerId===activeOwnerId):[];}catch{return[];}}
