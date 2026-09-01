@@ -7,7 +7,11 @@ const exists=p=>fs.existsSync(path.join(root,p));
 const coach=read("components/maths-coach.tsx");
 const rpc=read("lib/maths-coach-rpc.ts");
 const layout=read("app/maths/layout.tsx");
+const home=read("app/maths/page.tsx");
+const calculation=read("app/maths/calculation/page.tsx");
+const session=read("app/maths/session/page.tsx");
 const progress=read("app/maths/progress/page.tsx");
+const readiness=read("app/maths/readiness/page.tsx");
 const pkg=JSON.parse(read("package.json"));
 const failures=[];
 const has=(label,text,needle)=>{if(!text.includes(needle))failures.push(`${label}: missing ${needle}`)};
@@ -16,9 +20,12 @@ for(const route of ["readiness","repair","approach","sprint","mixed"]){
   const p=`app/maths/${route}/page.tsx`;
   if(!exists(p))failures.push(`Coach route missing: ${p}`);
 }
-for(const replaced of ["app/maths/page.tsx","app/maths/calculation/page.tsx","app/maths/session/page.tsx"]){
-  if(!exists(replaced))failures.push(`Coach integration missing: ${replaced}`);
-}
+for(const [label,text] of [
+  ["Restored Maths home",home],
+  ["Restored Maths calculation",calculation],
+  ["Restored Maths session",session],
+  ["Restored Maths progress",progress],
+]) has(label,text,"MathsApp");
 for(const marker of [
   "Maths Performance Coach","Knowledge Readiness","Performance Readiness","Repair Queue",
   "10-Min Calculation Drill","25 Questions · 15 Minutes","Approach Cards","Mixed Practice",
@@ -34,8 +41,9 @@ for(const rpcName of [
 ]) has("Coach RPC",coach+rpc,rpcName);
 for(const marker of ["deadlineAt","formatClock","maths_finish_session","maths_submit_answer","p_client_attempt_key"]) has("Timer/session",coach,marker);
 for(const marker of ["mathsLocalSafe","coachCriticalWrites","maths_get_local_safe_start_v45"]) has("Local Safe",rpc,marker);
-has("Readiness-first Progress",progress,"MathsReadinessPage");
-has("Maths CSS",layout,'"./maths-coach.css"');
+has("Dedicated readiness route",readiness,"MathsReadinessPage");
+has("Maths coach CSS",layout,'"./maths-coach.css"');
+has("English-parity Maths CSS",layout,'"./maths-english-parity.css"');
 if(pkg.scripts?.["contracts:maths"]!=="node scripts/validate-maths-contracts.mjs && node scripts/validate-maths-coach.mjs")failures.push("package.json: contracts:maths must include coach validator");
 for(const file of [
   "20260831095812_maths_v2_performance_intelligence_foundation.sql",
