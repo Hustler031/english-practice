@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { MathsDiagram } from "@/components/maths-diagram";
 import { MathsLoading } from "@/components/maths-frame";
@@ -11,11 +11,12 @@ import {
   mathsErrorMessage,
   mathsLocalSafe,
   rememberMathsSession,
-  type MathsQuestion,
   type MathsSession,
 } from "@/lib/maths-rpc";
+import { supabaseBrowser } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
 
+type ExamMathsSession = MathsSession & { remainingSeconds?: number | null; expired?: boolean };
 type SprintAnalysis = {
   ok: boolean;
   score: number;
@@ -38,6 +39,8 @@ type SprintReviewItem = {
   answer: string;
   explanation: string;
   correctOption: string;
+  correctOptionText?: string | null;
+  selectedOptionText?: string | null;
   attemptId?: string | null;
   result: string;
   selectedOption?: string | null;
@@ -63,28 +66,66 @@ type CalcSummary = {
   elapsedSec: number;
   skills: { skill: string; attempted: number; accuracy: number; medianSec: number; baselineSec: number; band: string }[];
 };
+type AttemptResult = { ok?: boolean; expired?: boolean; message?: string; result: string; selectedOption?: string; attemptId?: string };
+type StoredSet = { exists: boolean; values: Set<number> };
 
-type AttemptResult = { result: string; selectedOption?: string; attemptId?: string };
 const diagnosis = ["CAL", "APP", "CON", "FOR", "SILLY", "TIME"] as const;
 const REVIEW_PREFIX = "maths:exam:review:";
 const VISITED_PREFIX = "maths:exam:visited:";
+const POSITION_PREFIX = "maths:exam:position:";
 
 function formatClock(seconds: number) {
   const s = Math.max(0, Math.ceil(seconds));
   return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
-function readIndexSet(prefix: string, id: string) {
-  if (typeof window === "undefined") return new Set<number>();
+function arraySet(value: unknown) {
+  const rows = Array.isArray(value) ? value : [];
+  return new Set<number>(rows.map(Number).filter(x => Number.isInteger(x) && x >= 0));
+}
+function readStoredSet(prefix: string, id: string): StoredSet {
+  if (typeof window === "undefined") return { exists: false, values: new Set<number>() };
   try {
-    const raw = JSON.parse(localStorage.getItem(prefix + id) || "[]");
-    return new Set<number>(Array.isArray(raw) ? raw.map(Number).filter(Number.isFinite) : []);
-  } catch { return new Set<number>(); }
+    const raw = localStorage.getItem(prefix + id);
+    if (raw == null) return { exists: false, values: new Set<number>() };
+    return { exists: true, values: arraySet(JSON.parse(raw)) };
+  } catch { return { exists: true, values: new Set<number>() }; }
 }
 function writeIndexSet(prefix: string, id: string, values: Set<number>) {
   try { localStorage.setItem(prefix + id, JSON.stringify([...values].sort((a, b) => a - b))); } catch {}
 }
-function clearRuntimeSets(id: string) {
-  try { localStorage.removeItem(REVIEW_PREFIX + id); localStorage.removeItem(VISITED_PREFIX + id); } catch {}
+function readStoredPosition(id: string) {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(POSITION_PREFIX + id);
+    if (raw == null) return null;
+    const value = Number(raw);
+    return Number.isInteger(value) && value >= 0 ? value : null;
+  } catch { return null; }
+}
+function writeStoredPosition(id: string, index: number) {
+  try { localStorage.setItem(POSITION_PREFIX + id, String(Math.max(0, Math.floor(index)))); } catch {}
+}
+function clearRuntimeState(id: string) {
+  try {
+    localStorage.removeItem(REVIEW_PREFIX + id);
+    localStorage.removeItem(VISITED_PREFIX + id);
+    localStorage.removeItem(POSITION_PREFIX + id);
+  } catch {}
+}
+function optionLabel(key?: string | null, text?: string | null) {
+  if (!key) return "—";
+  return text ? `${key}. ${text}` : key;
+}
+async function freshRpc<T>(name: string, args?: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabaseBrowser().rpc(name, args ?? {});
+  if (error) throw error;
+  return data as T;
+}
+async function freshExamSession(sessionId: string): Promise<ExamMathsSession> {
+  if (mathsLocalSafe()) return getMathsSession(sessionId) as Promise<ExamMathsSession>;
+  const session = await freshRpc<ExamMathsSession>("maths_get_session", { p_session_id: sessionId });
+  rememberMathsSession(session);
+  return session;
 }
 function ErrorBox({ error }: { error: string }) {
   return error ? <div className="mex-error" role="alert">{error}</div> : null;
@@ -116,8 +157,8 @@ function SprintResult({ session }: { session: MathsSession }) {
   const reload = useCallback(async () => {
     try {
       const [a, r] = await Promise.all([
-        mathsCoachRpc<SprintAnalysis>("maths_get_sprint_analysis", { p_session_id: session.sessionId }),
-        mathsCoachRpc<SprintReview>("maths_get_sprint_review", { p_session_id: session.sessionId }),
+        freshRpc<SprintAnalysis>("maths_get_sprint_analysis", { p_session_id: session.sessionId }),
+        freshRpc<SprintReview>("maths_get_sprint_review", { p_session_id: session.sessionId }),
       ]);
       setAnalysis(a);
       setReview(r);
@@ -134,7 +175,7 @@ function SprintResult({ session }: { session: MathsSession }) {
     try {
       await mathsCoachRpc("maths_confirm_diagnosis", { p_attempt_id: item.attemptId, p_reason: reason, p_confidence_response: null });
       setReview(prev => prev ? { ...prev, items: prev.items.map(x => x.questionId === item.questionId ? { ...x, confirmedReason: reason, finalReason: reason } : x) } : prev);
-      const fresh = await mathsCoachRpc<SprintAnalysis>("maths_get_sprint_analysis", { p_session_id: session.sessionId });
+      const fresh = await freshRpc<SprintAnalysis>("maths_get_sprint_analysis", { p_session_id: session.sessionId });
       setAnalysis(fresh);
     } catch (e: unknown) { setError(mathsErrorMessage(e, "Could not save diagnosis.")); }
     finally { setSaving(""); }
@@ -164,7 +205,7 @@ function SprintResult({ session }: { session: MathsSession }) {
         </button>
         {expanded && <div className="mex-review-detail">
           <p className="mex-review-question">{item.prompt}</p>
-          <div className="mex-answer-compare"><span>Selected <b>{item.selectedOption || "—"}</b></span><span>Correct <b>{item.correctOption || "—"}</b></span>{item.responseSec != null && <span>Time <b>{Number(item.responseSec).toFixed(1)}s</b>{item.baselineSec != null ? ` / ${Number(item.baselineSec).toFixed(1)}s baseline` : ""}</span>}</div>
+          <div className="mex-answer-compare"><span>Selected <b>{optionLabel(item.selectedOption, item.selectedOptionText)}</b></span><span>Correct <b>{optionLabel(item.correctOption, item.correctOptionText)}</b></span>{item.responseSec != null && <span>Time <b>{Number(item.responseSec).toFixed(1)}s</b>{item.baselineSec != null ? ` / ${Number(item.baselineSec).toFixed(1)}s baseline` : ""}</span>}</div>
           {item.answer && <div className="mex-review-copy"><b>Answer</b><p>{item.answer}</p></div>}
           {item.explanation && <div className="mex-review-copy"><b>Explanation</b><p>{item.explanation}</p></div>}
           {canDiagnose && <div className="mex-diagnosis"><span>Why did I miss/slow down?</span><div>{diagnosis.map(code => <button className={reason === code ? "active" : ""} type="button" disabled={!!saving} key={code} onClick={() => void confirm(item, code)}>{saving === item.questionId + code ? "…" : code}</button>)}</div></div>}
@@ -181,7 +222,7 @@ function CalculationResult({ session }: { session: MathsSession }) {
   const [error, setError] = useState("");
   useEffect(() => {
     let alive = true;
-    void mathsCoachRpc<CalcSummary>("maths_get_calculation_summary", { p_session_id: session.sessionId })
+    void freshRpc<CalcSummary>("maths_get_calculation_summary", { p_session_id: session.sessionId })
       .then(x => { if (alive) { setData(x); setError(""); } })
       .catch((e: unknown) => { if (alive) setError(mathsErrorMessage(e, "Could not build speed summary.")); });
     return () => { alive = false; };
@@ -206,10 +247,10 @@ function SessionResult({ session }: { session: MathsSession }) {
 }
 
 function QuestionMap({ session, index, review, visited, onJump, onClose }: { session: MathsSession; index: number; review: Set<number>; visited: Set<number>; onJump: (index: number) => void; onClose: () => void }) {
-  return <div className="mex-map-backdrop" role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}><section className="mex-map" role="dialog" aria-modal="true" aria-label="Question map"><header><div><span>QUESTION MAP</span><strong>{session.target} questions</strong></div><button type="button" onClick={onClose}>×</button></header><div className="mex-map-grid">{session.questions.slice(0, session.target).map((q, i) => {
+  return <div className="mex-map-backdrop" role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}><section className="mex-map" role="dialog" aria-modal="true" aria-label="Question map"><header><div><span>QUESTION MAP</span><strong>{session.target} questions</strong></div><button type="button" onClick={onClose} aria-label="Close question map">×</button></header><div className="mex-map-grid">{session.questions.slice(0, session.target).map((q, i) => {
     const attempt = session.attempts?.[q.questionId];
-    const state = attempt ? "answered" : review.has(i) ? "review" : visited.has(i) ? "visited" : "";
-    return <button type="button" className={`${state} ${i === index ? "current" : ""}`} key={`${q.questionId}-${i}`} onClick={() => onJump(i)}>{i + 1}</button>;
+    const state = review.has(i) ? "review" : attempt ? "answered" : visited.has(i) ? "visited" : "";
+    return <button type="button" className={`${state} ${i === index ? "current" : ""}`} key={`${q.questionId}-${i}`} onClick={() => onJump(i)} aria-label={`Question ${i + 1}, ${state || "not visited"}`}>{i + 1}</button>;
   })}</div><div className="mex-map-legend"><span><i className="answered"/>Answered</span><span><i className="review"/>Review</span><span><i className="visited"/>Visited</span></div></section></div>;
 }
 
@@ -217,7 +258,7 @@ function ExamSessionInner() {
   const ready = useAuthGuard();
   const search = useSearchParams();
   const sessionId = search.get("id") || "";
-  const [session, setSession] = useState<MathsSession | null>(null);
+  const [session, setSession] = useState<ExamMathsSession | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [remaining, setRemaining] = useState<number | null>(null);
@@ -227,19 +268,59 @@ function ExamSessionInner() {
   const [visited, setVisited] = useState<Set<number>>(() => new Set());
   const startedAt = useRef(Date.now());
   const finishing = useRef(false);
+  const checkpointChain = useRef<Promise<void>>(Promise.resolve());
+
+  const queueCheckpoint = useCallback((id: string, index: number, reviewSet: Set<number>, visitedSet: Set<number>) => {
+    if (!id) return Promise.resolve();
+    const task = checkpointChain.current
+      .catch(() => undefined)
+      .then(async () => {
+        await mathsCoachRpc("maths_exam_runtime_checkpoint", {
+          p_session_id: id,
+          p_index: index,
+          p_review: [...reviewSet].sort((a, b) => a - b),
+          p_visited: [...visitedSet].sort((a, b) => a - b),
+        });
+      });
+    checkpointChain.current = task.catch((e: unknown) => {
+      setError(mathsErrorMessage(e, "Your position is saved on this device; server checkpoint will retry on the next action."));
+    });
+    return checkpointChain.current;
+  }, []);
 
   const load = useCallback(async () => {
     if (!sessionId) throw new Error("Session ID is missing.");
-    const next = await getMathsSession(sessionId);
+    const fresh = await freshExamSession(sessionId);
+    if (fresh.completed) {
+      clearRuntimeState(sessionId);
+      setSession(fresh);
+      setError("");
+      return;
+    }
+
+    const max = Math.max(0, fresh.questions.length - 1);
+    const storedPosition = readStoredPosition(sessionId);
+    const restoredIndex = Math.max(0, Math.min(storedPosition ?? Number(fresh.currentIndex || 0), max));
+    const localReview = readStoredSet(REVIEW_PREFIX, sessionId);
+    const localVisited = readStoredSet(VISITED_PREFIX, sessionId);
+    const serverReview = arraySet(fresh.params?.examReview);
+    const serverVisited = arraySet(fresh.params?.examVisited);
+    const restoredReview = localReview.exists ? localReview.values : serverReview;
+    const restoredVisited = new Set<number>([...serverVisited, ...localVisited.values, restoredIndex]);
+    const next: ExamMathsSession = { ...fresh, currentIndex: restoredIndex };
+
     setSession(next);
+    setReview(restoredReview);
+    setVisited(restoredVisited);
+    setRemaining(fresh.remainingSeconds == null ? null : Number(fresh.remainingSeconds));
     startedAt.current = Date.now();
-    setReview(readIndexSet(REVIEW_PREFIX, sessionId));
-    const seen = readIndexSet(VISITED_PREFIX, sessionId);
-    seen.add(Math.max(0, Number(next.currentIndex || 0)));
-    setVisited(seen);
-    writeIndexSet(VISITED_PREFIX, sessionId, seen);
+    writeStoredPosition(sessionId, restoredIndex);
+    writeIndexSet(REVIEW_PREFIX, sessionId, restoredReview);
+    writeIndexSet(VISITED_PREFIX, sessionId, restoredVisited);
+    rememberMathsSession(next);
     setError("");
-  }, [sessionId]);
+    void queueCheckpoint(sessionId, restoredIndex, restoredReview, restoredVisited);
+  }, [sessionId, queueCheckpoint]);
 
   useEffect(() => { if (ready) void load().catch((e: unknown) => setError(mathsErrorMessage(e, "Could not restore Exam session."))); }, [ready, load]);
 
@@ -263,17 +344,20 @@ function ExamSessionInner() {
     setError("");
     setFinishOpen(false);
     try {
+      await checkpointChain.current.catch(() => undefined);
       await mathsCoachRpc("maths_finish_session", { p_session_id: session.sessionId });
-      const next = { ...session, completed: true };
+      const next: ExamMathsSession = { ...session, completed: true, expired: false };
       setSession(next);
       rememberMathsSession(next);
-      clearRuntimeSets(session.sessionId);
+      clearRuntimeState(session.sessionId);
     } catch (e: unknown) { setError(mathsErrorMessage(e, "Could not finish the timed session.")); }
     finally { setBusy(false); finishing.current = false; }
   }, [session, isSprint, unansweredCount]);
 
   useEffect(() => {
-    if (!timed || !deadlineAt || session?.completed) return;
+    if (!timed || session?.completed) return;
+    if (session?.expired) { void finish(true); return; }
+    if (!deadlineAt) return;
     const tick = () => {
       const seconds = Math.max(0, (Date.parse(deadlineAt) - Date.now()) / 1000);
       setRemaining(seconds);
@@ -282,30 +366,32 @@ function ExamSessionInner() {
     tick();
     const timer = window.setInterval(tick, 250);
     return () => window.clearInterval(timer);
-  }, [timed, deadlineAt, session?.completed, finish]);
+  }, [timed, deadlineAt, session?.completed, session?.expired, finish]);
 
   async function move(nextIndex: number, source = session!) {
     if (!source) return;
     const max = Math.max(0, source.questions.length - 1);
     const nextPosition = Math.max(0, Math.min(nextIndex, max));
     const next = { ...source, currentIndex: nextPosition };
+    const nextVisited = new Set(visited); nextVisited.add(nextPosition);
     setSession(next);
+    setVisited(nextVisited);
     rememberMathsSession(next);
+    writeStoredPosition(source.sessionId, nextPosition);
+    writeIndexSet(VISITED_PREFIX, source.sessionId, nextVisited);
     startedAt.current = Date.now();
-    setVisited(prev => {
-      const copy = new Set(prev); copy.add(nextPosition); writeIndexSet(VISITED_PREFIX, source.sessionId, copy); return copy;
-    });
-    try {
-      await mathsCoachRpc("maths_save_session_position", { p_session_id: source.sessionId, p_index: nextPosition });
-      if (isTimedCalc && !mathsLocalSafe() && source.questions.length - nextPosition <= 5 && (remaining ?? 1) > 20) {
-        const refilled = await mathsCoachRpc<MathsSession>("maths_refill_calculation_session", { p_session_id: source.sessionId, p_count: 20 });
+    void queueCheckpoint(source.sessionId, nextPosition, review, nextVisited);
+
+    if (isTimedCalc && !mathsLocalSafe() && source.questions.length - nextPosition <= 5 && (remaining ?? 1) > 20) {
+      try {
+        const refilled = await mathsCoachRpc<ExamMathsSession>("maths_refill_calculation_session", { p_session_id: source.sessionId, p_count: 20 });
         if (refilled?.questions?.length > next.questions.length) {
           const merged = { ...refilled, currentIndex: nextPosition };
           setSession(merged);
           rememberMathsSession(merged);
         }
-      }
-    } catch (e: unknown) { setError(mathsErrorMessage(e, "Could not save question position.")); }
+      } catch (e: unknown) { setError(mathsErrorMessage(e, "Could not refill the calculation stream.")); }
+    }
   }
 
   async function answer(option?: string) {
@@ -322,11 +408,15 @@ function ExamSessionInner() {
         p_response_sec: Number(elapsed.toFixed(1)),
         p_client_attempt_key: clientKey,
       });
-      const next: MathsSession = {
+      if (out.expired || out.ok === false) {
+        if (out.expired) { await load(); return; }
+        throw new Error(out.message || "Could not save this answer.");
+      }
+      const next: ExamMathsSession = {
         ...session,
         attempts: {
           ...(session.attempts ?? {}),
-          [q.questionId]: { result: out.result, selectedOption: out.selectedOption ?? option ?? "", responseSec: elapsed, attemptId: out.attemptId ?? clientKey },
+          [q.questionId]: { result: out.result || "saved", selectedOption: out.selectedOption ?? option ?? "", responseSec: elapsed, attemptId: out.attemptId ?? clientKey },
         },
       };
       setSession(next);
@@ -338,12 +428,11 @@ function ExamSessionInner() {
 
   function toggleReview() {
     if (!session) return;
-    setReview(prev => {
-      const next = new Set(prev);
-      if (next.has(index)) next.delete(index); else next.add(index);
-      writeIndexSet(REVIEW_PREFIX, session.sessionId, next);
-      return next;
-    });
+    const next = new Set(review);
+    if (next.has(index)) next.delete(index); else next.add(index);
+    setReview(next);
+    writeIndexSet(REVIEW_PREFIX, session.sessionId, next);
+    void queueCheckpoint(session.sessionId, index, next, visited);
   }
 
   if (!ready) return <MathsLoading text="Checking Maths session…" />;
