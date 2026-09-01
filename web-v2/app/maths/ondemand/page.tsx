@@ -1,3 +1,3 @@
-import MathsApp from "@/components/maths-app";
+import MathsOnDemandClean from "@/components/maths-ondemand-clean";
 
-export default function MathsPage(){return <MathsApp/>;}
+export default function MathsOnDemandPage(){return <MathsOnDemandClean/>;}
