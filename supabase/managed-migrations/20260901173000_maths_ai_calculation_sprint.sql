@@ -47,11 +47,10 @@ begin
   insert into maths.calculation_ai_usage(user_id,request_group,request_type,model,input_tokens,output_tokens,reasoning_tokens,total_tokens,response_id,session_id,metadata)
   values(uid,p_request_group,coalesce(p_request_type,'unknown'),coalesce(p_model,'unknown'),greatest(0,coalesce(p_input_tokens,0)),greatest(0,coalesce(p_output_tokens,0)),greatest(0,coalesce(p_reasoning_tokens,0)),greatest(0,coalesce(p_total_tokens,0)),p_response_id,p_session_id,coalesce(p_metadata,'{}'::jsonb));
   return jsonb_build_object('ok',true);
-end
+end;
 $$;
 grant execute on function public.maths_log_calculation_ai_usage(uuid,text,text,integer,integer,integer,integer,text,text,jsonb) to authenticated;
 
--- Generated items carry their own expected-time baseline.
 create or replace function maths._baseline_sec(p_uid uuid,p_question_id text,p_before timestamptz default now())
 returns numeric
 language plpgsql
@@ -99,7 +98,7 @@ begin
   ) x;
   if n_>=8 and med_ is not null then return greatest(3,med_); end if;
   return fallback_;
-end
+end;
 $$;
 
 create or replace function maths._calculation_ids(p_uid uuid,p_count integer,p_skill text default null)
@@ -176,7 +175,7 @@ begin
     'todayFocus',coalesce((select jsonb_agg(skill order by leakage desc,skill) from focus),'[]'::jsonb)
   ) into body from c;
   return body;
-end
+end;
 $$;
 grant execute on function public.maths_get_calculation_hub() to authenticated;
 
@@ -220,7 +219,7 @@ begin
     'skills',skills,'seedPatterns',seeds,'recentGenerated',recent,
     'qualityContract',jsonb_build_object('minQuality',0.90,'fourOptions',true,'oneDefensibleAnswer',true,'noPYQClaim',true,'moderateHardOnly',true)
   );
-end
+end;
 $$;
 grant execute on function public.maths_get_calculation_generation_context(text) to authenticated;
 
@@ -231,24 +230,64 @@ security definer
 set search_path to 'pg_catalog','public','maths'
 as $$
 declare
-  qid text:='CAI_'||replace(gen_random_uuid()::text,'-',''); skill_ text; pattern_ text; correct_ text;
-  oa text;ob text;oc text;od text;answer_ text; expected_ numeric; quality_ numeric;
+  qid text:='CAI_'||replace(gen_random_uuid()::text,'-','');
+  skill_ text;
+  pattern_ text;
+  correct_ text;
+  oa text;
+  ob text;
+  oc text;
+  od text;
+  answer_ text;
+  expected_ numeric;
+  quality_ numeric;
+  expected_answer_ text;
+  option_count_ integer;
 begin
-  if p_item is null or jsonb_typeof(p_item)<>'object' then raise exception 'Invalid generated calculation item'; end if;
-  if jsonb_typeof(p_item->'options')<>'array' or jsonb_array_length(p_item->'options')<>4 then raise exception 'Generated calculation item must have four options'; end if;
-  skill_:=nullif(btrim(p_item->>'skill'),''); pattern_:=nullif(btrim(p_item->>'patternKey'),'');
-  correct_:=upper(coalesce(p_item->>'correctKey','')); answer_:=nullif(btrim(p_item->>'answerText'),'');
-  expected_:=coalesce(nullif(p_item->>'expectedSec','')::numeric,0); quality_:=coalesce(nullif(p_item->>'qualityScore','')::numeric,0);
-  if skill_ is null or pattern_ is null or nullif(btrim(p_item->>'question'),'') is null then raise exception 'Generated calculation item is incomplete'; end if;
-  if correct_ not in('A','B','C','D') then raise exception 'Generated calculation correct key is invalid'; end if;
-  if expected_ not between 3 and 60 or quality_<.90 then raise exception 'Generated calculation quality contract failed'; end if;
-  select max(o->>'text') filter(where upper(o->>'key')='A'),max(o->>'text') filter(where upper(o->>'key')='B'),
-         max(o->>'text') filter(where upper(o->>'key')='C'),max(o->>'text') filter(where upper(o->>'key')='D')
-  into oa,ob,oc,od from jsonb_array_elements(p_item->'options') o;
-  if oa is null or ob is null or oc is null or od is null or cardinality(array(select distinct x from unnest(array[oa,ob,oc,od]) x))<>4 then
+  if p_item is null or jsonb_typeof(p_item)<>'object' then
+    raise exception 'Invalid generated calculation item';
+  end if;
+  if jsonb_typeof(p_item->'options')<>'array' or jsonb_array_length(p_item->'options')<>4 then
+    raise exception 'Generated calculation item must have four options';
+  end if;
+
+  skill_:=nullif(btrim(p_item->>'skill'),'');
+  pattern_:=nullif(btrim(p_item->>'patternKey'),'');
+  correct_:=upper(coalesce(p_item->>'correctKey',''));
+  answer_:=nullif(btrim(p_item->>'answerText'),'');
+  expected_:=coalesce(nullif(p_item->>'expectedSec','')::numeric,0);
+  quality_:=coalesce(nullif(p_item->>'qualityScore','')::numeric,0);
+
+  if skill_ is null or pattern_ is null or nullif(btrim(p_item->>'question'),'') is null then
+    raise exception 'Generated calculation item is incomplete';
+  end if;
+  if correct_ not in('A','B','C','D') then
+    raise exception 'Generated calculation correct key is invalid';
+  end if;
+  if expected_<3 or expected_>60 or quality_<.90 then
+    raise exception 'Generated calculation quality contract failed';
+  end if;
+
+  select
+    max(o->>'text') filter(where upper(o->>'key')='A'),
+    max(o->>'text') filter(where upper(o->>'key')='B'),
+    max(o->>'text') filter(where upper(o->>'key')='C'),
+    max(o->>'text') filter(where upper(o->>'key')='D'),
+    count(distinct o->>'text')
+  into oa,ob,oc,od,option_count_
+  from jsonb_array_elements(p_item->'options') o;
+
+  if oa is null or ob is null or oc is null or od is null or option_count_<>4 then
     raise exception 'Generated calculation options are invalid';
   end if;
-  if answer_ is null or answer_<>case correct_ when 'A' then oa when 'B' then ob when 'C' then oc else od end then
+
+  expected_answer_:=case correct_
+    when 'A' then oa
+    when 'B' then ob
+    when 'C' then oc
+    else od
+  end;
+  if answer_ is null or answer_<>expected_answer_ then
     raise exception 'Generated calculation answer does not match correct option';
   end if;
 
@@ -264,7 +303,7 @@ begin
   insert into maths.generated_calculation_meta(question_id,skill,pattern_key,expected_sec,quality_score,trap_tested,verification,generation_id)
   values(qid,skill_,pattern_,expected_,quality_,coalesce(p_item->>'trapTested',''),coalesce(p_item->>'verification',''),p_generation_id);
   return qid;
-end
+end;
 $$;
 
 create or replace function public.maths_create_ai_calculation_session(p_items jsonb,p_generation_id uuid default gen_random_uuid())
@@ -291,7 +330,7 @@ begin
     'mode','timed','durationSec',600,'calculationTimed',true,'aiGenerated',true,'qualityControlled',true,
     'refillBatch',16,'examPrep',true,'examPrepDay',coalesce((state_->>'day')::int,1),'generationId',p_generation_id::text
   ),false);
-end
+end;
 $$;
 grant execute on function public.maths_create_ai_calculation_session(jsonb,uuid) to authenticated;
 
@@ -322,11 +361,10 @@ begin
   update maths.sessions set rendered_questions=coalesce(rendered_questions,'[]'::jsonb)||rendered,updated_at=now()
   where session_id=p_session_id and user_id=uid;
   return maths._get_session(uid,p_session_id);
-end
+end;
 $$;
 grant execute on function public.maths_append_ai_calculation_items(text,jsonb,uuid) to authenticated;
 
--- Legacy refill must never mix the old calculation bank into an AI-quality Sprint.
 create or replace function public.maths_refill_calculation_session(p_session_id text,p_count integer default 20)
 returns jsonb
 language plpgsql
@@ -348,7 +386,7 @@ begin
   rendered:=maths._render_questions(uid,ids,false);
   update maths.sessions set rendered_questions=coalesce(rendered_questions,'[]'::jsonb)||rendered,updated_at=now() where session_id=p_session_id and user_id=uid;
   return maths._get_session(uid,p_session_id);
-end
+end;
 $$;
 
 create or replace function public.maths_abandon_exam_session(p_session_id text)
@@ -367,7 +405,7 @@ begin
   update maths.sessions set completed=true,updated_at=now(),params=coalesce(params,'{}'::jsonb)||jsonb_build_object('abandoned',true,'abandonedAt',now()::text,'finishedAt',now()::text)
   where session_id=p_session_id and user_id=uid;
   return jsonb_build_object('ok',true,'abandoned',true,'sessionId',p_session_id);
-end
+end;
 $$;
 grant execute on function public.maths_abandon_exam_session(text) to authenticated;
 
@@ -394,11 +432,10 @@ begin
     'expired',coalesce(remaining_<=0,false),'aiGenerated',coalesce(s.params->>'aiGenerated','false')='true',
     'review',coalesce(s.params->'examReview','[]'::jsonb),'visited',coalesce(s.params->'examVisited','[]'::jsonb)
   );
-end
+end;
 $$;
 grant execute on function public.maths_get_active_exam_session() to authenticated;
 
--- New Exam Prep Standard Sprints are explicitly tagged; abandoned/pre-Exam-Prep sessions do not affect readiness.
 create or replace function public.maths_start_sprint(p_diagnostic boolean default false)
 returns jsonb
 language plpgsql
@@ -422,7 +459,7 @@ begin
     'examMode',true,'examPrep',true,'examPrepDay',coalesce((state_->>'day')::int,1),'academicOnly',true,
     'freshnessPolicy','served_or_attempted','coolingHours',48
   ),false);
-end
+end;
 $$;
 grant execute on function public.maths_start_sprint(boolean) to authenticated;
 
@@ -452,5 +489,5 @@ begin
     'scores',coalesce(jsonb_agg(jsonb_build_object('score',score,'at',created_at) order by created_at),'[]'::jsonb)
   ) into out_ from last_sprints;
   return coalesce(out_,jsonb_build_object('count',0));
-end
+end;
 $$;
