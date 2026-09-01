@@ -23,6 +23,7 @@ import "./exam-final-polish.css";
 import "./sprint-report-history.css";
 import "./sprint-subject-bank.css";
 import "./route-context-compact-fix.css";
+import "./exam-ui-followup.css";
 
 export const metadata: Metadata = {
   title: "English Mastery",

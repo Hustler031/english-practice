@@ -5,6 +5,7 @@ import { learnerErrorMessage, rpc, subscribeRpcFresh } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
 
 type Mode="standard"|"weakness"|"trap"|"mistakes";
+type Filter="all"|"correct"|"wrong"|"unanswered";
 type Recent={sessionId:string;mode:string;score:number;maxMarks?:number;questionCount?:number;correct:number;wrong:number;unanswered:number;accuracy:number;durationSeconds:number;completedAt:string};
 type RecentPayload={ok:boolean;days?:number;items?:Recent[];error?:string};
 type ExamFallback={ok?:boolean;recentSprints?:Recent[]};
@@ -23,6 +24,7 @@ export default function SprintReportHistory(){
   const[opening,setOpening]=useState("");
   const[session,setSession]=useState<SprintSession|null>(null);
   const[error,setError]=useState("");
+  const[expanded,setExpanded]=useState(true);
 
   const load=useCallback(async()=>{
     if(!ready)return;
@@ -84,18 +86,23 @@ export default function SprintReportHistory(){
 
   if(!ready)return null;
   return <>
-    <section className="sprint-report-history" aria-label="Recent Sprint reports">
-      <header><div><strong>Sprint Reports</strong><span>Completed attempts stay reviewable for 5 days</span></div><b>5 days</b></header>
-      {error&&<div className="compact-error sprint-report-error" role="alert">{error}</div>}
-      {loading&&!reports.length?<div className="sprint-report-skeleton" aria-label="Loading recent reports"><i/><i/><i/></div>:
-      reports.length?<div className="sprint-history-list">{reports.map((report,index)=>{
-        const day=reportDayLabel(report.completedAt);
-        const title=day==="Today"&&index===0?"Today's Sprint":day;
-        return <button type="button" key={report.sessionId} className="sprint-history-row" disabled={opening===report.sessionId} onClick={()=>void openReport(report)}>
-          <span className="sprint-history-copy"><strong>{title}</strong><small>{labelMode(report.mode)} · {reportClock(report.completedAt)} · {formatTime(report.durationSeconds)}</small><em><i className="correct"/> {report.correct} correct <i className="wrong"/> {report.wrong} wrong {report.unanswered>0&&<><i className="unanswered"/> {report.unanswered} blank</>}</em></span>
-          <span className="sprint-history-score"><b>{formatScore(report.score)}</b><small>/{report.maxMarks??modeMaxMarks(report.mode,report.questionCount)}</small><i>›</i></span>
-        </button>
-      })}</div>:<p className="sprint-history-empty">No completed Sprint in the last 5 days yet.</p>}
+    <section className={`sprint-report-history ${expanded?"is-expanded":"is-collapsed"}`} aria-label="Recent Sprint reports">
+      <header>
+        <div><strong>Sprint Reports</strong><span>Completed attempts stay reviewable for 5 days</span></div>
+        <button className="sprint-section-collapse" type="button" aria-expanded={expanded} aria-label={`${expanded?"Collapse":"Expand"} Sprint Reports`} onClick={()=>setExpanded(x=>!x)}><b>5 days</b><i>{expanded?"⌃":"⌄"}</i></button>
+      </header>
+      {expanded&&<>
+        {error&&<div className="compact-error sprint-report-error" role="alert">{error}</div>}
+        {loading&&!reports.length?<div className="sprint-report-skeleton" aria-label="Loading recent reports"><i/><i/><i/></div>:
+        reports.length?<div className="sprint-history-list">{reports.map((report,index)=>{
+          const day=reportDayLabel(report.completedAt);
+          const title=day==="Today"&&index===0?"Today's Sprint":day;
+          return <button type="button" key={report.sessionId} className="sprint-history-row" disabled={opening===report.sessionId} onClick={()=>void openReport(report)}>
+            <span className="sprint-history-copy"><strong>{title}</strong><small>{labelMode(report.mode)} · {reportClock(report.completedAt)} · {formatTime(report.durationSeconds)}</small><em><i className="correct"/> {report.correct} correct <i className="wrong"/> {report.wrong} wrong {report.unanswered>0&&<><i className="unanswered"/> {report.unanswered} blank</>}</em></span>
+            <span className="sprint-history-score"><b>{formatScore(report.score)}</b><small>/{report.maxMarks??modeMaxMarks(report.mode,report.questionCount)}</small><i>›</i></span>
+          </button>
+        })}</div>:<p className="sprint-history-empty">No completed Sprint in the last 5 days yet.</p>}
+      </>}
     </section>
     {session&&<SprintReportOverlay session={session} onClose={()=>{setSession(null);void load()}}/>}
   </>;
@@ -103,6 +110,7 @@ export default function SprintReportHistory(){
 
 function SprintReportOverlay({session,onClose}:{session:SprintSession;onClose:()=>void}){
   const[selectedPosition,setSelectedPosition]=useState<number|null>(null);
+  const[filter,setFilter]=useState<Filter>("all");
   const diagnosis=useMemo(()=>Array.isArray(session.result?.analysis?.items)?session.result!.analysis!.items!:[],[session.result?.analysis]);
   const diagnosisMap=useMemo(()=>new Map(diagnosis.map(x=>[x.position,x])),[diagnosis]);
   const diagnosisCounts=useMemo(()=>{
@@ -110,12 +118,13 @@ function SprintReportOverlay({session,onClose}:{session:SprintSession;onClose:()
     for(const item of diagnosis)counts.set(item.diagnosis,(counts.get(item.diagnosis)||0)+1);
     return [...counts.entries()].sort((a,b)=>b[1]-a[1]);
   },[diagnosis]);
-  const selectedIndex=selectedPosition==null?-1:session.items.findIndex(x=>x.position===selectedPosition);
-  const selectedItem=selectedIndex>=0?session.items[selectedIndex]:null;
+  const filteredItems=useMemo(()=>filter==="all"?session.items:session.items.filter(item=>itemStatus(item)===filter),[filter,session.items]);
+  const selectedIndex=selectedPosition==null?-1:filteredItems.findIndex(x=>x.position===selectedPosition);
+  const selectedItem=selectedIndex>=0?filteredItems[selectedIndex]:null;
   const result=session.result;
   const maxMarks=result?.maxMarks??session.questionCount*2;
 
-  if(selectedItem)return <div className="sprint-report-overlay"><ReviewQuestion item={selectedItem} diagnosis={diagnosisFor(selectedItem,diagnosisMap)} index={selectedIndex} count={session.items.length} onBack={()=>setSelectedPosition(null)} onPrev={()=>selectedIndex>0&&setSelectedPosition(session.items[selectedIndex-1].position)} onNext={()=>selectedIndex<session.items.length-1&&setSelectedPosition(session.items[selectedIndex+1].position)}/></div>;
+  if(selectedItem)return <div className="sprint-report-overlay"><ReviewQuestion item={selectedItem} diagnosis={diagnosisFor(selectedItem,diagnosisMap)} index={selectedIndex} count={session.items.length} onBack={()=>setSelectedPosition(null)} onPrev={()=>selectedIndex>0&&setSelectedPosition(filteredItems[selectedIndex-1].position)} onNext={()=>selectedIndex<filteredItems.length-1&&setSelectedPosition(filteredItems[selectedIndex+1].position)}/></div>;
 
   return <div className="sprint-report-overlay"><main className="sprint-report-page">
     <header className="module-compact-head sprint-report-head"><button className="compact-back" type="button" onClick={onClose}>← Exam Prep</button><div className="compact-head-copy"><strong>Sprint Report</strong><span>{reportDayLabel(session.completedAt||session.startedAt)} · {labelMode(session.mode)}</span></div><span/></header>
@@ -130,14 +139,21 @@ function SprintReportOverlay({session,onClose}:{session:SprintSession;onClose:()
       <ReportMetric tone="time" label="Time" value={formatTime(result?.durationSeconds??0)}/>
     </section>
 
+    <section className="sprint-report-filter-bar" aria-label="Filter Sprint questions by result">
+      <FilterChip label="All" count={session.items.length} active={filter==="all"} onClick={()=>setFilter("all")}/>
+      <FilterChip tone="correct" label="Correct" count={result?.correct??session.items.filter(x=>itemStatus(x)==="correct").length} active={filter==="correct"} onClick={()=>setFilter("correct")}/>
+      <FilterChip tone="wrong" label="Wrong" count={result?.wrong??session.items.filter(x=>itemStatus(x)==="wrong").length} active={filter==="wrong"} onClick={()=>setFilter("wrong")}/>
+      <FilterChip tone="unanswered" label="Unanswered" count={result?.unanswered??session.items.filter(x=>itemStatus(x)==="unanswered").length} active={filter==="unanswered"} onClick={()=>setFilter("unanswered")}/>
+    </section>
+
     <section className="sprint-diagnostic-summary"><header><strong>Performance signals</strong><span>{diagnosisCounts.length?"From saved mistake analysis":"No diagnostic flags saved"}</span></header>{diagnosisCounts.length?<div>{diagnosisCounts.map(([name,count])=><span key={name} className={`diagnostic-chip ${diagnosisTone(name)}`}><b>{count}</b>{name}</span>)}</div>:<p>Correct / wrong / unanswered evidence is still fully available below.</p>}</section>
 
-    <section className="sprint-report-question-list"><header><strong>Questions</strong><span>Tap any question to review it like the quiz</span></header>{session.items.map(item=>{
+    <section className="sprint-report-question-list"><header><strong>{filter==="all"?"Questions":`${statusLabel(filter)} Questions`}</strong><span>{filteredItems.length} shown · tap any question to review it like the quiz</span></header>{filteredItems.length?filteredItems.map(item=>{
       const status=itemStatus(item);const d=diagnosisFor(item,diagnosisMap);
       return <button type="button" key={item.position} className={`sprint-report-question-row ${status}`} onClick={()=>setSelectedPosition(item.position)}>
         <span className="report-q-number">Q{item.position}</span><span className="report-q-copy"><strong>{item.question}</strong><small>{pretty(item.category)}{Number(item.timeSeconds)>0?` · ${formatQuestionTime(Number(item.timeSeconds))}`:""}{d?` · ${d.diagnosis}`:""}</small></span><span className="report-q-state">{statusLabel(status)}<i>›</i></span>
       </button>
-    })}</section>
+    }):<p className="sprint-report-filter-empty">No {filter} questions in this Sprint.</p>}</section>
   </main></div>;
 }
 
@@ -162,9 +178,10 @@ function ReviewQuestion({item,diagnosis,index,count,onBack,onPrev,onNext}:{item:
 }
 
 function ReportMetric({tone,label,value}:{tone:string;label:string;value:string|number}){return <div className={`sprint-report-metric ${tone}`}><span>{label}</span><strong>{value}</strong></div>}
+function FilterChip({tone="all",label,count,active,onClick}:{tone?:string;label:string;count:number;active:boolean;onClick:()=>void}){return <button type="button" className={`sprint-report-filter-chip ${tone} ${active?"active":""}`} aria-pressed={active} onClick={onClick}><span>{label}</span><b>{count}</b></button>}
 function diagnosisFor(item:SprintItem,map:Map<number,Diagnosis>){const saved=map.get(item.position);if(saved)return saved;if(!item.diagnosis)return undefined;return {position:item.position,diagnosis:item.diagnosis,action:item.action||"Review",confusedWith:item.confusedWith||undefined}}
 function itemStatus(item:SprintItem){if(!item.selectedKey)return "unanswered";return item.selectedKey===item.correctKey?"correct":"wrong"}
-function statusLabel(status:string){return status==="correct"?"Correct":status==="wrong"?"Wrong":"Unanswered"}
+function statusLabel(status:string){return status==="correct"?"Correct":status==="wrong"?"Wrong":status==="unanswered"?"Unanswered":"All"}
 function diagnosisTone(name:string){return /careless|misread|time pressure/i.test(name)?"execution":/confusion|distractor/i.test(name)?"confusion":/knowledge|rule/i.test(name)?"learning":"neutral"}
 function labelMode(mode:string){return modeLabel[mode as Mode]||pretty(mode)}
 function modeMaxMarks(mode:string,count?:number){const fallback=mode==="standard"?25:mode==="mistakes"?10:15;return (count??fallback)*2}
