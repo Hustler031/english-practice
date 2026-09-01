@@ -39,7 +39,7 @@ export default function LearningRouteContext(){
  if(!data&&error)return null;
  if(!data)return <div className="route-context route-context-loading" aria-label="Loading learning route status"><i/><i/><i/></div>;
 
- if(path==="/english/progress")return <section className="route-context route-context-compact" aria-label="FAST TRACK: Proven, Retention Watch, Ready to Verify, Targeted Recovery">
+ if(path==="/english/progress")return <section className="route-context route-context-compact" aria-label="FAST TRACK MASTERY: Total Routed, Ready to Verify, Retention Watch, Proven, Targeted Recovery">
   <span className="route-context-label">Routes</span>
   <Link className="route-context-chip" href="/english/fast-track" title={`${data.fastTrack.total} total Fast Track items`}><b>{data.fastTrack.mastered}</b><small>Proven</small></Link>
   <Link className="route-context-chip" href="/english/fast-track" title={`${data.fastTrack.retentionDue} spaced retention checks are due now`}><b>{data.fastTrack.retentionWatch}</b><small>Retention</small></Link>
