@@ -38,6 +38,18 @@ const readInflight=new Map<string,Promise<unknown>>();
 
 function browser(){return typeof window!=="undefined";}
 function loopback(host:string){const x=host.toLowerCase();return x==="localhost"||x==="127.0.0.1"||x==="::1"||x==="[::1]";}
+export function mathsErrorMessage(error:unknown,fallback="Maths request failed. Please retry."){
+  if(error instanceof Error)return error.message||fallback;
+  if(typeof error==="string"&&error.trim())return error.trim();
+  if(error&&typeof error==="object"){
+    const row=error as Record<string,unknown>;
+    const parts=[row.message,row.details,row.hint]
+      .map(value=>typeof value==="string"?value.trim():"")
+      .filter(Boolean);
+    if(parts.length)return [...new Set(parts)].join(" · ");
+  }
+  return fallback;
+}
 export function mathsLocalSafe(){
   if(!browser()||!loopback(window.location.hostname))return false;
   const url=process.env.NEXT_PUBLIC_SUPABASE_URL;if(!url)return false;
@@ -61,7 +73,7 @@ function setOwner(id:string){
 }
 async function ensureOwner(){
   if(activeOwnerId)return activeOwnerId;if(ownerCheck)return ownerCheck;
-  ownerCheck=(async()=>{const {data,error}=await supabaseBrowser().auth.getSession();if(error)throw error;const id=data.session?.user.id??"";if(!id)throw new Error("Maths requires an authenticated session.");setOwner(id);return id;})().finally(()=>{ownerCheck=null;});
+  ownerCheck=(async()=>{const {data,error}=await supabaseBrowser().auth.getSession();if(error)throw new Error(mathsErrorMessage(error,"Could not verify Maths sign-in. Please refresh or sign in again."));const id=data.session?.user.id??"";if(!id)throw new Error("Maths session expired. Please sign in again.");setOwner(id);return id;})().finally(()=>{ownerCheck=null;});
   return ownerCheck;
 }
 function readCache<T>(name:string,args?:RpcArgs):T|undefined{
@@ -88,7 +100,7 @@ function localMutation<T>(name:string,args:RpcArgs):T{
 }
 async function networkRpc<T>(name:string,args?:RpcArgs):Promise<T>{
   let timer:ReturnType<typeof setTimeout>|undefined;
-  try{const result=await Promise.race([supabaseBrowser().rpc(name,args??{}),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error(`${name} timed out. Please retry.`)),RPC_TIMEOUT_MS);})]);if(result.error)throw result.error;return result.data as T;}
+  try{const result=await Promise.race([supabaseBrowser().rpc(name,args??{}),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error(`${name} timed out. Please retry.`)),RPC_TIMEOUT_MS);})]);if(result.error)throw new Error(mathsErrorMessage(result.error,`${name} failed. Please retry.`));return result.data as T;}
   finally{if(timer)clearTimeout(timer);}
 }
 function networkRead<T>(name:string,args?:RpcArgs):Promise<T>{const key=cacheKey(name,args);const existing=readInflight.get(key);if(existing)return existing as Promise<T>;const request=networkRpc<T>(name,args).finally(()=>readInflight.delete(key));readInflight.set(key,request);return request;}
@@ -111,7 +123,7 @@ function queueMutation<T>(name:string,args:RpcArgs):T{
 }
 async function flushMathsOutbox(){
   if(!browser()||outboxRunning||!navigator.onLine||mathsLocalSafe())return;const rows=readOutbox();if(!rows.length)return;const now=Date.now();const item=rows.find(x=>x.nextAt<=now);if(!item){schedule(Math.min(60000,Math.max(500,Math.min(...rows.map(x=>x.nextAt))-now)));return;}outboxRunning=true;
-  try{try{const result=await networkRpc(item.name,item.args);writeOutbox(readOutbox().filter(x=>x.id!==item.id));window.dispatchEvent(new CustomEvent("maths:v2-write-durable",{detail:{id:item.id,name:item.name,result}}));invalidateMathsCaches();}catch(e){const latest=readOutbox();const hit=latest.find(x=>x.id===item.id);if(hit){hit.tries++;hit.lastError=e instanceof Error?e.message:String(e);hit.nextAt=Date.now()+BACKOFF[Math.min(BACKOFF.length-1,Math.max(0,hit.tries-1))];writeOutbox(latest);}}}finally{outboxRunning=false;if(readOutbox().length)schedule(250);}
+  try{try{const result=await networkRpc(item.name,item.args);writeOutbox(readOutbox().filter(x=>x.id!==item.id));window.dispatchEvent(new CustomEvent("maths:v2-write-durable",{detail:{id:item.id,name:item.name,result}}));invalidateMathsCaches();}catch(e){const latest=readOutbox();const hit=latest.find(x=>x.id===item.id);if(hit){hit.tries++;hit.lastError=mathsErrorMessage(e,"Maths write failed.");hit.nextAt=Date.now()+BACKOFF[Math.min(BACKOFF.length-1,Math.max(0,hit.tries-1))];writeOutbox(latest);}}}finally{outboxRunning=false;if(readOutbox().length)schedule(250);}
 }
 async function flushMathsWritesBeforeFinish(){
   if(!browser()||mathsLocalSafe())return;
