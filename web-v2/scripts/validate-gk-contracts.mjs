@@ -3,7 +3,10 @@ import path from 'node:path';
 
 const root=process.cwd();
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
-const home=read('app/gk/page.tsx');
+const entry=read('app/gk/page.tsx');
+const legacyPath='app/gk/legacy-page.tsx';
+const home=fs.existsSync(path.join(root,legacyPath))?read(legacyPath):entry;
+const homeV2=fs.existsSync(path.join(root,'components/gk-home-v2.tsx'))?read('components/gk-home-v2.tsx'):'';
 const quiz=read('app/gk/quiz/page.tsx');
 const questionText=read('app/gk/question-text.tsx');
 const transport=read('lib/gk-rpc.ts');
@@ -15,9 +18,15 @@ const base=read('../supabase/managed-migrations/20260830025704_gk_v2_local_safe_
 const views=read('../supabase/managed-migrations/20260830032146_gk_v2_view_parity_reads.sql');
 const starredGroups=read('../supabase/managed-migrations/20260830032730_gk_v2_starred_group_view_parity.sql');
 const migration=[base,views,starredGroups].join('\n');
-const all=[home,quiz,questionText,transport,session,options,css,migration].join('\n');
+const all=[entry,home,homeV2,quiz,questionText,transport,session,options,css,migration].join('\n');
 let failed=0;
 const ok=(name,condition)=>condition?console.log(`✓ ${name}`):(console.error(`✗ ${name}`),failed++);
+
+if(homeV2){
+ ok('GK entry delegates Home to the English-V2 presentation',entry.includes('GkHomeV2')&&entry.includes('LegacyGkPage')&&entry.includes('tab==="home"'));
+ ok('new GK Home consumes existing snapshot only',homeV2.includes('gk_get_home_snapshot')&&homeV2.includes('subscribeGkFresh')&&!homeV2.includes('supabaseBrowser'));
+ ok('new GK Home preserves core learning routes',['Teacher PYQ','Current Affairs','Starred Revision','New Practice','Focus Queues'].every(x=>homeV2.includes(x))&&homeV2.includes('source:"daily"')&&homeV2.includes('/gk/sprint'));
+}
 
 const tabs=(home.match(/const tabs:Array<\[Tab,string,string\]>=\[(.*?)\];/s)||[])[1]||'';
 ok('exactly five GK tabs',((tabs.match(/\["(?:home|content|practice|demand|progress)"/g)||[]).length===5));
@@ -91,7 +100,7 @@ ok('Progress exposes Persistent Weak Concepts',base.includes('"persistentWeakCon
 ok('new RPCs revoke public/anon',views.includes('from public,anon')&&starredGroups.includes('from public,anon'));
 ok('new RPCs grant authenticated',views.includes('to authenticated')&&starredGroups.includes('to authenticated'));
 ok('English shared transport preserved',supabase.includes('english_submit_answer')&&supabase.includes('prefetchEnglishCore'));
-ok('GK stays scoped',!home.includes('english_submit_answer')&&!quiz.includes('english_submit_answer'));
+ok('GK stays scoped',!home.includes('english_submit_answer')&&!homeV2.includes('english_submit_answer')&&!quiz.includes('english_submit_answer'));
 ok('no browser service-role secret',!all.toLowerCase().includes('service_role')&&!all.toLowerCase().includes('service-role'));
 ok('five-column safe-area nav',css.includes('grid-template-columns:repeat(5,1fr)')&&css.includes('safe-area-inset-bottom'));
 ok('quiz dock has four-tool grid',css.includes('grid-template-columns:repeat(4,minmax(0,1fr))'));
