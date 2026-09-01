@@ -76,6 +76,14 @@ const item={
   },
 };
 const sprintSchema=(n:number)=>({type:"object",additionalProperties:false,required:["items"],properties:{items:{type:"array",minItems:n,maxItems:n,items:item}}});
+const repairItem={
+  ...item,
+  required:["position",...(item.required as string[])],
+  properties:{position:{type:"integer",minimum:1,maximum:25},...item.properties},
+};
+const repairSchema=(positions:number[])=>({
+  type:"object",additionalProperties:false,required:["items"],properties:{items:{type:"array",minItems:positions.length,maxItems:positions.length,items:{...repairItem,properties:{...repairItem.properties,position:{type:"integer",enum:positions}}}}},
+});
 const analysisSchema=(n:number)=>({type:"object",additionalProperties:false,required:["items"],properties:{items:{type:"array",minItems:n,maxItems:n,items:{
   type:"object",additionalProperties:false,required:["position","diagnosis","action","confusedWith","rationale"],properties:{
     position:{type:"integer",minimum:1,maximum:25},diagnosis:{type:"string",enum:diagnoses},action:{type:"string",enum:actions},confusedWith:{type:"string"},rationale:{type:"string",minLength:1},
@@ -97,24 +105,72 @@ function slots(mode:string,c:any){
   return t.map((difficultyTier,i)=>({position:i+1,difficultyTier,domain:dom[i]}));
 }
 const norm=(x:any)=>String(x||"").trim().toLowerCase().replace(/\s+/g," ");
-function validate(items:any[],sp:any[],ctx:any){
-  const q=new Set(),c=new Set(),cool=new Set((ctx?.cooldownConcepts||[]).map(norm));
-  const bad:string[]=[];
+type ValidationIssue={position:number;reasons:string[]};
+function validationIssues(items:any[],sp:any[],ctx:any):ValidationIssue[]{
+  const q=new Set<string>(),c=new Set<string>(),cool=new Set<string>((ctx?.cooldownConcepts||[]).map(norm));
+  const issues:ValidationIssue[]=[];
   items.forEach((x,i)=>{
+    const reasons:string[]=[];
     const o=x?.options||[],ot=o.map((z:any)=>norm(z.text)),ok=o.map((z:any)=>String(z.key||"").toUpperCase()),qq=norm(x?.question),cc=norm(x?.metadata?.conceptKey),type=norm(x?.questionType);
-    if(!qq||!cc||q.has(qq)||c.has(cc)||cool.has(cc))bad.push(`Q${i+1}: duplicate/cooldown/missing concept`);
-    q.add(qq);c.add(cc);
-    if(o.length!==4||new Set(ot).size!==4||new Set(ok).size!==4)bad.push(`Q${i+1}: options`);
-    if(/reading|comprehension|passage|cloze/.test(type))bad.push(`Q${i+1}: RC/passage`);
-    if(x?.metadata?.difficultyTier!==sp[i]?.difficultyTier||(sp[i]?.domain&&x?.metadata?.domain!==sp[i].domain))bad.push(`Q${i+1}: slot`);
-    if(x?.ambiguous!==false||+x?.qualityScore<.8)bad.push(`Q${i+1}: quality`);
+    if(!qq)reasons.push("missing question");
+    else if(q.has(qq))reasons.push("duplicate question");
+    if(!cc)reasons.push("missing conceptKey");
+    else{
+      if(c.has(cc))reasons.push("duplicate conceptKey");
+      if(cool.has(cc))reasons.push("cooldown conceptKey");
+    }
+    if(o.length!==4||new Set(ot).size!==4||new Set(ok).size!==4)reasons.push("invalid options");
+    if(/reading|comprehension|passage|cloze/.test(type))reasons.push("RC/passage not allowed");
+    if(x?.metadata?.difficultyTier!==sp[i]?.difficultyTier||(sp[i]?.domain&&x?.metadata?.domain!==sp[i].domain))reasons.push("slot mismatch");
+    if(x?.ambiguous!==false||+x?.qualityScore<.8)reasons.push("quality/ambiguity");
+    if(reasons.length)issues.push({position:i+1,reasons});
+    if(qq)q.add(qq);
+    if(cc)c.add(cc);
   });
-  return bad;
+  return issues;
+}
+function validationSummary(issues:ValidationIssue[]){return issues.map(x=>`Q${x.position}: ${x.reasons.join(", ")}`)}
+function mergeRepairs(items:any[],repairs:any[],positions:number[]){
+  const wanted=new Set(positions),byPos=new Map<number,any>();
+  for(const r of repairs||[]){const p=Number(r?.position);if(wanted.has(p)&&!byPos.has(p))byPos.set(p,r)}
+  if(byPos.size!==positions.length)throw new Error("Selective Sprint repair did not return every requested position");
+  return items.map((x,i)=>{const r=byPos.get(i+1);if(!r)return x;const {position:_,...clean}=r;return clean});
 }
 
-const gen=`You are the English V2 SSC CGL Sprint generator for a strong learner. Build fair, high-discrimination SSC objective-English questions and follow slotPlan exactly. Standard Sprint is exam simulation, not a weakness drill. Never generate Reading Comprehension, cloze passages, passage-dependent items or multi-question passages. Difficulty must come from close distractors, subtle SSC rules, realistic context, transformation complexity and confusable usage, never obscure GRE/CAT vocabulary. Every item needs exactly one defensible answer and four plausible distinct A/B/C/D options; at least 2–3 distractors should be close. Moderate/Hard Error Detection should use realistic multi-clause sentences, not toy errors. Sentence Improvement, Voice and Narration should require full processing and subtle alternatives. Vocabulary must be moderate-to-hard SSC-oriented with semantic neighbours. Phrasal Verbs, Idioms, OWS, Spelling and fixed usage should use confusable alternatives. Use previousMistakes as fresh transfer seeds and slowCorrectSeeds as hesitation evidence without turning Standard into remediation. Never use cooldownConcepts unless later genuine wrong evidence overrides it. sourceType is only GPT Generated or GPT Variant of Known Concept; never claim SSC PYQ. metadata difficultyTier/domain must match slotPlan; ambiguous=false; qualityScore minimum: 0.8. explanation is post-Sprint only. Self-check before returning; a separate independent critic audits the draft.`;
-const critic=`You are the INDEPENDENT pre-serve critic and selective-repair editor for an SSC CGL English Sprint; you did not generate the draft. Return a COMPLETE FINAL SET with the same number of positions. Audit every draft item for SSC realism, requested Easy/Moderate/Hard fit, distractor strength, ambiguity, grammatical validity, exactly one defensible answer, intended concept, duplicate concepts and excessive familiarity. Preserve passing items; repair every failing position yourself in this same pass. Preserve slotPlan difficultyTier/domain exactly. No Reading Comprehension, cloze, passage-dependent content, obscure GRE/CAT vocabulary, toy Moderate/Hard grammar, or elementary Moderate/Hard Voice/Narration. Keep four unique A/B/C/D options and close distractors. Avoid duplicate question/concept and cooldownConcepts. sourceType remains truthful: GPT Generated or GPT Variant of Known Concept. Every final item must have ambiguous=false and qualityScore>=0.80. This bounded independent pass replaces critic→repair→critic loops. Return only the final set.`;
+const gen=`You are the English V2 SSC CGL Sprint generator for a strong learner. Build fair, high-discrimination SSC objective-English questions and follow slotPlan exactly. Standard Sprint is exam simulation, not a weakness drill. Never generate Reading Comprehension, cloze passages, passage-dependent items or multi-question passages. Difficulty must come from close distractors, subtle SSC rules, realistic context, transformation complexity and confusable usage, never obscure GRE/CAT vocabulary. Every item needs exactly one defensible answer and four plausible distinct A/B/C/D options; at least 2–3 distractors should be close. Moderate/Hard Error Detection should use realistic multi-clause sentences, not toy errors. Sentence Improvement, Voice and Narration should require full processing and subtle alternatives. Vocabulary must be moderate-to-hard SSC-oriented with semantic neighbours. Phrasal Verbs, Idioms, OWS, Spelling and fixed usage should use confusable alternatives. Use previousMistakes as fresh transfer seeds and slowCorrectSeeds as hesitation evidence without turning Standard into remediation. cooldownConcepts are HARD FORBIDDEN for this Sprint after a fast correct answer today; do not test the same semantic concept and do not rename it to evade the block unless later genuine wrong evidence explicitly requires it. sourceType is only GPT Generated or GPT Variant of Known Concept; never claim SSC PYQ. metadata difficultyTier/domain must match slotPlan; ambiguous=false; qualityScore minimum: 0.8. explanation is post-Sprint only. Self-check before returning; a separate independent critic audits the draft.`;
+const critic=`You are the INDEPENDENT pre-serve critic and selective-repair editor for an SSC CGL English Sprint; you did not generate the draft. Return a COMPLETE FINAL SET with the same number of positions. Audit every draft item for SSC realism, requested Easy/Moderate/Hard fit, distractor strength, ambiguity, grammatical validity, exactly one defensible answer, intended concept, duplicate concepts and excessive familiarity. Preserve passing items; repair every failing position yourself in this same pass. Preserve slotPlan difficultyTier/domain exactly. cooldownConcepts are HARD FORBIDDEN semantic concepts for this Sprint: do not retain them and do not merely rename the same conceptKey. No Reading Comprehension, cloze, passage-dependent content, obscure GRE/CAT vocabulary, toy Moderate/Hard grammar, or elementary Moderate/Hard Voice/Narration. Keep four unique A/B/C/D options and close distractors. Avoid duplicate question/concept and cooldownConcepts. sourceType remains truthful: GPT Generated or GPT Variant of Known Concept. Every final item must have ambiguous=false and qualityScore>=0.80. This bounded independent pass replaces critic→repair→critic loops. Return only the final set.`;
+const repairPrompt=`You are the FINAL SELECTIVE REPAIR editor for an SSC CGL English Sprint. The deterministic validator has rejected ONLY the listed positions. Return replacements ONLY for requestedPositions, exactly one replacement per position. Do not alter or return accepted positions. Each replacement must preserve that position's slotPlan difficultyTier and domain, remain SSC-realistic, have exactly one defensible answer, four unique A/B/C/D options and qualityScore>=0.80. forbiddenConceptKeys are absolute semantic blocks: do not reuse them and do not rename the same tested concept to evade the list. Also avoid forbiddenQuestions and every conceptKey already used by acceptedItems. No Reading Comprehension, cloze or passage-dependent content. Return position plus the complete replacement item.`;
 const analyst=`Diagnose each genuinely WRONG English Sprint answer from completed evidence. Unanswered items are not wrong. Distinguish Knowledge Gap, Confusion, Rule Gap and Distractor Trap from Careless, Time Pressure and Misread. Use Targeted Mastery only for genuine durable learning gaps; execution errors should normally use Execution Review/No Route Change. Return one diagnosis for every supplied wrong position.`;
+
+async function selectiveRepair(s:any,g:string,mode:string,jobId:string,items:any[],sp:any[],ctx:any){
+  let current=items;
+  let rounds=0;
+  for(let attempt=1;attempt<=2;attempt++){
+    const issues=validationIssues(current,sp,ctx);
+    if(!issues.length)return {items:current,rounds};
+    const requestedPositions=issues.map(x=>x.position);
+    const badSet=new Set(requestedPositions);
+    const acceptedItems=current.map((x,i)=>({position:i+1,...x})).filter(x=>!badSet.has(x.position));
+    const forbiddenConceptKeys=[...new Set([...(ctx?.cooldownConcepts||[]).map((x:any)=>String(x)),...acceptedItems.map((x:any)=>String(x?.metadata?.conceptKey||"")).filter(Boolean)])];
+    const forbiddenQuestions=acceptedItems.map((x:any)=>String(x?.question||"")).filter(Boolean);
+    const repair=await ai(`english_ssc_sprint_selective_repair_${attempt}`,repairSchema(requestedPositions),repairPrompt,{
+      mode,
+      requestedPositions,
+      validationIssues:issues,
+      slotPlan:sp.filter((x:any)=>badSet.has(Number(x.position))),
+      forbiddenConceptKeys,
+      forbiddenQuestions,
+      acceptedItems:acceptedItems.map((x:any)=>({position:x.position,category:x.category,questionType:x.questionType,question:x.question,conceptKey:x?.metadata?.conceptKey})),
+      weakCategories:ctx?.weakCategories||[],
+      trapProfile:ctx?.trapProfile||[],
+      previousMistakes:ctx?.previousMistakes||[],
+    },"low");
+    await log(s,g,"validation_repair",mode,repair,null,{backgroundJob:jobId,repairAttempt:attempt,repairedPositions:requestedPositions});
+    current=mergeRepairs(current,repair.data?.items||[],requestedPositions);
+    rounds=attempt;
+  }
+  return {items:current,rounds};
+}
 
 async function generateJob(s:any,jobId:string,mode:string){
   try{
@@ -139,15 +195,18 @@ async function generateJob(s:any,jobId:string,mode:string){
     await log(s,g,"critic_polish",mode,polished,null,{itemCount:n,boundedPass:2,selectiveRepair:true,backgroundJob:jobId});
     let items=polished.data?.items||[];
     if(items.length!==n)throw new Error("Independent Sprint critic returned the wrong item count");
-    const bad=validate(items,sp,cx.data);
-    if(bad.length)throw new Error(`Independent Sprint critic failed deterministic pre-serve validation: ${bad.slice(0,8).join(" | ")}`);
-    items=items.map((x:any)=>({...x,metadata:{...(x.metadata||{}),criticPassed:true,criticScore:1,criticReasons:[],criticMode:"independent-bounded-polish"}}));
+
+    const repaired=await selectiveRepair(s,g,mode,jobId,items,sp,cx.data);
+    items=repaired.items;
+    const finalIssues=validationIssues(items,sp,cx.data);
+    if(finalIssues.length)throw new Error(`Sprint validation still failed after selective repair: ${validationSummary(finalIssues).slice(0,8).join(" | ")}`);
+    items=items.map((x:any)=>({...x,metadata:{...(x.metadata||{}),criticPassed:true,criticScore:1,criticReasons:[],criticMode:repaired.rounds?"independent-polish-plus-selective-repair":"independent-bounded-polish"}}));
 
     const blueprint={
       ...(cx.data?.blueprint||{}),
       startImmediately:false,
       slotPlan:sp,
-      critic:{enabled:true,independent:true,selectiveRepair:true,rounds:1,boundedPasses:2,computeBounded:true},
+      critic:{enabled:true,independent:true,selectiveRepair:true,rounds:1,repairRounds:repaired.rounds,boundedPasses:2+repaired.rounds,computeBounded:true},
       generatedAt:new Date().toISOString(),
     };
     const made=await s.rpc("english_create_sprint_session",{p_mode:mode,p_items:items,p_blueprint:blueprint});
