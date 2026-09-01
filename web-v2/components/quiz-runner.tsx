@@ -21,7 +21,7 @@ export default function QuizRunner({ title, backHref, load, module="practice", e
   useEffect(()=>{if(loading)return;const guard=`english-quiz-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;historyGuardId.current=guard;armQuizBackGuard();const onBack=()=>{if(suppressBack.current){suppressBack.current=false;return;}setPauseOpen(true);};window.addEventListener("popstate",onBack);return()=>{window.removeEventListener("popstate",onBack);};},[loading]);
 
   const q=items[idx];const answer=q?answers[q.id]:undefined;const answeredCount=Object.keys(answers).length;const routingDecisionOpen=!!q&&fastTrackDecision===q.id;
-  useEffect(()=>setIntelOpen(false),[q?.id]);
+  useEffect(()=>{setIntelOpen(false);setAiHelpOpen(false);setAiProblem("");setAiReply("");setAiBusy(false);setGuessed(false);},[q?.id]);
   const options=useMemo(()=>{if(!q||isRecallCard(q))return[];const hit=optionCache.current.get(q.id);if(hit)return hit;const made=makeDisplayOptions(q.questionType,q.options||[]);optionCache.current.set(q.id,made);return made;},[q?.id,q?.questionType,q?.options]);
   const selectedDisplayKey=answer?(options.find(o=>o.canonicalKey===answer.selectedCanonicalKey)?.key||answer.selectedCanonicalKey):"";const recall=isRecallCard(q);const recallShown=!!q&&revealedRecall.has(q.id);
 
