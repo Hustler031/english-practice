@@ -19,18 +19,27 @@ type RpcArgs=Record<string,unknown>;
 type CacheEntry<T=unknown>={at:number;ownerId:string;name:string;args:RpcArgs;data:T};
 type PendingWrite={id:string;ownerId:string;name:string;args:RpcArgs;tries:number;nextAt:number;queuedAt:number;lastError?:string};
 type FreshDetail<T=unknown>={name:string;args:RpcArgs;data:T};
+type WarmRead=[name:string,args?:RpcArgs];
 
 const CACHE_PREFIX="maths:v2:rpc-cache:";
 const SESSION_PREFIX="maths:v2:session:";
 const OUTBOX_PREFIX="maths:v2:write-outbox:v2:";
 const LEGACY_OUTBOX_KEY="maths:v2:answer-outbox:v1";
 const CACHE_MAX_AGE=12*60*60*1000;
+const WARM_SKIP_AGE=90*1000;
 const RPC_TIMEOUT_MS=15000;
 const BACKOFF=[1000,2500,5000,15000,30000,60000];
 const PROD_HOST="hytehindbmjdwcfptsic.supabase.co";
+const CORE_WARM_GROUPS:WarmRead[][]=[
+  [["maths_get_home_snapshot"],["maths_get_chapters_hub"],["maths_get_ondemand_hub"]],
+  [["maths_get_library_hub"],["maths_get_progress"]],
+  [["maths_get_mocks_hub"],["maths_get_formula_hub"],["maths_get_concepts_hub"],["maths_get_calculation_hub"]],
+];
 let outboxRunning=false;
 let wired=false;
 let wakeTimer:ReturnType<typeof setTimeout>|null=null;
+let warmTimer:ReturnType<typeof setTimeout>|null=null;
+let coreWarmRunning:Promise<void>|null=null;
 let activeOwnerId="";
 let ownerCheck:Promise<string>|null=null;
 let cacheEpoch=0;
@@ -76,9 +85,12 @@ async function ensureOwner(){
   ownerCheck=(async()=>{const {data,error}=await supabaseBrowser().auth.getSession();if(error)throw new Error(mathsErrorMessage(error,"Could not verify Maths sign-in. Please refresh or sign in again."));const id=data.session?.user.id??"";if(!id)throw new Error("Maths session expired. Please sign in again.");setOwner(id);return id;})().finally(()=>{ownerCheck=null;});
   return ownerCheck;
 }
-function readCache<T>(name:string,args?:RpcArgs):T|undefined{
-  if(!browser()||!activeOwnerId)return undefined;try{const raw=localStorage.getItem(cacheKey(name,args));if(!raw)return undefined;const e=JSON.parse(raw) as CacheEntry<T>;if(!e||e.ownerId!==activeOwnerId||Date.now()-Number(e.at||0)>CACHE_MAX_AGE)return undefined;return e.data;}catch{return undefined;}
+function readCacheEntry<T>(name:string,args?:RpcArgs):CacheEntry<T>|undefined{
+  if(!browser()||!activeOwnerId)return undefined;
+  try{const raw=localStorage.getItem(cacheKey(name,args));if(!raw)return undefined;const e=JSON.parse(raw) as CacheEntry<T>;if(!e||e.ownerId!==activeOwnerId||Date.now()-Number(e.at||0)>CACHE_MAX_AGE)return undefined;return e;}catch{return undefined;}
 }
+function readCache<T>(name:string,args?:RpcArgs):T|undefined{return readCacheEntry<T>(name,args)?.data;}
+function cacheAge(name:string,args?:RpcArgs){const e=readCacheEntry(name,args);return e?Math.max(0,Date.now()-Number(e.at||0)):Number.POSITIVE_INFINITY;}
 function writeCache<T>(name:string,args:RpcArgs|undefined,data:T){if(!browser()||!activeOwnerId)return;try{localStorage.setItem(cacheKey(name,args),JSON.stringify({at:Date.now(),ownerId:activeOwnerId,name,args:stable(args),data} satisfies CacheEntry<T>));}catch{}}
 function publish<T>(name:string,args:RpcArgs|undefined,data:T){if(!browser())return;try{window.dispatchEvent(new CustomEvent<FreshDetail<T>>("maths:v2-rpc-fresh",{detail:{name,args:stable(args),data}}));}catch{}}
 function saveSession(session:MathsSession){if(!browser()||!activeOwnerId||!session?.sessionId)return;try{localStorage.setItem(sessionOwnerPrefix()+session.sessionId,JSON.stringify(session));}catch{}}
@@ -107,6 +119,43 @@ function networkRead<T>(name:string,args?:RpcArgs):Promise<T>{const key=cacheKey
 function startRpc(name:string){return /^maths_start_/.test(name);}
 async function localSafeStart<T>(name:string,args?:RpcArgs):Promise<T>{const owner=activeOwnerId;const data=await networkRpc<T>("maths_get_local_safe_start",{p_start_rpc:name,p_args:args??{}});if(owner!==activeOwnerId)throw new Error("Maths account changed while loading. Please retry.");if((data as MathsSession)?.sessionId)saveSession(data as MathsSession);return data;}
 
+async function warmRead(name:string,args?:RpcArgs,force=false){
+  await ensureOwner();
+  if(!force&&cacheAge(name,args)<WARM_SKIP_AGE)return;
+  const owner=activeOwnerId,epoch=cacheEpoch;
+  try{const fresh=await networkRead(name,args);if(owner!==activeOwnerId||epoch!==cacheEpoch)return;writeCache(name,args,fresh);publish(name,args,fresh);}catch{/* background warmup is best effort */}
+}
+export async function prefetchMathsCore(force=false){
+  if(!browser())return;
+  if(readOutbox().length&&!force){scheduleMathsWarm(1800);return;}
+  if(coreWarmRunning)return coreWarmRunning;
+  coreWarmRunning=(async()=>{
+    for(const group of CORE_WARM_GROUPS){
+      await Promise.allSettled(group.map(([name,args])=>warmRead(name,args,force)));
+    }
+  })().finally(()=>{coreWarmRunning=null;});
+  return coreWarmRunning;
+}
+export async function prefetchMathsPath(path:string){
+  const pathname=String(path||"").split("?")[0];
+  const reads:WarmRead[]=
+    pathname==="/maths"?[["maths_get_home_snapshot"]]:
+    pathname.startsWith("/maths/chapters")?[["maths_get_chapters_hub"],["maths_get_home_snapshot"]]:
+    pathname.startsWith("/maths/library")?[["maths_get_library_hub"]]:
+    pathname.startsWith("/maths/ondemand")?[["maths_get_ondemand_hub"]]:
+    pathname.startsWith("/maths/progress")?[["maths_get_progress"]]:
+    pathname.startsWith("/maths/mocks")?[["maths_get_mocks_hub"]]:
+    pathname.startsWith("/maths/formulas")?[["maths_get_formula_hub"]]:
+    pathname.startsWith("/maths/concepts")?[["maths_get_concepts_hub"]]:
+    pathname.startsWith("/maths/calculation")?[["maths_get_calculation_hub"]]:[];
+  await Promise.allSettled(reads.map(([name,args])=>warmRead(name,args)));
+}
+function scheduleMathsWarm(ms=1200){
+  if(!browser())return;
+  if(warmTimer)clearTimeout(warmTimer);
+  warmTimer=setTimeout(()=>{warmTimer=null;if(readOutbox().length){scheduleMathsWarm(1800);return;}void prefetchMathsCore();},Math.max(0,ms));
+}
+
 function readOutbox():PendingWrite[]{if(!browser()||!activeOwnerId)return[];try{const x=JSON.parse(localStorage.getItem(outboxKey())||"[]");return Array.isArray(x)?x.filter(row=>row?.ownerId===activeOwnerId):[];}catch{return[];}}
 function writeOutbox(rows:PendingWrite[]){if(!browser()||!activeOwnerId)return;try{localStorage.setItem(outboxKey(),JSON.stringify(rows));window.dispatchEvent(new Event("maths:v2-sync-change"));}catch{}}
 function schedule(ms=0){if(!browser())return;if(wakeTimer)clearTimeout(wakeTimer);wakeTimer=setTimeout(()=>void flushMathsOutbox(),Math.max(0,ms));}
@@ -123,7 +172,7 @@ function queueMutation<T>(name:string,args:RpcArgs):T{
 }
 async function flushMathsOutbox(){
   if(!browser()||outboxRunning||!navigator.onLine||mathsLocalSafe())return;const rows=readOutbox();if(!rows.length)return;const now=Date.now();const item=rows.find(x=>x.nextAt<=now);if(!item){schedule(Math.min(60000,Math.max(500,Math.min(...rows.map(x=>x.nextAt))-now)));return;}outboxRunning=true;
-  try{try{const result=await networkRpc(item.name,item.args);writeOutbox(readOutbox().filter(x=>x.id!==item.id));window.dispatchEvent(new CustomEvent("maths:v2-write-durable",{detail:{id:item.id,name:item.name,result}}));invalidateMathsCaches();}catch(e){const latest=readOutbox();const hit=latest.find(x=>x.id===item.id);if(hit){hit.tries++;hit.lastError=mathsErrorMessage(e,"Maths write failed.");hit.nextAt=Date.now()+BACKOFF[Math.min(BACKOFF.length-1,Math.max(0,hit.tries-1))];writeOutbox(latest);}}}finally{outboxRunning=false;if(readOutbox().length)schedule(250);}
+  try{try{const result=await networkRpc(item.name,item.args);writeOutbox(readOutbox().filter(x=>x.id!==item.id));window.dispatchEvent(new CustomEvent("maths:v2-write-durable",{detail:{id:item.id,name:item.name,result}}));scheduleMathsWarm(1400);}catch(e){const latest=readOutbox();const hit=latest.find(x=>x.id===item.id);if(hit){hit.tries++;hit.lastError=mathsErrorMessage(e,"Maths write failed.");hit.nextAt=Date.now()+BACKOFF[Math.min(BACKOFF.length-1,Math.max(0,hit.tries-1))];writeOutbox(latest);}}}finally{outboxRunning=false;if(readOutbox().length)schedule(250);}
 }
 async function flushMathsWritesBeforeFinish(){
   if(!browser()||mathsLocalSafe())return;
@@ -139,7 +188,7 @@ async function flushMathsWritesBeforeFinish(){
   }
   if(readOutbox().length)throw new Error("Maths is still saving your latest changes. Retry Finish after sync completes.");
 }
-function wire(){if(!browser()||wired)return;wired=true;window.addEventListener("online",()=>schedule(0));document.addEventListener("visibilitychange",()=>{if(!document.hidden)schedule(0);});supabaseBrowser().auth.onAuthStateChange((_event,session)=>setOwner(session?.user.id??""));window.setInterval(()=>{if(readOutbox().length)schedule(0);},60000);schedule(0);}
+function wire(){if(!browser()||wired)return;wired=true;window.addEventListener("online",()=>{schedule(0);scheduleMathsWarm(250);});document.addEventListener("visibilitychange",()=>{if(!document.hidden){schedule(0);scheduleMathsWarm(250);}});supabaseBrowser().auth.onAuthStateChange((_event,session)=>setOwner(session?.user.id??""));window.setInterval(()=>{if(readOutbox().length)schedule(0);},60000);schedule(0);}
 export function pendingMathsWrites(){return readOutbox().length;}
 export function failedMathsWrites(){return readOutbox().filter(x=>x.tries>0).length;}
 export function invalidateMathsCaches(){cacheEpoch++;if(!browser()||!activeOwnerId)return;const keys:string[]=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k?.startsWith(cacheOwnerPrefix()))keys.push(k);}keys.forEach(k=>localStorage.removeItem(k));}
@@ -154,14 +203,14 @@ export async function mathsRpc<T=unknown>(name:string,args?:RpcArgs):Promise<T>{
     const owner=activeOwnerId;const out=await networkRpc<T>(name,args);
     if(owner!==activeOwnerId)throw new Error("Maths account changed while finishing. Please retry.");
     const sid=String(args?.p_session_id??"");if(sid)patchSavedSession(sid,x=>({...x,completed:true}));
-    invalidateMathsCaches();return out;
+    scheduleMathsWarm(50);return out;
   }
   if(/^maths_(set_|save_)/.test(name))return queueMutation<T>(name,args??{});
   if(cacheable(name)){
     const cached=readCache<T>(name,args);if(cached!==undefined){const owner=activeOwnerId,epoch=cacheEpoch;void networkRead<T>(name,args).then(fresh=>{if(owner!==activeOwnerId||epoch!==cacheEpoch)return;writeCache(name,args,fresh);publish(name,args,fresh);if(name==="maths_get_session"&&(fresh as MathsSession)?.sessionId)saveSession(fresh as MathsSession);}).catch(()=>{});return cached;}
     const owner=activeOwnerId,epoch=cacheEpoch;const fresh=await networkRead<T>(name,args);if(owner!==activeOwnerId)throw new Error("Maths account changed while loading. Please retry.");if(epoch===cacheEpoch){writeCache(name,args,fresh);if(name==="maths_get_session"&&(fresh as MathsSession)?.sessionId)saveSession(fresh as MathsSession);}return fresh;
   }
-  const owner=activeOwnerId;const out=await networkRpc<T>(name,args);if(owner!==activeOwnerId)throw new Error("Maths account changed while loading. Please retry.");if(startRpc(name)&&(out as MathsSession)?.sessionId)saveSession(out as MathsSession);if(/^maths_(set_|save_)/.test(name))invalidateMathsCaches();return out;
+  const owner=activeOwnerId;const out=await networkRpc<T>(name,args);if(owner!==activeOwnerId)throw new Error("Maths account changed while loading. Please retry.");if(startRpc(name)&&(out as MathsSession)?.sessionId)saveSession(out as MathsSession);return out;
 }
 
 export async function getMathsSession(sessionId:string):Promise<MathsSession>{
