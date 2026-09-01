@@ -9,6 +9,9 @@ const has=(text,...needles)=>needles.every(x=>text.includes(x));
 const foundation=read("supabase/managed-migrations/20260831133000_gk_v2_teacher_intelligence_and_exam_readiness.sql");
 const teacherSelector=read("supabase/managed-migrations/20260831134000_gk_v2_teacher_series_selector.sql");
 const sprintFix=read("supabase/managed-migrations/20260831134500_gk_v2_section_sprint_finalizer_fix.sql");
+const entry=read("web-v2/app/gk/page.tsx");
+const legacy=read("web-v2/app/gk/legacy-page.tsx");
+const home=read("web-v2/components/gk-home-v2.tsx");
 const quiz=read("web-v2/app/gk/quiz/page.tsx");
 const questionText=read("web-v2/app/gk/question-text.tsx");
 const teacher=read("web-v2/app/gk/teacher/page.tsx");
@@ -16,7 +19,7 @@ const progress=read("web-v2/app/gk/intelligence/page.tsx");
 const sprint=read("web-v2/app/gk/sprint/page.tsx");
 const layout=read("web-v2/app/gk/layout.tsx");
 const navCss=read("web-v2/app/gk/gk-navigation-structure.css");
-const practiceCss=read("web-v2/app/gk/gk-practice-hierarchy.css");
+const finalCss=read("web-v2/app/gk/gk-english-v2-rebuild.css");
 const workflow=read(".github/workflows/validate-gk-v2.yml");
 
 must(has(foundation,"gk.question_source_memberships","gk.content_series","gk.question_enrichments","gk.concept_confusions","gk.canonical_duplicate_review"),"teacher provenance/enrichment tables missing");
@@ -37,15 +40,21 @@ must(has(sprint,"25 Questions · 15 Minutes","gk_start_section_sprint","gk_finis
 must(!sprint.includes("gk_submit_answer")&&!sprint.includes("gk_record_exposure"),"timed exam mode must not write adaptive learning evidence");
 must(has(sprintFix,"result_json","jsonb_array_elements_text(s.question_ids) as ids(question_id)","learningHistoryChanged"),"Section Sprint finalizer hardening missing");
 
+must(has(entry,"GkHomeV2","LegacyGkPage",'tab==="home"'),"GK route must split new Home presentation from preserved legacy transport");
+must(has(legacy,"Current Affairs Intelligence","function NewPracticeView","function StarredView","function GuessedView","Review Flagged Content","Learning Overview","Persistent Weak Concepts"),"preserved legacy GK views are incomplete");
+must(has(home,"gk_get_home_snapshot","subscribeGkFresh","Daily Revision","Teacher PYQ","Current Affairs","Starred Revision","New Practice","Focus Queues","/gk/sprint"),"new English-style GK Home hierarchy missing");
+must(!/gkRpc(?:<[^>]+>)?\(\s*["']gk_(?:submit_|record_|mark_|set_|save_|create_|finish_|complete_)/.test(home),"new Home must remain a read/navigation surface");
+
 must(has(layout,'href="/gk/sprint"','href="/gk/teacher"','"/gk/intelligence"','gk-shell-bottomnav','p.get("tab")==="progress"'),"GK shell must keep Sprint, Teacher in Practice, shared bottom Progress, and redirect legacy Progress");
 must(!layout.includes('["demand","◆","On Demand"'),"On Demand must remain legacy-compatible but not primary navigation");
-must(has(layout,"gk-practice-prelude","PRIMARY PRACTICE","Teacher PYQ first","GPT Booster","Weakness Fix","Confusion Cards","Reverse Recall","Exam Traps"),"Teacher-first Practice + future GPT Booster contract missing");
+must(has(layout,"gk-v2-practice-anchor","PRIMARY PRACTICE","Teacher PYQ","Topic-wise PYQ","Mixed PYQ","Smart Teacher 20"),"compact Teacher-first Practice contract missing");
 must(!layout.includes('href="/gk/teacher" className="gk-shell-intelligence"')&&!layout.includes('href="/gk/intelligence" className="gk-shell-intelligence"'),"Teacher and Progress must not duplicate bottom navigation in header");
 must(has(navCss,"gk-shell-bottomnav","gk-intel-fold","gk-sprint-back"),"GK navigation/organization CSS contract missing");
-must(has(practiceCss,"repeat(4,minmax(0,1fr))","nth-child(4)","gk-practice-teacher-hero","gk-booster-future","Smart practice tools","color-mix(in srgb,var(--bg) 96%"),"Practice hierarchy, obsolete-nav hiding, and theme-safe shell CSS missing");
+must(has(finalCss,"gk-english-v2","gk-v2-home","gk-v2-daily-card","gk-v2-quick-row","gk-v2-practice-anchor","repeat(4,minmax(0,1fr))","safe-area-inset-bottom"),"English-V2 GK shell/home responsive CSS contract missing");
+must(has(finalCss,'main[class*="quiz"]','[class*="quizDock"]','[class*="feedbackCard"]','gk-intel-page','gk-sprint-feature'),"GK quiz/intelligence/sprint final presentation coverage missing");
 must(workflow.includes("2026083*_gk*.sql")&&workflow.includes("gk-ci-final-intelligence-assertions.sql"),"clean-room CI must include final GK migrations/assertions");
 
 const forbidden=["web-v2/app/maths/","web-v2/lib/math"];
-for(const item of forbidden)must(![foundation,teacherSelector,sprintFix,quiz,questionText,teacher,progress,sprint,layout,navCss,practiceCss].some(t=>t.includes(item)),`GK final files unexpectedly reference ${item}`);
+for(const item of forbidden)must(![foundation,teacherSelector,sprintFix,entry,legacy,home,quiz,questionText,teacher,progress,sprint,layout,navCss,finalCss].some(t=>t.includes(item)),`GK final files unexpectedly reference ${item}`);
 
 console.log("GK final intelligence source contracts passed");
