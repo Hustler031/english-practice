@@ -350,8 +350,13 @@ begin
       from jsonb_array_elements(coalesce(s.rendered_questions,'[]'::jsonb)) e
       where e->>'questionId'=sq.question_id limit 1
     ) rendered on true
-    left join maths.attempts a
-      on a.user_id=uid and a.session_id=p_session_id and a.question_id=sq.question_id
+    left join lateral (
+      select a.*
+      from maths.attempts a
+      where a.user_id=uid and a.session_id=p_session_id and a.question_id=sq.question_id
+      order by a.attempted_at desc,a.attempt_id desc
+      limit 1
+    ) a on true
     left join lateral (
       select e.* from maths.performance_evidence e
       where e.user_id=uid and e.session_id=p_session_id and e.question_id=sq.question_id
@@ -429,7 +434,105 @@ begin
 end
 $$;
 
+create or replace function public.maths_start_calculation(
+  p_mode text default 'timed',
+  p_type text default null,
+  p_skill text default null,
+  p_count integer default 30
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path to 'pg_catalog','public','maths'
+as $$
+declare
+  uid uuid:=maths._require_uid();
+  base text[];
+  ids text[];
+  mode_ text:=lower(coalesce(p_mode,'timed'));
+  force_reveal boolean:=mode_='recall';
+  out_ jsonb;
+  sid_ text;
+  active_id text;
+begin
+  if mode_='timed' then
+    perform pg_advisory_xact_lock(hashtext(uid::text||':timed-exam-start'));
+
+    update maths.sessions
+    set completed=true,updated_at=now(),params=jsonb_set(coalesce(params,'{}'::jsonb),'{finishedAt}',to_jsonb(now()::text),true)
+    where user_id=uid and not completed
+      and (
+        lower(coalesce(mode,''))='section_sprint'
+        or (lower(coalesce(mode,''))='calculation_speed' and coalesce(params->>'calculationTimed','false')='true')
+      )
+      and nullif(params->>'deadlineAt','') is not null
+      and (params->>'deadlineAt')::timestamptz<=now();
+
+    select session_id into active_id
+    from maths.sessions
+    where user_id=uid and not completed
+      and (
+        lower(coalesce(mode,''))='section_sprint'
+        or (lower(coalesce(mode,''))='calculation_speed' and coalesce(params->>'calculationTimed','false')='true')
+      )
+    order by updated_at desc nulls last,created_at desc limit 1;
+    if active_id is not null then raise exception 'A timed Maths session is already active'; end if;
+
+    ids:=maths._calculation_ids(uid,greatest(30,least(coalesce(p_count,30),80)),p_skill);
+    return maths._start_session(
+      uid,ids,'calculation_speed','10-Min Calculation Drill',
+      jsonb_build_object('mode','timed','skill',p_skill,'durationSec',600,'calculationTimed',true,'refillBatch',20),false
+    );
+  end if;
+
+  with c as(
+    select r.question_id,r.profile_last_result,r.difficult,r.last_response_sec,r.state_attempts,
+           maths._calc_type(q) typ,maths._norm(coalesce(q.topic,q.subtopic,'Mixed')) skill
+    from maths._user_runtime(uid) r join maths.runtime_questions q using(question_id)
+    where r.runtime_active and (r.bank_calculation or r.in_calc_set)
+      and (maths._calc_type(q)<>'MEMORY' or maths._calc_recall_eligible(q))
+  )
+  select coalesce(array_agg(question_id),array[]::text[]) into base
+  from c where (p_type is null or typ=upper(p_type))
+    and (p_skill is null or skill=maths._norm(p_skill)) and (mode_<>'recall' or typ='MEMORY');
+
+  if mode_ in('weak','slow') then
+    select coalesce(array_agg(x.question_id),array[]::text[]) into ids
+    from(select r.question_id from maths._user_runtime(uid) r where r.question_id=any(base)
+      order by (r.profile_last_result='wrong') desc,r.difficult desc,(r.last_response_sec>=8) desc,(r.state_attempts=0) desc,r.last_response_sec desc
+      limit greatest(1,least(coalesce(p_count,20),100)))x;
+  elsif mode_='all' then ids:=base;
+  else
+    select coalesce(array_agg(x),array[]::text[]) into ids
+    from(select unnest(base)x order by random() limit greatest(1,least(coalesce(p_count,20),100)))z;
+  end if;
+
+  if mode_='mixed' then
+    out_:=maths._start_session(uid,ids,'calculation_speed','Calculation Training · Mixed Practice',
+      jsonb_build_object('mode',mode_,'type',p_type,'skill',p_skill),false);
+    sid_:=out_->>'sessionId';
+    if sid_ is not null then
+      update maths.sessions s set rendered_questions=(
+        select jsonb_agg(case when maths._calc_type(q)='MEMORY'
+          then (e-'options'-'correctOption'-'answerMode'-'variantType')||
+               jsonb_build_object('options','[]'::jsonb,'correctOption','','answerMode','REVEAL','variantType','CALC_RECALL')
+          else e end order by ord)
+        from jsonb_array_elements(s.rendered_questions) with ordinality z(e,ord)
+        join maths.runtime_questions q on q.question_id=e->>'questionId'
+      ) where s.session_id=sid_ and s.user_id=uid;
+      return maths._get_session(uid,sid_);
+    end if;
+    return out_;
+  end if;
+
+  return maths._start_session(uid,ids,'calculation_speed',
+    'Calculation Training · '||case when mode_='recall' then 'Recall' when mode_ in('weak','slow') then 'Weak & Slow' when mode_='all' then 'All' else 'Mixed Practice' end,
+    jsonb_build_object('mode',mode_,'type',p_type,'skill',p_skill),force_reveal);
+end
+$$;
+
 grant execute on function public.maths_get_active_exam_session() to authenticated;
 grant execute on function public.maths_exam_runtime_checkpoint(text,integer,integer[],integer[]) to authenticated;
 grant execute on function public.maths_get_sprint_review(text) to authenticated;
 grant execute on function public.maths_start_sprint(boolean) to authenticated;
+grant execute on function public.maths_start_calculation(text,text,text,integer) to authenticated;
