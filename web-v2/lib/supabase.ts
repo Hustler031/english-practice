@@ -16,20 +16,13 @@ const CACHE_MAX_AGE = 12 * 60 * 60 * 1000;
 const LOCAL_SESSION_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 const BACKOFF = [1000, 2500, 5000, 15000, 30000, 60000];
 const PRODUCTION_SUPABASE_HOST = "hytehindbmjdwcfptsic.supabase.co";
+// Answer durability only needs the central/home learning surfaces refreshed eagerly.
+// Peripheral hubs remain cache-first and revalidate naturally when opened.
 const MUTATION_REFRESH_RPCS = new Set([
   "english_dashboard_summary",
-  "english_resume_daily",
-  "english_get_daily_current",
   "english_get_home_snapshot",
   "english_get_revision_hub",
-  "english_get_saved_revision_hub",
-  "english_get_phrasal_hub",
-  "english_get_starred_hub",
-  "english_get_starred_guidance",
-  "english_get_bank_coverage_hub",
-  "english_get_new_practice_hub",
   "english_get_learning_progress",
-  "english_hindu_progress",
 ]);
 
 type RpcArgs = Record<string, unknown>;
