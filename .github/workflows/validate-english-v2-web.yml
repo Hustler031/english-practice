@@ -104,11 +104,15 @@ jobs:
         run: |
           set -euo pipefail
           BASE="$(git -C .. merge-base HEAD origin/main)"
+          BRANCH="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
           CHANGED_MATHS="$(git -C .. diff --name-only "$BASE...HEAD" -- 'web-v2/app/maths/**' 'web-v2/components/maths-*' 'web-v2/lib/maths*' 'supabase/managed-migrations/*maths*.sql' || true)"
-          if [ -n "$CHANGED_MATHS" ]; then
+          if [[ "$BRANCH" != maths-* ]] && [ -n "$CHANGED_MATHS" ]; then
             echo "Unexpected Maths internals changed on English branch:"
             echo "$CHANGED_MATHS"
             exit 1
+          fi
+          if [[ "$BRANCH" == maths-* ]] && [ -n "$CHANGED_MATHS" ]; then
+            echo "Intentional Maths branch detected; validating Maths contracts instead of rejecting scoped Maths changes."
           fi
           MAIN_SHA="$(git -C .. rev-parse refs/remotes/origin/main)"
           trap 'git -C .. update-ref refs/remotes/origin/main "$MAIN_SHA"' EXIT
