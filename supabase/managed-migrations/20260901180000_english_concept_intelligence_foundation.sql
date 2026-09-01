@@ -165,15 +165,20 @@ from english.questions q
 where coalesce(q.active,true)
 on conflict (concept_id) do update set updated_at=now();
 
-insert into english.question_concept_mappings (question_id, concept_id, family_id, mapping_confidence, mapping_method, review_status)
-select q.question_id,
-  coalesce(nullif(trim(q.concept_id), ''), 'C_' || md5(lower(trim(coalesce(q.topic,'English') || '|' || coalesce(q.subtopic,q.question_type,'Unclassified') || '|' || coalesce(q.word,''))))) as concept_id,
-  'F_' || md5(lower(trim(coalesce(q.topic,'English') || '|' || coalesce(q.subtopic,q.question_type,'Unclassified')))),
-  case when nullif(trim(q.concept_id), '') is not null then 0.95 else 0.78 end,
-  case when nullif(trim(q.concept_id), '') is not null then 'existing_concept_id' else 'deterministic_metadata' end,
-  case when nullif(trim(q.concept_id), '') is not null then 'verified' else 'mapped' end
-from english.questions q
-where coalesce(q.active,true)
+with src as (
+  select q.question_id,
+    coalesce(nullif(trim(q.concept_id), ''), 'C_' || md5(lower(trim(coalesce(q.topic,'English') || '|' || coalesce(q.subtopic,q.question_type,'Unclassified') || '|' || coalesce(q.word,''))))) as concept_id,
+    'F_' || md5(lower(trim(coalesce(q.topic,'English') || '|' || coalesce(q.subtopic,q.question_type,'Unclassified')))) as family_id,
+    case when nullif(trim(q.concept_id), '') is not null then 0.95 else 0.78 end as mapping_confidence,
+    case when nullif(trim(q.concept_id), '') is not null then 'existing_concept_id' else 'deterministic_metadata' end as mapping_method,
+    case when nullif(trim(q.concept_id), '') is not null then 'verified' else 'mapped' end as review_status
+  from english.questions q
+  where coalesce(q.active,true)
+)
+insert into english.question_concept_mappings
+  (question_id, concept_id, family_id, mapping_confidence, mapping_method, review_status)
+select question_id, concept_id, family_id, mapping_confidence, mapping_method, review_status
+from src
 on conflict (question_id) do nothing;
 
 -- Keep the legacy question-level field compatible for existing callers.
