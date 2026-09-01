@@ -12,7 +12,10 @@ const runtime=read('../supabase/managed-migrations/20260830073000_gk_v2_final_ru
 const baseline=read('../supabase/recovery-baselines/gk_v2_reconstructed_pre25704_baseline.sql');
 const ledger=read('../supabase/managed-migrations/GK_LEDGER.md');
 const quiz=read('app/gk/quiz/page.tsx');
-const home=read('app/gk/page.tsx');
+const entry=read('app/gk/page.tsx');
+const legacyPath='app/gk/legacy-page.tsx';
+const home=fs.existsSync(path.join(root,legacyPath))?read(legacyPath):entry;
+const homeV2=fs.existsSync(path.join(root,'components/gk-home-v2.tsx'))?read('components/gk-home-v2.tsx'):'';
 const layout=read('app/gk/layout.tsx');
 const transport=read('lib/gk-rpc.ts');
 const sessionSource=read('lib/gk-session.ts');
@@ -52,7 +55,7 @@ ok('active canonical answer key constraint exists',correction.includes('gk_quest
 ok('POL2-RR036 guarded correction exists',runtime.includes("question_id='POL2-RR036'")&&runtime.includes("correct_option='C'"));
 ok('POL2-RR053 guarded correction exists',runtime.includes("question_id='POL2-RR053'")&&runtime.includes("correct_option='D'"));
 
-const frontendFiles=[quiz,home];
+const frontendFiles=[quiz,home,homeV2];
 const consumed=new Set();
 for(const source of frontendFiles){for(const m of source.matchAll(/gkRpc(?:<[^>]+>)?\(\s*["'](gk_[a-z0-9_]+)["']/g))consumed.add(m[1]);}
 for(const name of [...consumed].sort())ok(`frontend RPC has SQL definition: ${name}`,new RegExp(`create\\s+or\\s+replace\\s+function\\s+public\\.${name}\\s*\\(`,'i').test(sql));
@@ -88,9 +91,14 @@ ok('visible GK quiz Back still uses browser Back/Pause path',layout.includes('wi
 
 const tabMatch=home.match(/const tabs:Array<\[Tab,string,string\]>=\[(.*?)\];/s);
 const tabs=tabMatch?.[1]||'';
-ok('exactly five GK top-level tabs',((tabs.match(/\["(?:home|content|practice|demand|progress)"/g)||[]).length===5));
-for(const label of ['Home','Content','Practice','On Demand','Progress'])ok(`top-level tab ${label}`,tabs.includes(`"${label}"`));
+ok('exactly five GK legacy top-level tabs',((tabs.match(/\["(?:home|content|practice|demand|progress)"/g)||[]).length===5));
+for(const label of ['Home','Content','Practice','On Demand','Progress'])ok(`legacy tab preserved: ${label}`,tabs.includes(`"${label}"`));
 ok('Main/Rapid stay lanes, not top-level tabs',!tabs.includes('"Main"')&&!tabs.includes('"Rapid"'));
+if(homeV2){
+ ok('new GK entry uses split presentation without deleting legacy views',entry.includes('GkHomeV2')&&entry.includes('LegacyGkPage')&&entry.includes('tab==="home"'));
+ ok('new GK Home reuses authoritative snapshot',homeV2.includes('gk_get_home_snapshot')&&homeV2.includes('subscribeGkFresh'));
+ ok('new GK Home contains no learning mutation RPC',!/gkRpc(?:<[^>]+>)?\(\s*["']gk_(?:submit_|record_|mark_|set_|save_|start_|create_|finish_|complete_)/.test(homeV2));
+}
 
 function hasDirectSupabaseTableAccess(source){
   const sf=ts.createSourceFile('gk-browser-audit.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
@@ -137,8 +145,8 @@ function hasDirectSupabaseTableAccess(source){
 }
 
 ok('English shared transport remains present',supabase.includes('english_submit_answer')&&supabase.includes('prefetchEnglishCore'));
-ok('GK transport has no browser service-role secret',![quiz,home,layout,transport,sessionSource,options].some(x=>/service[_-]?role/i.test(x)));
-ok('GK browser code has no direct Supabase table access',![quiz,home,layout,transport,sessionSource].some(hasDirectSupabaseTableAccess));
+ok('GK transport has no browser service-role secret',![quiz,entry,home,homeV2,layout,transport,sessionSource,options].some(x=>/service[_-]?role/i.test(x)));
+ok('GK browser code has no direct Supabase table access',![quiz,entry,home,homeV2,layout,transport,sessionSource].some(hasDirectSupabaseTableAccess));
 
 if(failed){console.error(`\n${failed} final GK audit contract(s) failed.`);process.exit(1);}
 console.log(`\nFinal GK audit contracts passed (${consumed.size} frontend RPCs checked).`);
