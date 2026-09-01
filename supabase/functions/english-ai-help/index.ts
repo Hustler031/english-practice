@@ -54,15 +54,19 @@ Deno.serve(async (req) => {
 
     const url = Deno.env.get("SUPABASE_URL");
     const anon = Deno.env.get("SUPABASE_ANON_KEY");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!url || !anon) return reply({ error: "Supabase configuration unavailable" }, 503);
+    if (!url || !anon || !serviceKey) return reply({ error: "Supabase configuration unavailable" }, 503);
     if (!openaiKey) return reply({ error: "AI Help is temporarily unavailable" }, 503);
 
-    const supabase = createClient(url, anon, {
+    const userDb = createClient(url, anon, {
       global: { headers: { Authorization: auth } },
       auth: { persistSession: false, autoRefreshToken: false },
     });
-    const { data: userData, error: userError } = await supabase.auth.getUser(token);
+    const serviceDb = createClient(url, serviceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data: userData, error: userError } = await userDb.auth.getUser(token);
     if (userError || !userData.user) return reply({ error: "Authentication required" }, 401);
 
     const body = await req.json().catch(() => ({}));
@@ -71,7 +75,8 @@ Deno.serve(async (req) => {
     if (!problem) return reply({ error: "A short problem is required." }, 400);
     if (!questionId) return reply({ error: "Question context is required." }, 400);
 
-    const { data: context, error: contextError } = await supabase.rpc("english_get_ai_help_context", {
+    const { data: context, error: contextError } = await serviceDb.rpc("english_get_ai_help_context_service", {
+      p_user_id: userData.user.id,
       p_question_id: questionId,
     });
     if (contextError) throw new Error(`Could not load learning context: ${contextError.message}`);
@@ -110,7 +115,8 @@ Deno.serve(async (req) => {
     const parsed = JSON.parse(text);
     const usage = payload?.usage || {};
 
-    const { data: applied, error: applyError } = await supabase.rpc("english_apply_ai_help_result", {
+    const { data: applied, error: applyError } = await serviceDb.rpc("english_apply_ai_help_result_service", {
+      p_user_id: userData.user.id,
       p_question_id: questionId,
       p_model: String(payload?.model || model),
       p_diagnosis: parsed.diagnosis,
