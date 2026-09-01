@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { MathsLoading } from "@/components/maths-frame";
 import { mathsCoachRpc, startMathsCoachSession } from "@/lib/maths-coach-rpc";
 import { subscribeMathsFresh, type MathsSession } from "@/lib/maths-rpc";
+import { supabaseBrowser } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
 
 type SprintPoint = { score: number; at: string };
@@ -59,23 +60,24 @@ type Weekly = {
   sprintMedian?: { current?: number | null; previous?: number | null };
   priorities: { reason: string; count: number; action: string }[];
 };
-type HomeSnapshot = {
+type ActiveExamSession = {
   ok: boolean;
-  resume?: {
-    sessionId: string;
-    title: string;
-    mode: string;
-    currentIndex: number;
-    target: number;
-    completed?: boolean;
-  } | null;
+  active: boolean;
+  sessionId?: string;
+  title?: string;
+  mode?: string;
+  currentIndex?: number;
+  target?: number;
+  remainingSeconds?: number | null;
+  expired?: boolean;
+  review?: number[];
+  visited?: number[];
 };
-
 type ExamData = {
   readiness: Readiness;
   calculation: CalculationHub;
   weekly: Weekly | null;
-  home: HomeSnapshot | null;
+  active: ActiveExamSession;
 };
 
 type Reason = "CAL" | "APP" | "CON" | "FOR" | "SILLY" | "TIME";
@@ -87,11 +89,27 @@ const reasons: { id: Reason; label: string; action: string }[] = [
   { id: "SILLY", label: "Silly", action: "Trap-control repair" },
   { id: "TIME", label: "Time", action: "Timed method repair" },
 ];
+const calcLabels = [
+  "Fractions / %",
+  "Squares / Roots",
+  "Cubes / Roots",
+  "Tables / ×",
+  "Division / Cancel",
+  "Approx / Simplify",
+  "Number Speed",
+  "Ratio / Proportion",
+  "SSC Mixed",
+];
 
 function scoreText(value: number | null | undefined) {
   if (value == null || !Number.isFinite(Number(value))) return "—";
   const n = Number(value);
   return Number.isInteger(n) ? String(n) : n.toFixed(1);
+}
+function formatClock(value: number | null | undefined) {
+  if (value == null || !Number.isFinite(Number(value))) return "";
+  const seconds = Math.max(0, Math.ceil(Number(value)));
+  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 }
 function average(values: number[]) {
   if (!values.length) return null;
@@ -108,7 +126,7 @@ function sprintStats(readiness: Readiness) {
     if (Number(point.score) < 45) break;
     streak += 1;
   }
-  return { last, five, streak, points };
+  return { last, five, streak };
 }
 function bandRank(band?: string) {
   if (band === "Automatic") return 4;
@@ -120,16 +138,17 @@ function bandRank(band?: string) {
 function coreBucket(skill: string) {
   const s = skill.toLowerCase();
   if (s.includes("fraction") || s.includes("percentage")) return "Fractions / %";
+  if (s.includes("cube")) return "Cubes / Roots";
   if (s.includes("square") || s.includes("root")) return "Squares / Roots";
   if (s.includes("table") || s.includes("multiplication")) return "Tables / ×";
   if (s.includes("division") || s.includes("cancellation")) return "Division / Cancel";
-  if (s.includes("approx") || s.includes("simplification")) return "Approx / Simplify";
-  if (s.includes("cube")) return "Cubes / Roots";
-  return "";
+  if (s.includes("approx") || s.includes("simplification") || s.includes("surd")) return "Approx / Simplify";
+  if (s.includes("divisib") || s.includes("unit digit") || s.includes("remainder")) return "Number Speed";
+  if (s.includes("ratio") || s.includes("proportion")) return "Ratio / Proportion";
+  return "SSC Mixed";
 }
 function groupedCalculation(skills: CalculationSkill[]) {
-  const labels = ["Fractions / %", "Squares / Roots", "Tables / ×", "Division / Cancel", "Approx / Simplify", "Cubes / Roots"];
-  return labels.map(label => {
+  return calcLabels.map(label => {
     const rows = skills.filter(x => coreBucket(x.skill) === label);
     const total = rows.reduce((sum, x) => sum + Number(x.total || 0), 0);
     const attempted = rows.reduce((sum, x) => sum + Number(x.attempted || 0), 0);
@@ -138,7 +157,7 @@ function groupedCalculation(skills: CalculationSkill[]) {
       : null;
     const measured = rows.filter(x => Number(x.attempted || 0) > 0);
     const band = measured.length
-      ? measured.sort((a, b) => bandRank(a.band) - bandRank(b.band))[0]?.band || "Needs work"
+      ? [...measured].sort((a, b) => bandRank(a.band) - bandRank(b.band))[0]?.band || "Needs work"
       : "Not measured";
     return { label, total, attempted, accuracy: weightedAccuracy, band };
   }).filter(x => x.total > 0);
@@ -153,6 +172,11 @@ function primaryPlan(data: ExamData) {
   if (meta) return { tag: meta.id, title: `${meta.label} is the biggest leak`, sub: meta.action, kind: "repair" as const };
   if (data.readiness.repair.due > 0) return { tag: "REPAIR", title: `${data.readiness.repair.due} repairs are due`, sub: "Clear the highest-value repair before adding more volume.", kind: "repair" as const };
   return { tag: "SPRINT", title: "Build fresh exam evidence", sub: "Run one balanced 25-question Sprint and diagnose the marks leakage.", kind: "sprint" as const };
+}
+async function fetchActiveExamSession(): Promise<ActiveExamSession> {
+  const { data, error } = await supabaseBrowser().rpc("maths_get_active_exam_session");
+  if (error) throw error;
+  return (data ?? { ok: true, active: false }) as ActiveExamSession;
 }
 
 function MiniMetric({ label, value }: { label: string; value: string | number }) {
@@ -194,13 +218,13 @@ export default function MathsExamPreparation() {
   const [showMore, setShowMore] = useState(false);
 
   const load = useCallback(async () => {
-    const [readiness, calculation, weekly, home] = await Promise.all([
+    const [readiness, calculation, weekly, active] = await Promise.all([
       mathsCoachRpc<Readiness>("maths_get_readiness"),
       mathsCoachRpc<CalculationHub>("maths_get_calculation_hub"),
       mathsCoachRpc<Weekly>("maths_get_weekly_leakage").catch(() => null),
-      mathsCoachRpc<HomeSnapshot>("maths_get_home_snapshot").catch(() => null),
+      fetchActiveExamSession(),
     ]);
-    setData({ readiness, calculation, weekly, home });
+    setData({ readiness, calculation, weekly, active });
     setError("");
   }, []);
 
@@ -211,9 +235,10 @@ export default function MathsExamPreparation() {
     const unsubs = [
       subscribeMathsFresh<Readiness>("maths_get_readiness", undefined, next => { if (alive) setData(prev => prev ? { ...prev, readiness: next } : prev); }),
       subscribeMathsFresh<CalculationHub>("maths_get_calculation_hub", undefined, next => { if (alive) setData(prev => prev ? { ...prev, calculation: next } : prev); }),
-      subscribeMathsFresh<HomeSnapshot>("maths_get_home_snapshot", undefined, next => { if (alive) setData(prev => prev ? { ...prev, home: next } : prev); }),
     ];
-    return () => { alive = false; unsubs.forEach(fn => fn()); };
+    const ownerChanged = () => { if (alive) { setData(null); setError(""); void load().catch((e: unknown) => { if (alive) setError(e instanceof Error ? e.message : String(e)); }); } };
+    window.addEventListener("maths:v2-owner-change", ownerChanged);
+    return () => { alive = false; unsubs.forEach(fn => fn()); window.removeEventListener("maths:v2-owner-change", ownerChanged); };
   }, [ready, load]);
 
   async function start(kind: "sprint" | "calculation" | "repair", reason?: Reason) {
@@ -221,6 +246,16 @@ export default function MathsExamPreparation() {
     setBusy(kind + (reason || ""));
     setError("");
     try {
+      const active = await fetchActiveExamSession();
+      if (active.active && active.sessionId) {
+        setData(prev => prev ? { ...prev, active } : prev);
+        if (kind === "sprint" || kind === "calculation") {
+          router.push(`/maths/exam/session?id=${encodeURIComponent(active.sessionId)}`);
+          return;
+        }
+        throw new Error("A timed Maths session is active. Resume or finish it before targeted repair.");
+      }
+
       let session: MathsSession;
       if (kind === "sprint") session = await startMathsCoachSession("maths_start_sprint", { p_diagnostic: true });
       else if (kind === "calculation") session = await startMathsCoachSession("maths_start_calculation", { p_mode: "timed", p_skill: data?.calculation.todayFocus?.[0] || null, p_count: 60 });
@@ -229,7 +264,13 @@ export default function MathsExamPreparation() {
       if (kind === "sprint" || kind === "calculation") router.push(`/maths/exam/session?id=${encodeURIComponent(session.sessionId)}`);
       else router.push(`/maths/session?id=${encodeURIComponent(session.sessionId)}`);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      const active = await fetchActiveExamSession().catch(() => null);
+      if (active?.active && active.sessionId && (kind === "sprint" || kind === "calculation")) {
+        setData(prev => prev ? { ...prev, active } : prev);
+        router.push(`/maths/exam/session?id=${encodeURIComponent(active.sessionId)}`);
+      } else {
+        setError(e instanceof Error ? e.message : String(e));
+      }
     } finally {
       setBusy("");
     }
@@ -243,11 +284,15 @@ export default function MathsExamPreparation() {
   const daysLeft = Math.max(0, 30 - Math.max(1, data.readiness.studyDay) + 1);
   const plan = primaryPlan(data);
   const calcGroups = groupedCalculation(data.calculation.skills ?? []);
-  const autoCount = calcGroups.filter(x => x.band === "Automatic" || x.band === "Strong").length;
-  const weakCount = calcGroups.filter(x => x.band === "Needs work" || x.band === "Almost there").length;
-  const resume = data.home?.resume && !data.home.resume.completed ? data.home.resume : null;
-  const resumeMode = String(resume?.mode || "").toLowerCase();
-  const examResume = resume && (resumeMode === "section_sprint" || resumeMode === "calculation_speed") ? resume : null;
+  const measuredCount = calcGroups.filter(x => x.attempted > 0).length;
+  const strongCount = calcGroups.filter(x => x.band === "Automatic" || x.band === "Strong").length;
+  const weakCount = calcGroups.filter(x => x.attempted > 0 && x.band !== "Automatic" && x.band !== "Strong").length;
+  const activeExam = data.active.active && data.active.sessionId ? data.active : null;
+  const activeTime = activeExam?.expired
+    ? "Time expired · open to finalize"
+    : activeExam?.remainingSeconds == null
+      ? "Timer is still running"
+      : `${formatClock(activeExam.remainingSeconds)} remaining · timer keeps running`;
 
   return <section className="mex-page">
     <header className="mex-head">
@@ -258,16 +303,16 @@ export default function MathsExamPreparation() {
 
     {error && <div className="mex-error" role="alert">{error}</div>}
 
-    {examResume && <section className="mex-resume-strip">
-      <div><span>Saved timed session</span><strong>{examResume.title}</strong><small>Q {examResume.currentIndex + 1}/{examResume.target} · exact frozen order</small></div>
-      <Link className="mex-primary small" href={`/maths/exam/session?id=${encodeURIComponent(examResume.sessionId)}`}>Resume</Link>
+    {activeExam && <section className="mex-resume-strip">
+      <div><span>{activeExam.expired ? "Timed session ended" : "Saved timed session"}</span><strong>{activeExam.title || "Maths timed session"}</strong><small>Q {Number(activeExam.currentIndex || 0) + 1}/{activeExam.target || "—"} · {activeTime}</small></div>
+      <Link className="mex-primary small" href={`/maths/exam/session?id=${encodeURIComponent(activeExam.sessionId!)}`}>{activeExam.expired ? "Finalize" : "Resume"}</Link>
     </section>}
 
     <section className="mex-sprint-card">
       <div className="mex-kicker">SSC STANDARD</div>
       <h1>25 Questions · 15 Minutes</h1>
       <p>50 marks · −0.50 wrong · fresh balanced Maths section</p>
-      <button className="mex-primary" type="button" disabled={!!busy || !!examResume} onClick={() => void start("sprint")}>{busy === "sprint" ? "Starting…" : examResume ? "Resume saved session first" : "Start Sprint"}</button>
+      <button className="mex-primary" type="button" disabled={!!busy || !!activeExam} onClick={() => void start("sprint")}>{busy === "sprint" ? "Starting…" : activeExam ? "Resume timed session first" : "Start Sprint"}</button>
     </section>
 
     <section className="mex-readiness" aria-label="SSC Standard readiness">
@@ -275,31 +320,32 @@ export default function MathsExamPreparation() {
       <MiniMetric label="5-Sprint Avg" value={scoreText(stats.five)} />
       <MiniMetric label="45+ Streak" value={stats.streak} />
     </section>
-    <p className="mex-readiness-note">Readiness uses completed SSC Standard Sprints. Repair and calculation drills do not inflate the score.</p>
+    <p className="mex-readiness-note">Readiness uses completed SSC Standard Sprints only. Repair and calculation drills do not inflate the score.</p>
 
     <section className="mex-plan-card">
       <div><span>Today’s priority · {plan.tag}</span><strong>{plan.title}</strong><small>{plan.sub}</small></div>
       {plan.kind === "calculation"
-        ? <button type="button" disabled={!!busy || !!examResume} onClick={() => void start("calculation")}>10:00 Drill</button>
+        ? <button type="button" disabled={!!busy || !!activeExam} onClick={() => void start("calculation")}>10:00 Drill</button>
         : plan.kind === "repair"
-          ? <button type="button" disabled={!!busy || !!examResume} onClick={() => void start("repair", (data.readiness.biggestLeak || undefined) as Reason | undefined)}>Repair 5</button>
-          : <button type="button" disabled={!!busy || !!examResume} onClick={() => void start("sprint")}>Start Sprint</button>}
+          ? <button type="button" disabled={!!busy || !!activeExam} onClick={() => void start("repair", (data.readiness.biggestLeak || undefined) as Reason | undefined)}>Repair 5</button>
+          : <button type="button" disabled={!!busy || !!activeExam} onClick={() => void start("sprint")}>Start Sprint</button>}
     </section>
 
     <section className="mex-block">
-      <div className="mex-section-head"><div><span>CALCULATION SPEED</span><h2>Automaticity before pressure</h2></div><button type="button" disabled={!!busy || !!examResume} onClick={() => void start("calculation")}>Start 10:00</button></div>
-      <p className="mex-block-sub">Fractions, percentage conversion, squares/roots, tables, multiplication, division, cancellation, approximation and cubes are tracked separately.</p>
-      <div className="mex-calc-summary"><MiniMetric label="Core strong" value={`${autoCount}/${calcGroups.length}`} /><MiniMetric label="Need work" value={weakCount} /><MiniMetric label="Pool" value={data.calculation.total} /></div>
-      <div className="mex-calc-grid">{calcGroups.slice(0, 6).map(x => <div className="mex-calc-row" key={x.label}><span><b>{x.label}</b><small>{x.attempted ? `${x.attempted} measured${x.accuracy == null ? "" : ` · ${x.accuracy.toFixed(0)}%`}` : `${x.total} cards · build evidence`}</small></span><strong className={`band-${x.band.toLowerCase().replace(/\s+/g, "-")}`}>{x.band}</strong></div>)}</div>
+      <div className="mex-section-head"><div><span>CALCULATION SPEED</span><h2>Automaticity before pressure</h2></div><button type="button" disabled={!!busy || !!activeExam} onClick={() => void start("calculation")}>Start 10:00</button></div>
+      <p className="mex-block-sub">Fractions/percentages, squares/roots, cubes, tables, multiplication, division, cancellation, approximation, simplification, number-speed and SSC embedded calculation are tracked from the real {data.calculation.total}-card calculation pool.</p>
+      <div className="mex-calc-summary"><MiniMetric label="Measured" value={`${measuredCount}/${calcGroups.length}`} /><MiniMetric label="Strong" value={strongCount} /><MiniMetric label="Need work" value={weakCount} /></div>
+      <div className="mex-calc-grid">{calcGroups.map(x => <div className="mex-calc-row" key={x.label}><span><b>{x.label}</b><small>{x.attempted ? `${x.attempted} measured${x.accuracy == null ? "" : ` · ${x.accuracy.toFixed(0)}%`}` : `${x.total} cards · build evidence`}</small></span><strong className={`band-${x.band.toLowerCase().replace(/\s+/g, "-")}`}>{x.band}</strong></div>)}</div>
     </section>
 
     <section className="mex-more">
       <div className="mex-section-inline"><strong>Targeted Repair</strong><button type="button" onClick={() => setShowMore(x => !x)}>{showMore ? "Less" : "More"}</button></div>
       <div className="mex-repair-actions">
-        <button type="button" disabled={!!busy || !!examResume} onClick={() => void start("repair", (data.readiness.biggestLeak || undefined) as Reason | undefined)}>Biggest Leak</button>
-        <Link href="/maths/approach">Approach Scan</Link>
-        {showMore && reasons.map(reason => <button type="button" key={reason.id} disabled={!!busy || !!examResume} onClick={() => void start("repair", reason.id)}>{reason.id} · {reason.label}</button>)}
+        <button type="button" disabled={!!busy || !!activeExam} onClick={() => void start("repair", (data.readiness.biggestLeak || undefined) as Reason | undefined)}>Biggest Leak</button>
+        {activeExam ? <span className="mex-disabled-action">Approach Scan</span> : <Link href="/maths/approach">Approach Scan</Link>}
+        {showMore && reasons.map(reason => <button type="button" key={reason.id} disabled={!!busy || !!activeExam} onClick={() => void start("repair", reason.id)}>{reason.id} · {reason.label}</button>)}
       </div>
+      {activeExam && <p className="mex-active-note">A timed session is active. Resume or finalize it before starting another Exam Prep action.</p>}
     </section>
 
     {infoOpen && <InfoModal data={data} onClose={() => setInfoOpen(false)} />}
