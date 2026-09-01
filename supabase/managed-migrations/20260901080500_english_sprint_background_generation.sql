@@ -195,16 +195,16 @@ stable
 security definer
 set search_path = pg_catalog, public, english, auth
 as $$
-with j as (
+with latest as (
   select *
   from english.sprint_generation_jobs
   where user_id=auth.uid()
-    and (
-      (status in ('queued','generating','ready') and expires_at>now())
-      or (status='failed' and completed_at>=now()-interval '10 minutes')
-    )
-  order by case when status in ('queued','generating','ready') then 0 else 1 end, created_at desc
+  order by created_at desc
   limit 1
+), j as (
+  select * from latest
+  where (status in ('queued','generating','ready') and expires_at>now())
+     or (status='failed' and completed_at>=now()-interval '10 minutes')
 )
 select case
   when auth.uid() is null then jsonb_build_object('ok',false,'error','Authentication required')
