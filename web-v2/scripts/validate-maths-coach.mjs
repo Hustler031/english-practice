@@ -19,7 +19,9 @@ const exam=read("components/maths-exam-prep.tsx");
 const examSession=read("components/maths-exam-session.tsx");
 const frame=read("components/maths-frame.tsx");
 const warmup=read("components/maths-runtime-warmup.tsx");
+const examCss=read("app/maths/maths-exam-prep.css");
 const examMigration=read("../supabase/managed-migrations/20260901143000_maths_exam_prep_foundation.sql");
+const examHardening=read("../supabase/managed-migrations/20260901153000_maths_exam_prep_runtime_hardening.sql");
 const pkg=JSON.parse(read("package.json"));
 const failures=[];
 const has=(label,text,needle)=>{if(!text.includes(needle))failures.push(`${label}: missing ${needle}`)};
@@ -37,19 +39,22 @@ for(const [label,text] of [
 ]) has(label,text,"MathsApp");
 for(const marker of [
   "maths_get_home_snapshot","EXAM PREPARATION","/maths/exam","Quick Start","maths_start_daily",
+  "/maths/exam/session","10[- ]min calculation drill",
 ]) has("Clean Maths home",home,marker);
 
 has("Exam Preparation route",examRoute,"MathsExamPreparation");
 has("Exam timed route",examSessionRoute,"MathsExamSessionPage");
 for(const marker of [
   "25 Questions · 15 Minutes","45+ goal","5-Sprint Avg","45+ Streak","maths_get_readiness",
-  "maths_get_calculation_hub","Fractions / %","Squares / Roots","Tables / ×","Division / Cancel",
-  "Approx / Simplify","Cubes / Roots","maths_start_sprint","maths_start_calculation","maths_start_repair",
+  "maths_get_calculation_hub","Fractions / %","Squares / Roots","Cubes / Roots","Tables / ×",
+  "Division / Cancel","Approx / Simplify","Number Speed","Ratio / Proportion","SSC Mixed",
+  "maths_get_active_exam_session","remainingSeconds","maths_start_sprint","maths_start_calculation","maths_start_repair",
   "CAL","APP","CON","FOR","SILLY","TIME",
 ]) has("Exam Preparation UI",exam,marker);
 for(const marker of [
   "deadlineAt","maths_finish_session","maths_submit_answer","p_client_attempt_key","maths_get_sprint_analysis",
   "maths_get_sprint_review","maths_confirm_diagnosis","maths_get_calculation_summary","QuestionMap","Marked for review",
+  "POSITION_PREFIX","maths_exam_runtime_checkpoint","checkpointChain","freshRpc","selectedOptionText","correctOptionText",
 ]) has("Exam timed session",examSession,marker);
 
 for(const marker of [
@@ -72,7 +77,9 @@ has("Dedicated readiness route",readiness,"MathsReadinessPage");
 has("Maths coach CSS",layout,'"./maths-coach.css"');
 has("English-parity Maths CSS",layout,'"./maths-english-parity.css"');
 has("Exam Preparation CSS",layout,'"./maths-exam-prep.css"');
-has("Exam route isolated in frame",frame,'exam\\/session');
+has("Exam route isolated in frame",frame,"maths-exam-route");
+has("Exam session isolated in frame",frame,"maths-exam-session");
+has("Exam focus shell CSS",examCss,"maths-app.maths-exam-route>.maths-header");
 has("Exam warmup",warmup,"prefetchExam");
 has("Timed warmup guard",warmup,"/maths/exam/session");
 
@@ -82,6 +89,13 @@ for(const marker of [
 ]) has("Exam Preparation migration",examMigration,marker);
 if(!/order by\s+hard_recent asc,chapter_rn asc,h asc/i.test(examMigration))failures.push("Exam Preparation migration: fresh Sprint ordering contract missing");
 
+for(const marker of [
+  "hide_exam_answers","e - 'answer' - 'explanation' - 'memoryCue' - 'correctOption'",
+  "'result','saved'","maths_get_active_exam_session","maths_exam_runtime_checkpoint",
+  "sessions_one_active_timed_exam_per_user","selected_option_text","correct_option_text",
+  "A timed Maths session is already active","deadlineAt","maths_start_calculation",
+]) has("Exam runtime hardening migration",examHardening,marker);
+
 if(pkg.scripts?.["contracts:maths"]!=="node scripts/validate-maths-contracts.mjs && node scripts/validate-maths-coach.mjs")failures.push("package.json: contracts:maths must include coach validator");
 for(const file of [
   "20260831095812_maths_v2_performance_intelligence_foundation.sql",
@@ -90,6 +104,7 @@ for(const file of [
   "20260831110000_maths_v2_question_fast_path_read.sql",
   "20260831111200_maths_v2_external_reviewed_canonical_ingest.sql",
   "20260901143000_maths_exam_prep_foundation.sql",
+  "20260901153000_maths_exam_prep_runtime_hardening.sql",
 ]){
   if(!exists(`../supabase/managed-migrations/${file}`))failures.push(`Maths migration mirror missing: ${file}`);
 }
