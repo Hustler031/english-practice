@@ -1,3 +1,3 @@
-import { MathsCoachSessionPage } from "@/components/maths-coach";
+import MathsApp from "@/components/maths-app";
 
-export default function MathsPage(){return <MathsCoachSessionPage/>;}
+export default function MathsPage(){return <MathsApp/>;}

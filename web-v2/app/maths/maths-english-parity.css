@@ -1,0 +1,74 @@
+/* Maths V2 English-parity presentation layer.
+   Scope: visual/runtime shell only. Maths RPCs, session order, learning state,
+   calculation/formula/concept logic and migrated evidence remain Maths-owned. */
+
+html[data-theme="dark"]{
+  --m-bg:#0d1117;--m-panel:#151b24;--m-panel-2:#1a2230;--m-text:#eef2f7;--m-muted:#9aa8ba;
+  --m-line:#2b3543;--m-primary:#8b87ff;--m-primary-strong:#7873f1;--m-red:#ff7474;
+  --m-purple:#a76deb;--m-amber:#e1aa4b;--m-green:#54c985;--m-indigo:#8b87ff;color-scheme:dark
+}
+html[data-theme="light"]{
+  --m-bg:#f5f7fb;--m-panel:#fff;--m-panel-2:#f0f3f8;--m-text:#172033;--m-muted:#657287;
+  --m-line:#d8e0ea;--m-primary:#6662df;--m-primary-strong:#5550cf;--m-red:#c84752;
+  --m-purple:#8a59c7;--m-amber:#9b6b12;--m-green:#21865a;--m-indigo:#6662df;color-scheme:light
+}
+
+.maths-app{width:min(700px,100%);padding-bottom:88px;background:var(--m-bg)}
+.maths-header{height:66px;min-height:66px;padding:12px 16px;border-bottom:1px solid var(--m-line);background:color-mix(in srgb,var(--m-bg) 96%,transparent);backdrop-filter:blur(10px)}
+.maths-brand{display:grid;gap:2px}.maths-brand strong{font-size:18px;line-height:1.1;letter-spacing:-.025em}.maths-brand span{margin:0;font-size:11px;color:var(--m-muted)}
+.maths-header-actions{gap:7px}.maths-icon-btn{width:37px;height:37px;border-radius:11px;background:var(--m-panel);font-size:17px}
+.maths-pill{min-height:31px;background:var(--m-panel);font-size:10px}
+.maths-content{padding:15px 14px 18px}
+.maths-nav{left:0;right:0;transform:none;width:auto;min-height:61px;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;padding:7px max(7px,env(safe-area-inset-right)) calc(7px + env(safe-area-inset-bottom)) max(7px,env(safe-area-inset-left));border:0;border-top:1px solid var(--m-line);background:color-mix(in srgb,var(--m-panel) 98%,transparent);backdrop-filter:blur(10px)}
+.maths-nav-item{min-height:47px;padding:4px 2px;border-radius:11px;font-size:10px}.maths-nav-item b{font-size:18px}.maths-nav-item.active{background:color-mix(in srgb,var(--m-primary) 16%,var(--m-panel));color:var(--m-primary)}
+
+.maths-loading{min-height:50vh}.maths-loading i{background:var(--m-primary)}
+.maths-error{border-color:color-mix(in srgb,var(--m-red) 42%,var(--m-line));background:color-mix(in srgb,var(--m-red) 10%,var(--m-panel));color:var(--m-red)}
+
+/* Home mirrors English V2 density and hierarchy. */
+.m-home{padding-top:0}.m-hero{padding:16px;border:1px solid color-mix(in srgb,var(--m-primary) 44%,var(--m-line));border-radius:18px;background:linear-gradient(135deg,#263b8f,#423f92);box-shadow:none;color:#fff}
+.m-hero.complete{background:linear-gradient(135deg,#265746,#356b59);border-color:#3e7a64}.m-hero h1{margin:0 0 10px;font-size:22px;letter-spacing:-.03em}.m-hero-desc{margin:0 0 15px;color:#e6e6ff;font-size:13px;line-height:1.45}
+.m-goal{font-size:13px}.m-goal b{font-size:14px}.m-daily-track{height:8px;margin:9px 0;background:rgba(0,0,0,.22)}.m-daily-track i{background:#fff}.m-hero-note{font-size:11px;line-height:1.4;color:#d9d9ff}.m-hero-cta{min-height:40px;margin-top:13px;padding:8px 11px;border-radius:12px;color:#2e3d91;font-size:13px}
+.m-pending{margin-top:10px;min-height:62px;padding:10px 11px;border-left:3px solid var(--m-primary);border-radius:14px;background:var(--m-panel)}
+.m-pending b{font-size:14px}.m-pending small{font-size:11px}.m-section-title{margin:20px 2px 9px;font-size:17px}.m-quick-list{gap:8px}.m-quick-card{grid-template-columns:31px minmax(0,1fr) 13px;min-height:62px;padding:10px 11px;border-left:3px solid var(--m-line);border-radius:14px;background:var(--m-panel)}
+.m-quick-card:nth-child(1){border-left-color:var(--m-primary)}.m-quick-card:nth-child(2){border-left-color:var(--m-amber)}.m-quick-card:nth-child(3){border-left-color:var(--m-green)}
+.m-quick-icon{width:31px;height:31px;border-radius:9px;background:color-mix(in srgb,var(--m-primary) 13%,var(--m-panel));font-size:17px}.m-quick-copy b{font-size:14px}.m-quick-copy small{font-size:11px;line-height:1.32}
+
+/* Secondary pages use the same compact English cards and controls. */
+.m-metric-strip{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding:0;margin:0 0 18px;border:0}.m-metric-strip>div{height:auto;min-height:50px;display:flex;flex-direction:column;padding:8px 4px;border-radius:12px;font-size:10px;background:var(--m-panel)}
+.m-metric-strip>div::first-line{font-size:12px}.m-title{margin:1px 1px 15px;padding:0}.m-back{min-height:34px;margin:0 0 11px;padding:6px 9px;border-radius:10px;background:var(--m-panel);font-size:11px}.m-kicker{font-size:10px}.m-title h1{font-size:21px}.m-title p{margin-top:5px;font-size:13px}
+.m-group-grid,.m-library-grid{gap:9px;padding:0}.m-group-card,.m-library-card{min-height:98px;padding:13px;border-radius:15px;background:var(--m-panel)}
+.m-list{gap:8px;padding:0}.m-row{min-height:62px;padding:10px 11px;border-left:3px solid var(--m-line);border-radius:14px;background:var(--m-panel)}.m-row.no-icon{padding:11px 12px}.m-row-icon{width:34px;height:34px;border-radius:10px;background:color-mix(in srgb,var(--m-primary) 13%,var(--m-panel))}.m-row-copy b{font-size:14px}.m-row-copy small{font-size:11px}.m-row-status{font-size:10px}.m-card{border-radius:15px;background:var(--m-panel)}
+.m-actions-shell{margin:12px 0 3px;padding:12px;border-radius:16px;background:var(--m-panel)}.m-action-grid{gap:7px}.m-action{min-height:42px;border-radius:12px;background:color-mix(in srgb,var(--m-primary) 12%,var(--m-panel));font-size:11px}.m-action.primary,.m-wide-primary,.m-btn.primary{background:var(--m-primary);border-color:var(--m-primary);color:#17162f}.m-action.starred{background:color-mix(in srgb,var(--m-amber) 9%,var(--m-panel))}.m-action.difficult{background:color-mix(in srgb,var(--m-purple) 9%,var(--m-panel))}
+.m-stat-grid{gap:6px;padding:0}.m-stat{min-height:66px;border-radius:12px;background:var(--m-panel)}.m-overview-grid{gap:6px;padding:0}.m-overview-grid>div{min-height:74px;border-radius:12px;background:var(--m-panel)}.m-progress-track{margin-left:0;margin-right:0}.m-progress-card{border-radius:14px;background:var(--m-panel)}
+
+/* Quiz: visually aligned with the current English V2 QuizRunner while retaining Maths engine/RPCs. */
+.maths-quiz-mode{padding-bottom:0}.maths-quiz-mode .maths-content{padding:0 14px calc(22px + env(safe-area-inset-bottom))}
+.m-quiz-shell{max-width:none;margin:0;padding-bottom:154px}.m-quiz-head{top:66px;margin:0 -14px 10px;padding:10px 14px 9px;border-bottom:1px solid var(--m-line);background:color-mix(in srgb,var(--m-bg) 96%,transparent);backdrop-filter:blur(10px)}
+.m-quiz-head-top strong{font-size:14px;font-weight:900}.m-quiz-head-top span{font-size:11px}.m-quiz-progress{height:4px;margin-top:8px;background:var(--m-line)}.m-quiz-progress i{background:var(--m-primary)}
+.m-question-card{padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}.m-meta{gap:6px;margin-bottom:12px}.m-meta span{padding:4px 8px;border:1px solid var(--m-line);border-radius:999px;background:color-mix(in srgb,var(--m-primary) 9%,var(--m-panel));color:var(--m-muted);font-size:10px;font-weight:800}
+.m-question{padding:2px 0 12px;font-size:20px;line-height:1.45;font-weight:760}.m-diagram{margin:6px 0 14px;border-style:solid;border-radius:14px;background:var(--m-panel)}
+.m-options{gap:10px;margin-top:0}.m-option{grid-template-columns:30px minmax(0,1fr);gap:12px;min-height:56px;padding:14px;border-radius:15px;background:var(--m-panel);transition:transform .12s ease,border-color .12s ease,background-color .12s ease}.m-option:active:not(:disabled){transform:scale(.995)}
+.m-option b{width:30px;height:30px;border:0;border-radius:9px;background:color-mix(in srgb,var(--m-primary) 15%,var(--m-panel));font-size:12px}.m-option span{padding-top:4px;font-size:14px;line-height:1.4}.m-option.selected{border-color:var(--m-primary);background:color-mix(in srgb,var(--m-primary) 15%,var(--m-panel))}.m-option.correct{border-color:#8fd5a5;background:color-mix(in srgb,var(--m-green) 11%,var(--m-panel))}.m-option.correct b{background:var(--m-green);color:#0e2918}.m-option.wrong{border-color:#f2a8a8;background:color-mix(in srgb,var(--m-red) 11%,var(--m-panel))}.m-option.wrong b{background:var(--m-red);color:#321a1a}
+.m-feedback{display:inline-flex;align-items:center;min-height:29px;margin:12px 0 0;padding:5px 9px;border:0;border-radius:999px;font-size:11px;font-weight:900}.m-feedback.good{background:color-mix(in srgb,var(--m-green) 16%,var(--m-panel));color:var(--m-green)}.m-feedback.bad{background:color-mix(in srgb,var(--m-red) 16%,var(--m-panel));color:var(--m-red)}
+.m-answer-box,.m-explanation{margin-top:12px;padding:13px 14px;border-radius:14px;background:var(--m-panel)}.m-answer-box>b,.m-explanation>b{margin-bottom:6px;color:var(--m-primary);font-size:10px}.m-answer-box p,.m-explanation p{font-size:14px;line-height:1.62}.m-explanation p{font-weight:620}.m-memory{margin-top:9px;font-size:11px}
+.m-quiz-tools{grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin:10px 0}.m-tool{min-height:40px;padding:7px 5px;border-radius:12px;background:var(--m-panel);font-size:10px;font-weight:850}.m-tool.active{background:color-mix(in srgb,var(--m-primary) 14%,var(--m-panel));color:var(--m-primary)}
+.m-nav-dock{position:fixed;left:50%;transform:translateX(-50%);bottom:0;width:min(700px,100%);z-index:65;grid-template-columns:1fr auto 1fr;gap:8px;padding:9px max(10px,env(safe-area-inset-right)) calc(9px + env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));border-top:1px solid var(--m-line);background:color-mix(in srgb,var(--m-panel) 98%,transparent);backdrop-filter:blur(12px)}
+.m-nav-dock .m-btn{min-height:44px;border-radius:12px}.m-jump{min-width:76px;min-height:44px;border-radius:12px;background:var(--m-panel-2)}
+.m-pause-backdrop{background:rgba(0,0,0,.62)}.m-pause-sheet{border-color:var(--m-line);border-radius:20px 20px 0 0;background:var(--m-panel)}
+
+/* Keep old Maths interactions visible and English-like instead of replacing them. */
+.m-old-jump-sheet{background:var(--m-panel)!important;border-color:var(--m-line)!important}.m-old-jump-q{background:var(--m-panel-2)!important;border-color:var(--m-line)!important;color:var(--m-text)!important}.m-old-jump-q.qj-current{border-color:var(--m-primary)!important;box-shadow:0 0 0 2px color-mix(in srgb,var(--m-primary) 18%,transparent)!important}
+.m-mock-break-head{color:var(--m-text)}
+
+@media(hover:hover){.m-quick-card:hover,.m-row:hover,.m-group-card:hover,.m-library-card:hover,.m-progress-card:hover,.m-option:hover:not(:disabled){border-color:color-mix(in srgb,var(--m-primary) 52%,var(--m-line));background-color:color-mix(in srgb,var(--m-primary) 5%,var(--m-panel))}}
+
+@media(max-width:560px){
+  .maths-header{height:66px;min-height:66px;padding:12px 11px}.maths-brand{max-width:44vw}.maths-brand strong{font-size:18px}.maths-brand span{font-size:10px}.maths-header-actions{gap:5px}.maths-icon-btn{width:34px;height:34px}.maths-content{padding:13px 10px 18px}
+  .m-hero{padding:15px}.m-hero h1{font-size:21px}.m-hero-desc{font-size:12px}.m-section-title{font-size:16px}.m-group-grid,.m-library-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.m-action-grid.four{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .maths-quiz-mode .maths-content{padding-left:10px;padding-right:10px}.m-quiz-head{top:66px;margin-left:-10px;margin-right:-10px;padding-left:10px;padding-right:10px}.m-question{font-size:18px}.m-option{padding:12px}.m-option span{font-size:13px}.m-answer-box p,.m-explanation p{font-size:13px}.m-nav-dock{width:100%}
+}
+
+@media(max-width:360px){.maths-brand span{display:none}.maths-brand{max-width:38vw}.m-metric-strip>div{font-size:9px}.m-question{font-size:17px}.m-tool{font-size:9px}.m-nav-dock{gap:6px;padding-left:7px;padding-right:7px}.m-jump{min-width:66px}}
+
+@media(prefers-reduced-motion:reduce){.m-option,.m-daily-track i,.m-progress-track i{transition:none!important}}
