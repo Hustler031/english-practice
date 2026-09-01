@@ -18,6 +18,8 @@ type SprintSession={ok:boolean;active?:boolean;sessionId:string;mode:string;stat
 type Diagnosis={position:number;diagnosis:string;action:string;confusedWith?:string;rationale?:string};
 type Answer={position:number;selectedKey:string;timeSeconds:number};
 type Mode="standard"|"weakness"|"trap"|"mistakes";
+type GenerationState={ok:boolean;active?:boolean;jobId?:string;mode?:Mode;status?:"idle"|"queued"|"generating"|"ready"|"failed"|"claimed";sessionId?:string|null;error?:string|null};
+type SprintCreateResponse=Partial<SprintSession>&{ok:boolean;generationPending?:boolean;jobId?:string;mode?:string;status?:string;error?:string};
 
 type RuntimeSnapshot={answers:Record<number,Answer>;visited:Set<number>;review:Set<number>;idx:number;seconds:number};
 
@@ -34,46 +36,118 @@ export default function ExamPreparationFinal(){
   const[active,setActive]=useState<SprintSession|null>(null);
   const[session,setSession]=useState<SprintSession|null>(null);
   const[creating,setCreating]=useState<Mode|null>(null);
+  const[generation,setGeneration]=useState<GenerationState|null>(null);
   const[error,setError]=useState("");
   const[infoOpen,setInfoOpen]=useState(false);
   const[more,setMore]=useState(false);
+  const foregroundGeneration=useRef(false);
 
   const refresh=useCallback(async()=>{
-    const [exam,activeSprint]=await Promise.all([
+    const [exam,activeSprint,generationState]=await Promise.all([
       supabaseBrowser().rpc("english_get_exam_preparation"),
       supabaseBrowser().rpc("english_get_active_sprint"),
+      supabaseBrowser().rpc("english_get_sprint_generation"),
     ]);
     if(exam.error)throw exam.error;
     if(activeSprint.error)throw activeSprint.error;
+    if(generationState.error)throw generationState.error;
     setData(exam.data as ExamData);
     const current=activeSprint.data as SprintSession|undefined;
-    setActive(current?.active?current:null);
+    const currentActive=current?.active?current:null;
+    setActive(currentActive);
+    const g=generationState.data as GenerationState|undefined;
+    if(!currentActive&&(g?.status==="queued"||g?.status==="generating")){
+      setGeneration(g);setCreating(g.mode||null);setError("");
+    }else if(g?.status==="ready"){
+      setGeneration(g);setCreating(null);
+    }else if(!currentActive&&g?.status==="failed"){
+      setGeneration(g);setCreating(null);if(g.error)setError(g.error);
+    }else{
+      setGeneration(g?.status==="idle"?null:g||null);
+      if(currentActive)setCreating(null);
+    }
   },[]);
 
   useEffect(()=>{if(ready)refresh().catch((e:any)=>setError(e.message||String(e)));},[ready,refresh]);
 
+  useEffect(()=>{
+    if(!ready||!generation?.jobId||(generation.status!=="queued"&&generation.status!=="generating"))return;
+    let stopped=false;
+    const check=async()=>{
+      try{
+        const result=await supabaseBrowser().rpc("english_get_sprint_generation");
+        if(result.error)throw result.error;
+        if(stopped)return;
+        const next=result.data as GenerationState;
+        setGeneration(next);
+        if(next.status==="queued"||next.status==="generating"){
+          setCreating(next.mode||generation.mode||null);
+          return;
+        }
+        if(next.status==="failed"){
+          foregroundGeneration.current=false;setCreating(null);setError(next.error||"Could not create the SSC Sprint right now.");
+          return;
+        }
+        if(next.status==="ready"&&next.sessionId){
+          setCreating(null);setError("");
+          const readySession=await rpc<SprintSession>("english_get_sprint_session",{p_session_id:next.sessionId});
+          if(stopped)return;
+          setActive({...readySession,active:true});
+          if(foregroundGeneration.current){
+            foregroundGeneration.current=false;
+            const started=await rpc<SprintSession>("english_start_ready_sprint",{p_session_id:next.sessionId});
+            if(stopped)return;
+            setSession(started);setActive(started);
+          }
+        }
+      }catch(e:any){
+        if(!stopped){foregroundGeneration.current=false;setCreating(null);setError(learnerErrorMessage(e,"Could not check Sprint generation status."));}
+      }
+    };
+    void check();
+    const timer=window.setInterval(()=>void check(),2500);
+    return()=>{stopped=true;window.clearInterval(timer)};
+  },[ready,generation?.jobId,generation?.status,generation?.mode]);
+
   async function start(mode:Mode){
     if(localProductionSafetyMode()){setError("Sprint creation is disabled in Local Safe because localhost is connected to production learning data.");return;}
     if(active){await resumeActive(active);return;}
-    setCreating(mode);setError("");
+    foregroundGeneration.current=true;
+    setCreating(mode);setGeneration({ok:true,active:true,mode,status:"queued"});setError("");
+    let backgroundPending=false;
     try{
-      const {data:out,error:fnError}=await supabaseBrowser().functions.invoke<SprintSession>("english-ssc-sprint",{body:{action:"create",mode}});
+      const {data:out,error:fnError}=await supabaseBrowser().functions.invoke<SprintCreateResponse>("english-ssc-sprint",{body:{action:"create",mode}});
       if(fnError)throw new Error(await edgeErrorMessage(fnError,"Could not create the SSC Sprint right now."));
-      if(!out?.ok)throw new Error((out as any)?.error||"Could not create Sprint");
-      setSession(out);
-      setActive(out);
-    }catch(e:any){setError(e?.message||learnerErrorMessage(e,"Could not create the SSC Sprint right now."));}
-    finally{setCreating(null)}
+      if(!out?.ok)throw new Error(out?.error||"Could not create Sprint");
+      if(out.generationPending&&out.jobId){
+        backgroundPending=true;
+        setGeneration({ok:true,active:true,jobId:out.jobId,mode:(out.mode as Mode)||mode,status:(out.status as GenerationState["status"])||"queued"});
+        return;
+      }
+      if(out.sessionId){
+        foregroundGeneration.current=false;
+        const readyOut=out.status==="ready"
+          ?await rpc<SprintSession>("english_start_ready_sprint",{p_session_id:out.sessionId})
+          :out as SprintSession;
+        setSession(readyOut);setActive(readyOut);setGeneration(null);
+        return;
+      }
+      throw new Error("Sprint generation did not return a session or background job.");
+    }catch(e:any){
+      foregroundGeneration.current=false;setGeneration(null);setError(e?.message||learnerErrorMessage(e,"Could not create the SSC Sprint right now."));
+    }finally{if(!backgroundPending)setCreating(null)}
   }
 
   async function resumeActive(current:SprintSession){
     setError("");
     try{
-      const out=current.status==="paused"
-        ?await rpc<SprintSession>("english_resume_sprint",{p_session_id:current.sessionId})
-        :await rpc<SprintSession>("english_get_sprint_session",{p_session_id:current.sessionId});
+      const out=current.status==="ready"
+        ?await rpc<SprintSession>("english_start_ready_sprint",{p_session_id:current.sessionId})
+        :current.status==="paused"
+          ?await rpc<SprintSession>("english_resume_sprint",{p_session_id:current.sessionId})
+          :await rpc<SprintSession>("english_get_sprint_session",{p_session_id:current.sessionId});
       if(!out?.ok)throw new Error((out as any)?.error||"Could not resume Sprint");
-      setSession(out);setActive(out);
+      setSession(out);setActive(out);setGeneration(null);
     }catch(e:any){setError(learnerErrorMessage(e,"Could not resume the saved Sprint."));}
   }
 
@@ -82,6 +156,7 @@ export default function ExamPreparationFinal(){
 
   const r=data?.readiness;
   const activeMeta=active?modeMeta[(active.mode as Mode)]||modeMeta.standard:null;
+  const generatingMeta=creating?modeMeta[creating]:null;
   return <section className="exam-clean-page">
     <header className="module-compact-head">
       <Link className="compact-back" href="/english">← Home</Link>
@@ -91,14 +166,19 @@ export default function ExamPreparationFinal(){
 
     {error&&<div className="compact-error" role="alert">{error}</div>}
 
+    {creating&&!active&&<section className="resume-sprint-strip">
+      <div><span>Generating in background</span><strong>{generatingMeta?.label||"SSC Sprint"}</strong><small>You can leave this page. Generation will continue and the timer has not started.</small></div>
+      <button className="btn primary" type="button" disabled>Working…</button>
+    </section>}
+
     {active&&<section className="resume-sprint-strip">
-      <div><span>Saved Sprint</span><strong>{activeMeta?.label}</strong><small>Q {active.currentPosition||1}/{active.questionCount} · {formatTime(active.remainingSeconds??active.durationLimitSeconds??900)} remaining{active.status==="paused"?" · paused":""}</small></div>
-      <button className="btn primary" type="button" onClick={()=>void resumeActive(active)}>Resume</button>
+      <div><span>{active.status==="ready"?"Sprint Ready":"Saved Sprint"}</span><strong>{activeMeta?.label}</strong><small>{active.status==="ready"?"Ready to start · 15-minute timer starts when you open it":`Q ${active.currentPosition||1}/${active.questionCount} · ${formatTime(active.remainingSeconds??active.durationLimitSeconds??900)} remaining${active.status==="paused"?" · paused":""}`}</small></div>
+      <button className="btn primary" type="button" onClick={()=>void resumeActive(active)}>{active.status==="ready"?"Start":"Resume"}</button>
     </section>}
 
     <section className="exam-launch-card">
       <div className="exam-launch-title"><span>SSC STANDARD</span><h1>25 Questions · 15 Minutes</h1><p>50 marks · −0.50 wrong · no Reading Comprehension</p></div>
-      <button className="exam-start-button" type="button" disabled={!!creating||!!active} onClick={()=>void start("standard")}>{active?"Resume saved Sprint":creating==="standard"?"Generating…":"Start Sprint"}</button>
+      <button className="exam-start-button" type="button" disabled={!!creating||!!active} onClick={()=>void start("standard")}>{active?(active.status==="ready"?"Open Sprint":"Resume saved Sprint"):creating==="standard"?"Generating…":"Start Sprint"}</button>
     </section>
 
     <section className="exam-more-row">
