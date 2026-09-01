@@ -14,6 +14,9 @@ const css=read("app/maths/maths.css");
 const finalPolish=read("app/maths/maths-final-polish.css");
 const mathsLayout=read("app/maths/layout.tsx");
 const launcher=read("app/page.tsx");
+const calculationRoute=read("app/maths/calculation/page.tsx");
+const onDemandRoute=read("app/maths/ondemand/page.tsx");
+const onDemandClean=read("components/maths-ondemand-clean.tsx");
 const failures=[];
 const has=(label,text,needle)=>{if(!text.includes(needle))failures.push(`${label}: missing ${needle}`)};
 const hasRegex=(label,text,regex,description)=>{if(!regex.test(text))failures.push(`${label}: missing ${description}`)};
@@ -24,7 +27,7 @@ const staticRoutes=["","chapters","library","ondemand","progress","mocks","formu
 for(const name of staticRoutes){
   const p=name?`app/maths/${name}/page.tsx`:"app/maths/page.tsx";
   if(!exists(p))failures.push(`Static route missing: ${p}`);
-  else hasRegex(`Static route ${name||"home"}`,read(p),/Maths(?:App|Home|CoachHome|ReadinessPage|CalculationPage|CoachSessionPage|ExamPreparation|ExamSessionPage|ExamTimedSession)/,"Maths route component");
+  else hasRegex(`Static route ${name||"home"}`,read(p),/Maths(?:App|Home|CoachHome|ReadinessPage|CalculationPage|CalculationRedirect|OnDemandPage|OnDemandClean|CoachSessionPage|ExamPreparation|ExamSession|ExamTimedSession)/,"Maths route component");
 }
 if(exists("app/maths/[[...slug]]/page.tsx"))failures.push("Dynamic catch-all must not exist under output: export");
 for(const section of ["chapters","library","ondemand","progress","mocks","formulas","calculation","concepts","demand","new","starred","generated","session","resume"]){
@@ -40,9 +43,7 @@ for(const marker of ["REVEAL","localSafeStart","queueAnswer"])has("Runtime",rpc,
 for(const marker of ["MathsDiagram","math-diagram","structured_json_untyped","Not drawn to scale"])has("Diagram renderer",app+diagram,marker);
 lacks("Diagram renderer",app,"Diagram payload preserved");
 for(const message of ["Answer this question first.","Reveal the answer first."])has("Quiz navigation guard",app,message);
-for(const file of ["20260830191345_maths_v2_final_audit_hardening.sql","20260830192647_maths_v2_restore_diagram_ledger.sql","20260830193148_maths_v2_session_snapshot_repair.sql","20260830193522_maths_v2_chapter_group_boundary_fix.sql"]){
-  if(!exists(`../supabase/managed-migrations/${file}`))failures.push(`Maths migration mirror missing: ${file}`);
-}
+for(const file of ["20260830191345_maths_v2_final_audit_hardening.sql","20260830192647_maths_v2_restore_diagram_ledger.sql","20260830193148_maths_v2_session_snapshot_repair.sql","20260830193522_maths_v2_chapter_group_boundary_fix.sql"]){if(!exists(`../supabase/managed-migrations/${file}`))failures.push(`Maths migration mirror missing: ${file}`);}
 for(const marker of ["MOCK_QUESTIONS","MOCK_FORMULA_REVISION","MEMORY","METHOD","DRILL","Weak & Slow","Major Topics","Practice More"])has("Maths semantics",app+home+rpc,marker);
 has("Static export session identity",app,'search.get("id")');
 has("Static export chapter identity",app,'search.get("chapter")');
@@ -51,23 +52,25 @@ has("Root launcher",launcher,'href="/maths"');
 has("Safe area",css,"env(safe-area-inset-bottom)");
 has("Final polish import",mathsLayout,'./maths-final-polish.css');
 for(const marker of ["font-variant-emoji:text","top:auto!important","grid-template-columns:1fr 1fr!important","width:min(700px,100%)!important",".m-answer-box,.maths-quiz-mode .m-explanation","@media(max-width:420px)"])has("Final visual authority",finalPolish,marker);
-lacks("Maths UI",app+home,"Add Word");
-lacks("Maths UI",app+home,"Hindu");
-lacks("Maths UI",app+home,"Phrasal");
 
-// The cross-product source-boundary assertion is meaningful when validating the Maths
-// integration branch itself. Other product branches still run the functional Maths contracts,
-// but should not fail merely because their own scoped files changed.
+// Calculation is now an Exam Prep track, not a normal learning surface.
+has("Calculation route isolation",calculationRoute,'/maths/exam?tab=calculation');
+has("Academic-only On Demand route",onDemandRoute,"MathsOnDemandClean");
+for(const marker of ["Academic practice","Calculation lives only inside Exam Preparation","maths_get_ondemand_hub","maths_start_focused_practice"])has("Academic-only On Demand",onDemandClean,marker);
+lacks("Academic-only On Demand",onDemandClean,'href="/maths/calculation"');
+has("Academic-only Daily copy",home,"academic question bank only · Calculation excluded");
+has("Independent Exam Prep Day",home,"maths_get_exam_prep_state");
+
+lacks("Maths UI",app+home,"Add Word");lacks("Maths UI",app+home,"Hindu");lacks("Maths UI",app+home,"Phrasal");
+
 if(process.env.MATHS_ENFORCE_SOURCE_BOUNDARY==="true"){
   try{
-    const repoRoot=path.resolve(root,"..");
-    const base=execFileSync("git",["merge-base","HEAD","origin/main"],{cwd:repoRoot,encoding:"utf8"}).trim();
+    const repoRoot=path.resolve(root,"..");const base=execFileSync("git",["merge-base","HEAD","origin/main"],{cwd:repoRoot,encoding:"utf8"}).trim();
     if(!base)throw new Error("No merge-base found with origin/main");
     const changed=execFileSync("git",["diff","--name-only",`${base}...HEAD`],{cwd:repoRoot,encoding:"utf8"}).trim().split(/\r?\n/).filter(Boolean);
     const forbidden=changed.filter(p=>p.startsWith("web-v2/app/english/")||p.startsWith("web-v2/components/english-")||p.startsWith("web-v2/app/gk/")||p.startsWith("web-v2/lib/gk"));
     if(forbidden.length)failures.push(`English/GK regression boundary violated: ${forbidden.join(", ")}`);
   }catch(e){failures.push(`Unable to verify regression boundary: ${e.message}`)}
 }
-
 if(failures.length){console.error("Maths V2 contract validation FAILED\n- "+failures.join("\n- "));process.exit(1)}
 console.log("Maths V2 contract validation PASS");

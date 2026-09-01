@@ -1,3 +1,3 @@
-import MathsExamPreparation from "@/components/maths-exam-prep";
+import MathsExamPreparationV2 from "@/components/maths-exam-prep-v2";
 
-export default function MathsExamPage(){return <MathsExamPreparation/>;}
+export default function MathsExamPage(){return <MathsExamPreparationV2/>;}
