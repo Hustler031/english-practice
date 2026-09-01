@@ -24,6 +24,7 @@ import "./sprint-report-history.css";
 import "./sprint-subject-bank.css";
 import "./route-context-compact-fix.css";
 import "./exam-ui-followup.css";
+import "./english-intelligence-reliability.css";
 
 export const metadata: Metadata = {
   title: "English Mastery",
