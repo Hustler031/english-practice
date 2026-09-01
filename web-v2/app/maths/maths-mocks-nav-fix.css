@@ -1,0 +1,29 @@
+/* Targeted production hotfix after restored Maths UI audit.
+   Keep this last: it corrects desktop shell drift introduced by the final polish layer. */
+
+/* Bottom navigation must belong to the 700px Maths app shell, not the viewport. */
+.maths-nav{
+  left:50%!important;
+  right:auto!important;
+  width:min(700px,100%)!important;
+  transform:translateX(-50%)!important;
+  box-sizing:border-box!important;
+}
+
+/* Keep the active tab compact and deterministic across wide desktop screens. */
+.maths-nav-item{
+  min-width:0!important;
+  overflow:hidden;
+}
+.maths-nav-item span{
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+@media(max-width:700px){
+  .maths-nav{
+    width:100%!important;
+  }
+}

@@ -7,5 +7,6 @@ import "./maths-coach.css";
 import "./maths-lively.css";
 import "./maths-english-parity.css";
 import "./maths-final-polish.css";
+import "./maths-mocks-nav-fix.css";
 
 export default function MathsLayout({children}:{children:ReactNode}){return <MathsFrame>{children}</MathsFrame>;}
