@@ -63,7 +63,7 @@ if(process.env.MATHS_ENFORCE_SOURCE_BOUNDARY==="true"){
     const repoRoot=path.resolve(root,"..");
     const base=execFileSync("git",["merge-base","HEAD","origin/main"],{cwd:repoRoot,encoding:"utf8"}).trim();
     if(!base)throw new Error("No merge-base found with origin/main");
-    const changed=execFileSync("git",["diff","--name-only",`${base}...HEAD`],{cwd:repoRoot,encoding:"utf8").trim().split(/\r?\n/).filter(Boolean);
+    const changed=execFileSync("git",["diff","--name-only",`${base}...HEAD`],{cwd:repoRoot,encoding:"utf8"}).trim().split(/\r?\n/).filter(Boolean);
     const forbidden=changed.filter(p=>p.startsWith("web-v2/app/english/")||p.startsWith("web-v2/components/english-")||p.startsWith("web-v2/app/gk/")||p.startsWith("web-v2/lib/gk"));
     if(forbidden.length)failures.push(`English/GK regression boundary violated: ${forbidden.join(", ")}`);
   }catch(e){failures.push(`Unable to verify regression boundary: ${e.message}`)}
