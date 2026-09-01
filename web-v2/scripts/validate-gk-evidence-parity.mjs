@@ -6,7 +6,10 @@ const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 const base=read('../supabase/managed-migrations/20260830025704_gk_v2_local_safe_read_surface.sql');
 const views=read('../supabase/managed-migrations/20260830032146_gk_v2_view_parity_reads.sql');
 const starredGroups=read('../supabase/managed-migrations/20260830032730_gk_v2_starred_group_view_parity.sql');
-const home=read('app/gk/page.tsx');
+const entry=read('app/gk/page.tsx');
+const legacyPath='app/gk/legacy-page.tsx';
+const home=fs.existsSync(path.join(root,legacyPath))?read(legacyPath):entry;
+const homeV2=fs.existsSync(path.join(root,'components/gk-home-v2.tsx'))?read('components/gk-home-v2.tsx'):'';
 const quiz=read('app/gk/quiz/page.tsx');
 const types=read('lib/gk-types.ts');
 let failed=0;
@@ -41,6 +44,10 @@ ok('Current Affairs exposes All 1M 3M 6M',home.includes('["all","All"]')&&home.i
 ok('Current Affairs supports Smart and Random',home.includes('mode:"current_smart"')&&home.includes('mode:"current_random"'));
 ok('New Current Affairs is exposure-safe',home.includes('view:"new-ca"')&&home.includes('subject:"Current Affairs"'));
 ok('GK tab reads remain scoped',home.includes('if(tab==="content")')&&home.includes('if(tab==="practice")')&&home.includes('if(tab==="demand")')&&home.includes('if(tab==="progress")'));
+if(homeV2){
+ ok('split route keeps legacy evidence views mounted',entry.includes('LegacyGkPage')&&entry.includes('GkHomeV2'));
+ ok('new Home is snapshot-derived, not direct evidence mutation',homeV2.includes('gk_get_home_snapshot')&&!/gk_(?:submit_|record_|mark_|set_|save_|create_|finish_|complete_)/.test(homeV2));
+}
 
 ok('read RPCs authenticated-only',base.includes('from public,anon')&&views.includes('from public,anon')&&starredGroups.includes('from public,anon')&&base.includes('to authenticated')&&views.includes('to authenticated')&&starredGroups.includes('to authenticated'));
 
