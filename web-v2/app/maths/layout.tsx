@@ -11,5 +11,6 @@ import "./maths-final-polish.css";
 import "./maths-mocks-nav-fix.css";
 import "./maths-exam-prep.css";
 import "./maths-exam-v2.css";
+import "./maths-exam-accordion.css";
 
 export default function MathsLayout({children}:{children:ReactNode}){return <MathsFrame><MathsRuntimeWarmup/>{children}</MathsFrame>;}
