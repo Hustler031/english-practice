@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { learnerErrorMessage, rpc, supabaseBrowser } from "@/lib/supabase";
+import { learnerErrorMessage, rpc } from "@/lib/supabase";
 import { makeDisplayOptions, type DisplayOption } from "@/lib/options";
 import AddWordSheet from "@/components/add-word-sheet";
 import PauseSheet from "@/components/pause-sheet";
