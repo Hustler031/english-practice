@@ -167,8 +167,8 @@ $$;
 revoke execute on function public.gk_hf_store_embedding(text,text,text,text) from public, anon, authenticated;
 grant execute on function public.gk_hf_store_embedding(text,text,text,text) to service_role;
 
--- Build review candidates from cached vectors. Nothing is auto-deleted or merged.
--- Existing human decisions (SAME_PYQ / DISTINCT / DEFERRED) are preserved.
+-- Build review candidates from cached, content-current vectors. Nothing is
+-- auto-deleted or merged. Existing human decisions are preserved.
 create or replace function public.gk_hf_refresh_duplicate_candidates(
   p_model text,
   p_min_similarity numeric default 0.84,
@@ -197,19 +197,21 @@ begin
     and detector_model=mdl
     and review_status='NEEDS_REVIEW';
 
-  with pairs as (
+  with valid_embeddings as (
+    select e.question_id,e.embedding,q.canonical_fingerprint,q.subject
+    from gk.question_embeddings e
+    join gk.questions q on q.question_id=e.question_id and q.active
+    where e.model=mdl
+      and e.content_hash=md5(regexp_replace(lower(gk.hf_semantic_source(q.question_id)),'[[:space:]]+',' ','g'))
+  ), pairs as (
     select e1.question_id canonical_question_id,
       e2.question_id candidate_question_id,
-      q1.canonical_fingerprint,
-      q1.subject subject_1,
-      q2.subject subject_2,
-      (1-(e1.embedding <=> e2.embedding))::numeric similarity
-    from gk.question_embeddings e1
-    join gk.question_embeddings e2
-      on e2.model=e1.model and e2.question_id>e1.question_id
-    join gk.questions q1 on q1.question_id=e1.question_id and q1.active
-    join gk.questions q2 on q2.question_id=e2.question_id and q2.active
-    where e1.model=mdl
+      e1.canonical_fingerprint,
+      e1.subject subject_1,
+      e2.subject subject_2,
+      least(1::numeric,greatest(0::numeric,(1-(e1.embedding <=> e2.embedding))::numeric)) similarity
+    from valid_embeddings e1
+    join valid_embeddings e2 on e2.question_id>e1.question_id
   ), eligible as (
     select p.*,
       row_number() over(partition by p.canonical_question_id order by p.similarity desc,p.candidate_question_id) rn
@@ -282,10 +284,13 @@ begin
   if mdl='' then raise exception 'Model required'; end if;
 
   select count(*) into active_count from gk.questions where active;
-  select count(*) into embedded_count
-  from gk.question_embeddings e
-  join gk.questions q on q.question_id=e.question_id and q.active
-  where e.model=mdl;
+  with current_embeddings as (
+    select q.question_id
+    from gk.questions q
+    join gk.question_embeddings e on e.question_id=q.question_id and e.model=mdl
+    where q.active
+      and e.content_hash=md5(regexp_replace(lower(gk.hf_semantic_source(q.question_id)),'[[:space:]]+',' ','g'))
+  ) select count(*) into embedded_count from current_embeddings;
   select count(*) into candidate_count
   from gk.canonical_duplicate_review
   where detection_method='hf_semantic' and detector_model=mdl and review_status='NEEDS_REVIEW';
