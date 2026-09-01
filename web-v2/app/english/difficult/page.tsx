@@ -1,6 +1,9 @@
 "use client";
-import { useCallback } from "react";
+import Link from "next/link";
+import { useCallback,useEffect,useState } from "react";
 import QuizRunner from "@/components/quiz-runner";
+import { EnglishLoading } from "@/components/english-frame";
 import { rpc } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
-export default function DifficultPage(){const ready=useAuthGuard();const load=useCallback(()=>rpc<any[]>("english_get_difficult_items",{p_count:100}),[]);if(!ready)return <main className="center"><div className="muted">Checking session…</div></main>;return <QuizRunner title="Difficult Revision" backHref="/english/revision" load={load} module="difficult"/>}
+export default function DifficultPage(){const ready=useAuthGuard();const [count,setCount]=useState(0);const [running,setRunning]=useState(false);const [error,setError]=useState("");useEffect(()=>{if(ready)rpc<any[]>("english_get_difficult_items",{p_count:1}).then(x=>setCount(Array.isArray(x)?x.length:0)).catch((e:any)=>setError(e.message||"Could not load Difficult items."));},[ready]);const load=useCallback(()=>rpc<any[]>("english_get_difficult_items",{p_count:30}),[]);if(!ready)return <EnglishLoading text="Checking session…"/>;if(running)return <QuizRunner title="Difficult Revision" backHref="/english/difficult" load={load} module="difficult" onExit={()=>setRunning(false)}/>;return <section className="route-page"><div className="route-head"><Link className="btn ghost" href="/english/revision">← Revision</Link><div><span className="eyebrow">Manual signal · learner difficulty</span><h1>Difficult</h1><p>Questions you marked difficult remain distinct from system-diagnosed Weak concepts.</p></div></div>{error&&<div className="error-box">{error}</div>}<section className="route-summary"><Metric label="Marked difficult" value={count?"Available":"0"}/></section><section className="route-start"><h2>Recommended practice</h2><p>Central selection chooses up to 30 manually difficult items when you start.</p><button className="btn primary full-width" disabled={!count} onClick={()=>setRunning(true)}>Start Difficult Revision</button></section></section>;}
+function Metric({label,value}:{label:string;value:string|number}){return <div><span>{label}</span><b>{value}</b></div>}
