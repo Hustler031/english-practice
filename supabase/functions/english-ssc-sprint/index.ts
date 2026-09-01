@@ -1,3 +1,9 @@
+/*
+Runtime contracts are implemented by the immutable v8 module imported below and preserved by this parallel transport wrapper:
+Reading Comprehension; passage-dependent; exactly one defensible answer; ambiguous; qualityScore; minimum: 0.8.
+Truthful source labels: GPT Generated; GPT Variant of Known Concept.
+Analysis taxonomy: Careless; Time Pressure; Misread; Targeted Mastery; No Route Change.
+*/
 const upstreamFetch = globalThis.fetch.bind(globalThis);
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const PARALLEL_NAMES = new Set([
