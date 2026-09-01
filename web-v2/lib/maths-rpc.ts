@@ -88,7 +88,7 @@ function localMutation<T>(name:string,args:RpcArgs):T{
 }
 async function networkRpc<T>(name:string,args?:RpcArgs):Promise<T>{
   let timer:ReturnType<typeof setTimeout>|undefined;
-  try{const result=await Promise.race([supabaseBrowser().rpc(name,args??{}),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error(`${name} timed out. Your change remains queued for retry.`)),RPC_TIMEOUT_MS);})]);if(result.error)throw result.error;return result.data as T;}
+  try{const result=await Promise.race([supabaseBrowser().rpc(name,args??{}),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error(`${name} timed out. Please retry.`)),RPC_TIMEOUT_MS);})]);if(result.error)throw result.error;return result.data as T;}
   finally{if(timer)clearTimeout(timer);}
 }
 function networkRead<T>(name:string,args?:RpcArgs):Promise<T>{const key=cacheKey(name,args);const existing=readInflight.get(key);if(existing)return existing as Promise<T>;const request=networkRpc<T>(name,args).finally(()=>readInflight.delete(key));readInflight.set(key,request);return request;}
@@ -113,6 +113,20 @@ async function flushMathsOutbox(){
   if(!browser()||outboxRunning||!navigator.onLine||mathsLocalSafe())return;const rows=readOutbox();if(!rows.length)return;const now=Date.now();const item=rows.find(x=>x.nextAt<=now);if(!item){schedule(Math.min(60000,Math.max(500,Math.min(...rows.map(x=>x.nextAt))-now)));return;}outboxRunning=true;
   try{try{const result=await networkRpc(item.name,item.args);writeOutbox(readOutbox().filter(x=>x.id!==item.id));window.dispatchEvent(new CustomEvent("maths:v2-write-durable",{detail:{id:item.id,name:item.name,result}}));invalidateMathsCaches();}catch(e){const latest=readOutbox();const hit=latest.find(x=>x.id===item.id);if(hit){hit.tries++;hit.lastError=e instanceof Error?e.message:String(e);hit.nextAt=Date.now()+BACKOFF[Math.min(BACKOFF.length-1,Math.max(0,hit.tries-1))];writeOutbox(latest);}}}finally{outboxRunning=false;if(readOutbox().length)schedule(250);}
 }
+async function flushMathsWritesBeforeFinish(){
+  if(!browser()||mathsLocalSafe())return;
+  let passes=0;
+  while(readOutbox().length&&passes<80){
+    if(!navigator.onLine)throw new Error("Your Maths answers are saved on this device but are still offline. Reconnect before finishing.");
+    await flushMathsOutbox();
+    const left=readOutbox();
+    if(!left.length)return;
+    if(left.some(x=>x.tries>0))throw new Error("Some Maths changes are still waiting to sync. Retry Finish after sync succeeds.");
+    await new Promise<void>(resolve=>window.setTimeout(resolve,50));
+    passes++;
+  }
+  if(readOutbox().length)throw new Error("Maths is still saving your latest changes. Retry Finish after sync completes.");
+}
 function wire(){if(!browser()||wired)return;wired=true;window.addEventListener("online",()=>schedule(0));document.addEventListener("visibilitychange",()=>{if(!document.hidden)schedule(0);});supabaseBrowser().auth.onAuthStateChange((_event,session)=>setOwner(session?.user.id??""));window.setInterval(()=>{if(readOutbox().length)schedule(0);},60000);schedule(0);}
 export function pendingMathsWrites(){return readOutbox().length;}
 export function failedMathsWrites(){return readOutbox().filter(x=>x.tries>0).length;}
@@ -123,12 +137,19 @@ export async function mathsRpc<T=unknown>(name:string,args?:RpcArgs):Promise<T>{
   if(mathsLocalSafe()&&startRpc(name))return localSafeStart<T>(name,args);
   if(name==="maths_submit_answer")return queueAnswer<T>({...args});
   if(mathsLocalSafe()&&!name.startsWith("maths_get_"))return localMutation<T>(name,args??{});
-  if(/^maths_(set_|save_|finish_)/.test(name))return queueMutation<T>(name,args??{});
+  if(name==="maths_finish_session"){
+    await flushMathsWritesBeforeFinish();
+    const owner=activeOwnerId;const out=await networkRpc<T>(name,args);
+    if(owner!==activeOwnerId)throw new Error("Maths account changed while finishing. Please retry.");
+    const sid=String(args?.p_session_id??"");if(sid)patchSavedSession(sid,x=>({...x,completed:true}));
+    invalidateMathsCaches();return out;
+  }
+  if(/^maths_(set_|save_)/.test(name))return queueMutation<T>(name,args??{});
   if(cacheable(name)){
     const cached=readCache<T>(name,args);if(cached!==undefined){const owner=activeOwnerId,epoch=cacheEpoch;void networkRead<T>(name,args).then(fresh=>{if(owner!==activeOwnerId||epoch!==cacheEpoch)return;writeCache(name,args,fresh);publish(name,args,fresh);if(name==="maths_get_session"&&(fresh as MathsSession)?.sessionId)saveSession(fresh as MathsSession);}).catch(()=>{});return cached;}
     const owner=activeOwnerId,epoch=cacheEpoch;const fresh=await networkRead<T>(name,args);if(owner!==activeOwnerId)throw new Error("Maths account changed while loading. Please retry.");if(epoch===cacheEpoch){writeCache(name,args,fresh);if(name==="maths_get_session"&&(fresh as MathsSession)?.sessionId)saveSession(fresh as MathsSession);}return fresh;
   }
-  const owner=activeOwnerId;const out=await networkRpc<T>(name,args);if(owner!==activeOwnerId)throw new Error("Maths account changed while loading. Please retry.");if(startRpc(name)&&(out as MathsSession)?.sessionId)saveSession(out as MathsSession);if(/^maths_(set_|save_|finish_)/.test(name))invalidateMathsCaches();return out;
+  const owner=activeOwnerId;const out=await networkRpc<T>(name,args);if(owner!==activeOwnerId)throw new Error("Maths account changed while loading. Please retry.");if(startRpc(name)&&(out as MathsSession)?.sessionId)saveSession(out as MathsSession);if(/^maths_(set_|save_)/.test(name))invalidateMathsCaches();return out;
 }
 
 export async function getMathsSession(sessionId:string):Promise<MathsSession>{
