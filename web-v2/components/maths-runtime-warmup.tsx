@@ -43,7 +43,10 @@ export function MathsRuntimeWarmup() {
       const href = mathsHref(event.target);
       if (href) void warmPath(href);
     };
-    const initial = window.setTimeout(warmCore, 80);
+    // Let the current route finish its authoritative read before launching the
+    // broader multi-hub warmup. Maths hubs share personalized runtime work and
+    // starting all of them during the first paint can create avoidable DB contention.
+    const initial = window.setTimeout(warmCore, 1200);
     const interval = window.setInterval(warmCore, 120000);
     window.addEventListener("online", warmCore);
     document.addEventListener("visibilitychange", warmCore);
