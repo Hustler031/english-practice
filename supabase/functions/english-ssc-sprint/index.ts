@@ -1,25 +1,235 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
-const model="gpt-5.6-luna",TIMEOUT=55000,counts:any={standard:25,weakness:15,trap:15,mistakes:10};
-const diagnoses=["Knowledge Gap","Confusion","Rule Gap","Careless","Time Pressure","Misread","Distractor Trap"],actions=["Targeted Mastery","Weakness Drill","Trap Practice","Execution Review","No Route Change"];
+
+const cors={
+  "Access-Control-Allow-Origin":"*",
+  "Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods":"POST, OPTIONS",
+};
+const model="gpt-5.6-luna";
+const TIMEOUT=55000;
+const counts:any={standard:25,weakness:15,trap:15,mistakes:10};
+const diagnoses=["Knowledge Gap","Confusion","Rule Gap","Careless","Time Pressure","Misread","Distractor Trap"];
+const actions=["Targeted Mastery","Weakness Drill","Trap Practice","Execution Review","No Route Change"];
+
 const reply=(body:any,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json"}});
-function text(p:any){if(typeof p?.output_text==="string")return p.output_text;for(const i of p?.output||[])for(const c of i?.content||[])if(c?.type==="output_text")return c.text||"";return""}
-function usage(p:any){const u=p?.usage||{};return{input:+u.input_tokens||0,output:+u.output_tokens||0,reasoning:+u.output_tokens_details?.reasoning_tokens||0,total:+u.total_tokens||0}}
-async function ai(name:string,schema:any,instructions:string,input:any,effort:"low"|"medium"="medium"){
- const key=Deno.env.get("OPENAI_API_KEY");if(!key)throw new Error("OPENAI_API_KEY is not configured for english-ssc-sprint");
- const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),TIMEOUT);
- try{const r=await fetch("https://api.openai.com/v1/responses",{method:"POST",signal:ctrl.signal,headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({model,reasoning:{effort},max_output_tokens:12000,instructions,input:JSON.stringify(input),text:{format:{type:"json_schema",name,strict:true,schema}}})});const p=await r.json();if(!r.ok)throw new Error(p?.error?.message||`OpenAI request failed (${r.status})`);const t=text(p);if(!t)throw new Error("OpenAI returned no structured output");return{data:JSON.parse(t),usage:usage(p),responseId:String(p?.id||""),model:String(p?.model||model)}}catch(e:any){if(e?.name==="AbortError")throw new Error("Sprint AI pass timed out safely before the server compute limit. Please retry.");throw e}finally{clearTimeout(timer)}
+
+function text(p:any){
+  if(typeof p?.output_text==="string")return p.output_text;
+  for(const i of p?.output||[])for(const c of i?.content||[])if(c?.type==="output_text")return c.text||"";
+  return "";
 }
-async function log(s:any,g:string,type:string,mode:string,r:any,sid:string|null=null,meta:any={}){try{await s.rpc("english_log_sprint_ai_usage",{p_request_group:g,p_request_type:type,p_mode:mode,p_model:r.model,p_input_tokens:r.usage.input,p_output_tokens:r.usage.output,p_reasoning_tokens:r.usage.reasoning,p_total_tokens:r.usage.total,p_response_id:r.responseId||null,p_session_id:sid,p_metadata:meta})}catch{}}
+function usage(p:any){
+  const u=p?.usage||{};
+  return {input:+u.input_tokens||0,output:+u.output_tokens||0,reasoning:+u.output_tokens_details?.reasoning_tokens||0,total:+u.total_tokens||0};
+}
+async function ai(name:string,schema:any,instructions:string,input:any,effort:"low"|"medium"="medium"){
+  const key=Deno.env.get("OPENAI_API_KEY");
+  if(!key)throw new Error("OPENAI_API_KEY is not configured for english-ssc-sprint");
+  const ctrl=new AbortController();
+  const timer=setTimeout(()=>ctrl.abort(),TIMEOUT);
+  try{
+    const r=await fetch("https://api.openai.com/v1/responses",{
+      method:"POST",
+      signal:ctrl.signal,
+      headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},
+      body:JSON.stringify({
+        model,
+        reasoning:{effort},
+        max_output_tokens:12000,
+        instructions,
+        input:JSON.stringify(input),
+        text:{format:{type:"json_schema",name,strict:true,schema}},
+      }),
+    });
+    const p=await r.json();
+    if(!r.ok)throw new Error(p?.error?.message||`OpenAI request failed (${r.status})`);
+    const t=text(p);
+    if(!t)throw new Error("OpenAI returned no structured output");
+    return {data:JSON.parse(t),usage:usage(p),responseId:String(p?.id||""),model:String(p?.model||model)};
+  }catch(e:any){
+    if(e?.name==="AbortError")throw new Error("Sprint AI pass timed out safely before the server compute limit. Please retry.");
+    throw e;
+  }finally{clearTimeout(timer)}
+}
+async function log(s:any,g:string,type:string,mode:string,r:any,sid:string|null=null,meta:any={}){
+  try{
+    await s.rpc("english_log_sprint_ai_usage",{
+      p_request_group:g,p_request_type:type,p_mode:mode,p_model:r.model,
+      p_input_tokens:r.usage.input,p_output_tokens:r.usage.output,p_reasoning_tokens:r.usage.reasoning,p_total_tokens:r.usage.total,
+      p_response_id:r.responseId||null,p_session_id:sid,p_metadata:meta,
+    });
+  }catch{}
+}
+
 const option={type:"object",additionalProperties:false,required:["key","text"],properties:{key:{type:"string",enum:["A","B","C","D"]},text:{type:"string",minLength:1}}};
-const item={type:"object",additionalProperties:false,required:["itemKey","category","questionType","question","options","correctKey","explanation","sourceType","canonicalQuestionId","ambiguous","qualityScore","metadata"],properties:{itemKey:{type:"string",minLength:1},category:{type:"string",minLength:1},questionType:{type:"string",minLength:1},question:{type:"string",minLength:1},options:{type:"array",minItems:4,maxItems:4,items:option},correctKey:{type:"string",enum:["A","B","C","D"]},explanation:{type:"string",minLength:1},sourceType:{type:"string",enum:["GPT Generated","GPT Variant of Known Concept"]},canonicalQuestionId:{type:["string","null"]},ambiguous:{type:"boolean",enum:[false]},qualityScore:{type:"number",minimum:0.8,maximum:1},metadata:{type:"object",additionalProperties:false,required:["conceptKey","trapTested","difficultyTier","discriminationScore","trapStrength","generationReason","domain"],properties:{conceptKey:{type:"string",minLength:1},trapTested:{type:"string",minLength:1},difficultyTier:{type:"string",enum:["Easy","Moderate","Hard"]},discriminationScore:{type:"number",minimum:0,maximum:1},trapStrength:{type:"number",minimum:0,maximum:1},generationReason:{type:"string",minLength:1},domain:{type:"string",enum:["GrammarTransformation","LexicalUsage"]}}}}};
+const item={
+  type:"object",additionalProperties:false,
+  required:["itemKey","category","questionType","question","options","correctKey","explanation","sourceType","canonicalQuestionId","ambiguous","qualityScore","metadata"],
+  properties:{
+    itemKey:{type:"string",minLength:1},category:{type:"string",minLength:1},questionType:{type:"string",minLength:1},question:{type:"string",minLength:1},
+    options:{type:"array",minItems:4,maxItems:4,items:option},correctKey:{type:"string",enum:["A","B","C","D"]},explanation:{type:"string",minLength:1},
+    sourceType:{type:"string",enum:["GPT Generated","GPT Variant of Known Concept"]},canonicalQuestionId:{type:["string","null"]},ambiguous:{type:"boolean",enum:[false]},qualityScore:{type:"number",minimum:0.8,maximum:1},
+    metadata:{type:"object",additionalProperties:false,required:["conceptKey","trapTested","difficultyTier","discriminationScore","trapStrength","generationReason","domain"],properties:{
+      conceptKey:{type:"string",minLength:1},trapTested:{type:"string",minLength:1},difficultyTier:{type:"string",enum:["Easy","Moderate","Hard"]},
+      discriminationScore:{type:"number",minimum:0,maximum:1},trapStrength:{type:"number",minimum:0,maximum:1},generationReason:{type:"string",minLength:1},domain:{type:"string",enum:["GrammarTransformation","LexicalUsage"]},
+    }},
+  },
+};
 const sprintSchema=(n:number)=>({type:"object",additionalProperties:false,required:["items"],properties:{items:{type:"array",minItems:n,maxItems:n,items:item}}});
-const analysisSchema=(n:number)=>({type:"object",additionalProperties:false,required:["items"],properties:{items:{type:"array",minItems:n,maxItems:n,items:{type:"object",additionalProperties:false,required:["position","diagnosis","action","confusedWith","rationale"],properties:{position:{type:"integer",minimum:1,maximum:25},diagnosis:{type:"string",enum:diagnoses},action:{type:"string",enum:actions},confusedWith:{type:"string"},rationale:{type:"string",minLength:1}}}}}});
-function shuffle(a:any[]){a=[...a];for(let i=a.length-1;i>0;i--){const b=new Uint32Array(1);crypto.getRandomValues(b);const j=b[0]%(i+1);[a[i],a[j]]=[a[j],a[i]]}return a}
-function slots(mode:string,c:any){const n=counts[mode],d=c?.blueprint?.difficulty||{},e=+d.easy||(mode==="standard"?5:2),m=+d.moderate||Math.max(0,n-e-5),h=+d.hard||Math.max(0,n-e-m);let t=shuffle([...Array(e).fill("Easy"),...Array(m).fill("Moderate"),...Array(h).fill("Hard")]).slice(0,n);while(t.length<n)t.push("Moderate");if(mode!=="standard")return t.map((difficultyTier,i)=>({position:i+1,difficultyTier}));const g=+c?.blueprint?.questionMix?.grammarTransformation||11,dom=shuffle([...Array(g).fill("GrammarTransformation"),...Array(n-g).fill("LexicalUsage")]);return t.map((difficultyTier,i)=>({position:i+1,difficultyTier,domain:dom[i]}))}
+const analysisSchema=(n:number)=>({type:"object",additionalProperties:false,required:["items"],properties:{items:{type:"array",minItems:n,maxItems:n,items:{
+  type:"object",additionalProperties:false,required:["position","diagnosis","action","confusedWith","rationale"],properties:{
+    position:{type:"integer",minimum:1,maximum:25},diagnosis:{type:"string",enum:diagnoses},action:{type:"string",enum:actions},confusedWith:{type:"string"},rationale:{type:"string",minLength:1},
+  },
+}}}});
+
+function shuffle(a:any[]){
+  a=[...a];
+  for(let i=a.length-1;i>0;i--){const b=new Uint32Array(1);crypto.getRandomValues(b);const j=b[0]%(i+1);[a[i],a[j]]=[a[j],a[i]]}
+  return a;
+}
+function slots(mode:string,c:any){
+  const n=counts[mode],d=c?.blueprint?.difficulty||{},e=+d.easy||(mode==="standard"?5:2),m=+d.moderate||Math.max(0,n-e-5),h=+d.hard||Math.max(0,n-e-m);
+  const t=shuffle([...Array(e).fill("Easy"),...Array(m).fill("Moderate"),...Array(h).fill("Hard")]).slice(0,n);
+  while(t.length<n)t.push("Moderate");
+  if(mode!=="standard")return t.map((difficultyTier,i)=>({position:i+1,difficultyTier}));
+  const g=+c?.blueprint?.questionMix?.grammarTransformation||11;
+  const dom=shuffle([...Array(g).fill("GrammarTransformation"),...Array(n-g).fill("LexicalUsage")]);
+  return t.map((difficultyTier,i)=>({position:i+1,difficultyTier,domain:dom[i]}));
+}
 const norm=(x:any)=>String(x||"").trim().toLowerCase().replace(/\s+/g," ");
-function validate(items:any[],sp:any[],ctx:any){const q=new Set(),c=new Set(),cool=new Set((ctx?.cooldownConcepts||[]).map(norm));const bad:string[]=[];items.forEach((x,i)=>{const o=x?.options||[],ot=o.map((z:any)=>norm(z.text)),ok=o.map((z:any)=>String(z.key||"").toUpperCase()),qq=norm(x?.question),cc=norm(x?.metadata?.conceptKey),type=norm(x?.questionType);if(!qq||!cc||q.has(qq)||c.has(cc)||cool.has(cc))bad.push(`Q${i+1}: duplicate/cooldown/missing concept`);q.add(qq);c.add(cc);if(o.length!==4||new Set(ot).size!==4||new Set(ok).size!==4)bad.push(`Q${i+1}: options`);if(/reading|comprehension|passage|cloze/.test(type))bad.push(`Q${i+1}: RC/passage`);if(x?.metadata?.difficultyTier!==sp[i]?.difficultyTier||sp[i]?.domain&&x?.metadata?.domain!==sp[i].domain)bad.push(`Q${i+1}: slot`);if(x?.ambiguous!==false||+x?.qualityScore<.8)bad.push(`Q${i+1}: quality`)});return bad}
+function validate(items:any[],sp:any[],ctx:any){
+  const q=new Set(),c=new Set(),cool=new Set((ctx?.cooldownConcepts||[]).map(norm));
+  const bad:string[]=[];
+  items.forEach((x,i)=>{
+    const o=x?.options||[],ot=o.map((z:any)=>norm(z.text)),ok=o.map((z:any)=>String(z.key||"").toUpperCase()),qq=norm(x?.question),cc=norm(x?.metadata?.conceptKey),type=norm(x?.questionType);
+    if(!qq||!cc||q.has(qq)||c.has(cc)||cool.has(cc))bad.push(`Q${i+1}: duplicate/cooldown/missing concept`);
+    q.add(qq);c.add(cc);
+    if(o.length!==4||new Set(ot).size!==4||new Set(ok).size!==4)bad.push(`Q${i+1}: options`);
+    if(/reading|comprehension|passage|cloze/.test(type))bad.push(`Q${i+1}: RC/passage`);
+    if(x?.metadata?.difficultyTier!==sp[i]?.difficultyTier||(sp[i]?.domain&&x?.metadata?.domain!==sp[i].domain))bad.push(`Q${i+1}: slot`);
+    if(x?.ambiguous!==false||+x?.qualityScore<.8)bad.push(`Q${i+1}: quality`);
+  });
+  return bad;
+}
+
 const gen=`You are the English V2 SSC CGL Sprint generator for a strong learner. Build fair, high-discrimination SSC objective-English questions and follow slotPlan exactly. Standard Sprint is exam simulation, not a weakness drill. Never generate Reading Comprehension, cloze passages, passage-dependent items or multi-question passages. Difficulty must come from close distractors, subtle SSC rules, realistic context, transformation complexity and confusable usage, never obscure GRE/CAT vocabulary. Every item needs exactly one defensible answer and four plausible distinct A/B/C/D options; at least 2–3 distractors should be close. Moderate/Hard Error Detection should use realistic multi-clause sentences, not toy errors. Sentence Improvement, Voice and Narration should require full processing and subtle alternatives. Vocabulary must be moderate-to-hard SSC-oriented with semantic neighbours. Phrasal Verbs, Idioms, OWS, Spelling and fixed usage should use confusable alternatives. Use previousMistakes as fresh transfer seeds and slowCorrectSeeds as hesitation evidence without turning Standard into remediation. Never use cooldownConcepts unless later genuine wrong evidence overrides it. sourceType is only GPT Generated or GPT Variant of Known Concept; never claim SSC PYQ. metadata difficultyTier/domain must match slotPlan; ambiguous=false; qualityScore minimum: 0.8. explanation is post-Sprint only. Self-check before returning; a separate independent critic audits the draft.`;
 const critic=`You are the INDEPENDENT pre-serve critic and selective-repair editor for an SSC CGL English Sprint; you did not generate the draft. Return a COMPLETE FINAL SET with the same number of positions. Audit every draft item for SSC realism, requested Easy/Moderate/Hard fit, distractor strength, ambiguity, grammatical validity, exactly one defensible answer, intended concept, duplicate concepts and excessive familiarity. Preserve passing items; repair every failing position yourself in this same pass. Preserve slotPlan difficultyTier/domain exactly. No Reading Comprehension, cloze, passage-dependent content, obscure GRE/CAT vocabulary, toy Moderate/Hard grammar, or elementary Moderate/Hard Voice/Narration. Keep four unique A/B/C/D options and close distractors. Avoid duplicate question/concept and cooldownConcepts. sourceType remains truthful: GPT Generated or GPT Variant of Known Concept. Every final item must have ambiguous=false and qualityScore>=0.80. This bounded independent pass replaces critic→repair→critic loops. Return only the final set.`;
 const analyst=`Diagnose each genuinely WRONG English Sprint answer from completed evidence. Unanswered items are not wrong. Distinguish Knowledge Gap, Confusion, Rule Gap and Distractor Trap from Careless, Time Pressure and Misread. Use Targeted Mastery only for genuine durable learning gaps; execution errors should normally use Execution Review/No Route Change. Return one diagnosis for every supplied wrong position.`;
-Deno.serve(async(req)=>{if(req.method==="OPTIONS")return new Response("ok",{headers:cors});if(req.method!=="POST")return reply({ok:false,error:"POST required"},405);try{const auth=req.headers.get("Authorization")||"";if(!auth.startsWith("Bearer "))return reply({ok:false,error:"Authentication required"},401);const url=Deno.env.get("SUPABASE_URL"),anon=Deno.env.get("SUPABASE_ANON_KEY");if(!url||!anon)throw new Error("Supabase function environment is incomplete");const s=createClient(url,anon,{global:{headers:{Authorization:auth}}});const u=await s.auth.getUser();if(u.error||!u.data.user)return reply({ok:false,error:"Authentication required"},401);const b=await req.json().catch(()=>({})),action=String(b?.action||"create").toLowerCase();if(action==="create"){const mode=String(b?.mode||"standard").toLowerCase(),n=counts[mode];if(!n)return reply({ok:false,error:"Unknown Sprint mode"},400);const cx=await s.rpc("english_get_sprint_generation_context",{p_mode:mode});if(cx.error)throw cx.error;const sp=slots(mode,cx.data),g=crypto.randomUUID();const draft=await ai("english_ssc_sprint",sprintSchema(n),gen,{...cx.data,slotPlan:sp},"medium");await log(s,g,"generation",mode,draft,null,{itemCount:n,boundedPass:1});const di=draft.data?.items||[];if(di.length!==n)throw new Error("Sprint generation returned the wrong item count");const polished=await ai("english_ssc_sprint_independent_critic_polish",sprintSchema(n),critic,{mode,blueprint:cx.data?.blueprint||{},recentStandardPerformance:cx.data?.recentStandardPerformance||{},cooldownConcepts:cx.data?.cooldownConcepts||[],slotPlan:sp,draftItems:di},"low");await log(s,g,"critic_polish",mode,polished,null,{itemCount:n,boundedPass:2,selectiveRepair:true});let items=polished.data?.items||[];if(items.length!==n)throw new Error("Independent Sprint critic returned the wrong item count");const bad=validate(items,sp,cx.data);if(bad.length)throw new Error(`Independent Sprint critic failed deterministic pre-serve validation: ${bad.slice(0,8).join(" | ")}`);items=items.map((x:any)=>({...x,metadata:{...(x.metadata||{}),criticPassed:true,criticScore:1,criticReasons:[],criticMode:"independent-bounded-polish"}}));const made=await s.rpc("english_create_sprint_session",{p_mode:mode,p_items:items,p_blueprint:{...(cx.data?.blueprint||{}),slotPlan:sp,critic:{enabled:true,independent:true,selectiveRepair:true,rounds:1,boundedPasses:2,computeBounded:true},generatedAt:new Date().toISOString()}});if(made.error)throw made.error;const sid=String(made.data?.sessionId||"");if(sid)try{await s.rpc("english_attach_sprint_ai_usage",{p_request_group:g,p_session_id:sid})}catch{}return reply(made.data)}if(action==="analyze"){const sid=String(b?.sessionId||"");if(!sid)return reply({ok:false,error:"sessionId required"},400);const cx=await s.rpc("english_get_sprint_analysis_context",{p_session_id:sid});if(cx.error)throw cx.error;const wrong=cx.data?.wrongItems||[];if(!wrong.length){const saved=await s.rpc("english_save_sprint_analysis",{p_session_id:sid,p_analysis:[]});if(saved.error)throw saved.error;return reply({ok:true,analysis:[],targetedAdded:0})}const g=crypto.randomUUID(),r=await ai("english_ssc_sprint_analysis",analysisSchema(wrong.length),analyst,cx.data,"low");await log(s,g,"analysis",String(cx.data?.mode||""),r,sid,{wrongCount:wrong.length});const pos=new Set(wrong.map((x:any)=>+x.position));if(!Array.isArray(r.data?.items)||r.data.items.some((x:any)=>!pos.has(+x.position)))throw new Error("Sprint analysis positions do not match wrong items");const saved=await s.rpc("english_save_sprint_analysis",{p_session_id:sid,p_analysis:r.data.items});if(saved.error)throw saved.error;return reply({ok:true,analysis:r.data.items,targetedAdded:saved.data?.targetedAdded||0})}return reply({ok:false,error:"Unknown action"},400)}catch(e:any){console.error("english-ssc-sprint",e);return reply({ok:false,error:e instanceof Error?e.message:String(e)},500)}});
+
+async function generateJob(s:any,jobId:string,mode:string){
+  try{
+    const begun=await s.rpc("english_begin_sprint_generation",{p_job_id:jobId});
+    if(begun.error)throw begun.error;
+    if(begun.data?.shouldGenerate!==true)return;
+
+    const n=counts[mode];
+    const cx=await s.rpc("english_get_sprint_generation_context",{p_mode:mode});
+    if(cx.error)throw cx.error;
+    const sp=slots(mode,cx.data);
+    const g=crypto.randomUUID();
+
+    const draft=await ai("english_ssc_sprint",sprintSchema(n),gen,{...cx.data,slotPlan:sp},"medium");
+    await log(s,g,"generation",mode,draft,null,{itemCount:n,boundedPass:1,backgroundJob:jobId});
+    const di=draft.data?.items||[];
+    if(di.length!==n)throw new Error("Sprint generation returned the wrong item count");
+
+    const polished=await ai("english_ssc_sprint_independent_critic_polish",sprintSchema(n),critic,{
+      mode,blueprint:cx.data?.blueprint||{},recentStandardPerformance:cx.data?.recentStandardPerformance||{},cooldownConcepts:cx.data?.cooldownConcepts||[],slotPlan:sp,draftItems:di,
+    },"low");
+    await log(s,g,"critic_polish",mode,polished,null,{itemCount:n,boundedPass:2,selectiveRepair:true,backgroundJob:jobId});
+    let items=polished.data?.items||[];
+    if(items.length!==n)throw new Error("Independent Sprint critic returned the wrong item count");
+    const bad=validate(items,sp,cx.data);
+    if(bad.length)throw new Error(`Independent Sprint critic failed deterministic pre-serve validation: ${bad.slice(0,8).join(" | ")}`);
+    items=items.map((x:any)=>({...x,metadata:{...(x.metadata||{}),criticPassed:true,criticScore:1,criticReasons:[],criticMode:"independent-bounded-polish"}}));
+
+    const blueprint={
+      ...(cx.data?.blueprint||{}),
+      startImmediately:false,
+      slotPlan:sp,
+      critic:{enabled:true,independent:true,selectiveRepair:true,rounds:1,boundedPasses:2,computeBounded:true},
+      generatedAt:new Date().toISOString(),
+    };
+    const made=await s.rpc("english_create_sprint_session",{p_mode:mode,p_items:items,p_blueprint:blueprint});
+    if(made.error)throw made.error;
+    const sid=String(made.data?.sessionId||"");
+    if(!sid)throw new Error("Generated Sprint session was not persisted");
+    try{await s.rpc("english_attach_sprint_ai_usage",{p_request_group:g,p_session_id:sid})}catch{}
+    const completed=await s.rpc("english_complete_sprint_generation",{p_job_id:jobId,p_session_id:sid,p_request_group:g});
+    if(completed.error)throw completed.error;
+  }catch(e:any){
+    console.error("english-ssc-sprint background generation",e);
+    try{await s.rpc("english_fail_sprint_generation",{p_job_id:jobId,p_error:e instanceof Error?e.message:String(e)})}catch{}
+  }
+}
+
+function keepAlive(task:Promise<void>){
+  const runtime=(globalThis as any).EdgeRuntime;
+  if(runtime&&typeof runtime.waitUntil==="function"){
+    runtime.waitUntil(task);
+    return true;
+  }
+  return false;
+}
+
+Deno.serve(async(req)=>{
+  if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
+  if(req.method!=="POST")return reply({ok:false,error:"POST required"},405);
+  try{
+    const auth=req.headers.get("Authorization")||"";
+    if(!auth.startsWith("Bearer "))return reply({ok:false,error:"Authentication required"},401);
+    const url=Deno.env.get("SUPABASE_URL"),anon=Deno.env.get("SUPABASE_ANON_KEY");
+    if(!url||!anon)throw new Error("Supabase function environment is incomplete");
+    const s=createClient(url,anon,{global:{headers:{Authorization:auth}}});
+    const u=await s.auth.getUser();
+    if(u.error||!u.data.user)return reply({ok:false,error:"Authentication required"},401);
+    const b=await req.json().catch(()=>({}));
+    const action=String(b?.action||"create").toLowerCase();
+
+    if(action==="create"){
+      const mode=String(b?.mode||"standard").toLowerCase();
+      if(!counts[mode])return reply({ok:false,error:"Unknown Sprint mode"},400);
+      const started=await s.rpc("english_start_sprint_generation",{p_mode:mode});
+      if(started.error)throw started.error;
+      const state=started.data||{};
+      if(state.activeSprint&&state.sessionId){
+        const existing=await s.rpc("english_get_sprint_session",{p_session_id:state.sessionId});
+        if(existing.error)throw existing.error;
+        return reply(existing.data);
+      }
+      const jobId=String(state.jobId||"");
+      if(!jobId)throw new Error("Sprint generation job was not created");
+      if(state.shouldStart===true){
+        const task=generateJob(s,jobId,String(state.mode||mode));
+        if(!keepAlive(task))await task;
+      }
+      return reply({ok:true,generationPending:true,jobId,mode:String(state.mode||mode),status:String(state.status||"queued")},202);
+    }
+
+    if(action==="analyze"){
+      const sid=String(b?.sessionId||"");
+      if(!sid)return reply({ok:false,error:"sessionId required"},400);
+      const cx=await s.rpc("english_get_sprint_analysis_context",{p_session_id:sid});
+      if(cx.error)throw cx.error;
+      const wrong=cx.data?.wrongItems||[];
+      if(!wrong.length){
+        const saved=await s.rpc("english_save_sprint_analysis",{p_session_id:sid,p_analysis:[]});
+        if(saved.error)throw saved.error;
+        return reply({ok:true,analysis:[],targetedAdded:0});
+      }
+      const g=crypto.randomUUID();
+      const r=await ai("english_ssc_sprint_analysis",analysisSchema(wrong.length),analyst,cx.data,"low");
+      await log(s,g,"analysis",String(cx.data?.mode||""),r,sid,{wrongCount:wrong.length});
+      const pos=new Set(wrong.map((x:any)=>+x.position));
+      if(!Array.isArray(r.data?.items)||r.data.items.some((x:any)=>!pos.has(+x.position)))throw new Error("Sprint analysis positions do not match wrong items");
+      const saved=await s.rpc("english_save_sprint_analysis",{p_session_id:sid,p_analysis:r.data.items});
+      if(saved.error)throw saved.error;
+      return reply({ok:true,analysis:r.data.items,targetedAdded:saved.data?.targetedAdded||0});
+    }
+
+    return reply({ok:false,error:"Unknown action"},400);
+  }catch(e:any){
+    console.error("english-ssc-sprint",e);
+    return reply({ok:false,error:e instanceof Error?e.message:String(e)},500);
+  }
+});
