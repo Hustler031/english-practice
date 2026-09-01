@@ -30,7 +30,6 @@ const edge=read("../supabase/functions/maths-ssc-calculation/index.ts");
 const pkg=JSON.parse(read("package.json"));
 const failures=[];
 const has=(label,text,needle)=>{if(!text.includes(needle))failures.push(`${label}: missing ${needle}`)};
-const lacks=(label,text,needle)=>{if(text.includes(needle))failures.push(`${label}: must not contain ${needle}`)};
 
 for(const route of ["readiness","repair","approach","sprint","mixed","exam","exam/session"]){const p=`app/maths/${route}/page.tsx`;if(!exists(p))failures.push(`Maths additive route missing: ${p}`);}
 has("Maths home route",homeRoute,"MathsHome");
@@ -69,9 +68,8 @@ for(const marker of [
 ])has("AI Calculation backend",aiCalc,marker);
 for(const marker of ["timed_ and not s.completed","'result',case when hide_answers then 'saved'","e-'answer'-'explanation'-'memoryCue'-'correctOption'","if timed_ then","'result','saved'"])has("All timed answer secrecy",timedSecrecy,marker);
 
-for(const marker of ["maths-ssc-calculation","gpt-5.6-luna","OPENAI_API_KEY","FractionsPercentages","SSCMixed","INDEPENDENT arithmetic verifier","qualityScore","expectedSec","answerText","recentGenerated","maths_create_ai_calculation_session","maths_append_ai_calculation_items","maths_log_calculation_ai_usage"])has("Calculation Edge quality gate",edge,marker);
+for(const marker of ["maths-ssc-calculation","gpt-5.6-luna","OPENAI_API_KEY","FractionsPercentages","SSCMixed","INDEPENDENT arithmetic verifier","qualityScore","expectedSec","answerText","recentGenerated","maths_create_ai_calculation_session","maths_append_ai_calculation_items","maths_log_calculation_ai_usage",'sourceType:{type:"string",enum:["AI Generated SSC Calculation","AI Variant of Calculation Pattern"]}'])has("Calculation Edge quality gate",edge,marker);
 for(const marker of ["maths-ssc-calculation","startAiCalculationSprint","refillAiCalculationSprint","mathsLocalSafe"])has("Calculation AI client",calcClient,marker);
-lacks("Calculation Edge",edge,"actual previous-year question");
 
 if(pkg.scripts?.["contracts:maths"]!=="node scripts/validate-maths-contracts.mjs && node scripts/validate-maths-coach.mjs")failures.push("package.json: contracts:maths must include coach validator");
 for(const file of [
