@@ -27,6 +27,7 @@ const examHardening=read("../supabase/managed-migrations/20260901153000_maths_ex
 const boundary=read("../supabase/managed-migrations/20260901172000_maths_academic_calculation_boundary.sql");
 const aiCalc=read("../supabase/managed-migrations/20260901173000_maths_ai_calculation_sprint.sql");
 const timedSecrecy=read("../supabase/managed-migrations/20260901174000_maths_all_timed_answer_secrecy.sql");
+const repairCleanup=read("../supabase/managed-migrations/20260901175000_maths_academic_repair_and_open_daily_cleanup.sql");
 const edge=read("../supabase/functions/maths-ssc-calculation/index.ts");
 const pkg=JSON.parse(read("package.json"));
 const failures=[];
@@ -73,6 +74,7 @@ for(const marker of [
   "expected_answer_","option_count_","expected_<3 or expected_>60","end;\n$$;"
 ])has("AI Calculation backend",aiCalc,marker);
 for(const marker of ["timed_ and not s.completed","'result',case when hide_answers then 'saved'","e-'answer'-'explanation'-'memoryCue'-'correctOption'","if timed_ then","'result','saved'"])has("All timed answer secrecy",timedSecrecy,marker);
+for(const marker of ["create or replace function maths._repair_candidate_ids","r.runtime_active and r.academic_eligible","daily_leak_archived","archivedCalculationLeak","evidence preserved","where not s.completed"])has("Academic repair and Daily cleanup",repairCleanup,marker);
 
 for(const marker of ["maths-ssc-calculation","gpt-5.6-luna","OPENAI_API_KEY","FractionsPercentages","SSCMixed","INDEPENDENT arithmetic verifier","qualityScore","expectedSec","answerText","recentGenerated","maths_create_ai_calculation_session","maths_append_ai_calculation_items","maths_log_calculation_ai_usage",'sourceType:{type:"string",enum:["AI Generated SSC Calculation","AI Variant of Calculation Pattern"]}'])has("Calculation Edge quality gate",edge,marker);
 for(const marker of ["maths-ssc-calculation","startAiCalculationSprint","refillAiCalculationSprint","mathsLocalSafe"])has("Calculation AI client",calcClient,marker);
@@ -80,7 +82,7 @@ for(const marker of ["maths-ssc-calculation","startAiCalculationSprint","refillA
 if(pkg.scripts?.["contracts:maths"]!=="node scripts/validate-maths-contracts.mjs && node scripts/validate-maths-coach.mjs")failures.push("package.json: contracts:maths must include coach validator");
 for(const file of [
   "20260831095812_maths_v2_performance_intelligence_foundation.sql","20260831100518_maths_v2_performance_coach_practice.sql","20260831103315_maths_v2_timer_identity_and_weekly_coach_hardening.sql","20260831110000_maths_v2_question_fast_path_read.sql","20260831111200_maths_v2_external_reviewed_canonical_ingest.sql",
-  "20260901143000_maths_exam_prep_foundation.sql","20260901153000_maths_exam_prep_runtime_hardening.sql","20260901172000_maths_academic_calculation_boundary.sql","20260901173000_maths_ai_calculation_sprint.sql","20260901174000_maths_all_timed_answer_secrecy.sql"
+  "20260901143000_maths_exam_prep_foundation.sql","20260901153000_maths_exam_prep_runtime_hardening.sql","20260901172000_maths_academic_calculation_boundary.sql","20260901173000_maths_ai_calculation_sprint.sql","20260901174000_maths_all_timed_answer_secrecy.sql","20260901175000_maths_academic_repair_and_open_daily_cleanup.sql"
 ]){if(!exists(`../supabase/managed-migrations/${file}`))failures.push(`Maths migration mirror missing: ${file}`);}
 const external=read("../supabase/managed-migrations/20260831111200_maths_v2_external_reviewed_canonical_ingest.sql");for(const marker of ["maths_create_canonical_from_external_stage","review_created_canonical","external_review_confirmed","EXT_"])has("External canonical review",external,marker);
 
