@@ -66,9 +66,9 @@ has("Sprint structured renderer",sprint,'QuestionText text={q.question}');
 
 has("Split GK route",entry,'GkHomeV2');
 has("Split GK route",entry,'LegacyGkPage');
-has("Legacy transport preserved",legacy,'function ContentView');
-has("Legacy transport preserved",legacy,'function PracticeView');
-has("Legacy transport preserved",legacy,'function ProgressView');
+has("Legacy transport preserved",legacy,'function ContentTab');
+has("Legacy transport preserved",legacy,'function PracticeTab');
+has("Legacy transport preserved",legacy,'function ProgressTab');
 has("New Home snapshot",home,'gk_get_home_snapshot');
 has("New Home SWR",home,'subscribeGkFresh');
 has("New Home Daily",home,'Daily Revision');
