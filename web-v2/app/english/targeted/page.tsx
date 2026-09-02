@@ -12,7 +12,7 @@ type Confusion={confusionId:string;status:string;primaryName:string;relatedName:
 type FocusRow={questionId:string;conceptId?:string;name:string;skillFamily?:string;state?:string;reason?:string;nextReview?:string};
 type Recovered={concept_id?:string;conceptId?:string;name:string;at:string;source:string};
 type Hub={ok:boolean;summary:Summary;confusions:Confusion[];needLearning:FocusRow[];transferChecks:FocusRow[];retentionChecks:FocusRow[];recovered:Recovered[]};
-type Kind="confusion"|"need_learning"|"transfer_check"|"retention_check";
+type Kind="due_now"|"confusion"|"need_learning"|"transfer_check"|"retention_check";
 type View="fix-now"|"confusions"|"waiting";
 type Practice={title:string;kind?:Kind;confusionId?:string;questionId?:string;nonce:string};
 type QuestionLabel={questionId:string;displayName:string;topic?:string;questionType?:string;conceptId?:string;conceptName?:string};
@@ -55,6 +55,7 @@ export default function TargetedMasteryPage(){
  const load=useCallback(()=>{
   if(!practice)return Promise.resolve([]);
   if(practice.questionId)return rpc<any[]>("english_get_targeted_question",{p_question_id:practice.questionId});
+  if(practice.kind==="due_now")return rpc<any[]>("english_get_targeted_due_session",{p_count:15,p_session_nonce:practice.nonce});
   return rpc<any[]>("english_get_targeted_session",{p_count:15,p_kind:practice.kind??null,p_confusion_id:practice.confusionId??null,p_session_nonce:practice.nonce});
  },[practice]);
  const start=(title:string,kind?:Kind,confusionId?:string,questionId?:string)=>setPractice({title,kind,confusionId,questionId,nonce:freshNonce()});
@@ -83,7 +84,7 @@ export default function TargetedMasteryPage(){
   const q=new URLSearchParams(window.location.search);const startMode=q.get("start"),confusion=q.get("confusion"),question=q.get("question"),nextView=q.get("view") as View|null;
   if(confusion){const c=hub.confusions.find(x=>x.confusionId===confusion);start(c?`${c.primaryName} vs ${c.relatedName}`:"Your Confusion","confusion",confusion);return;}
   if(question){start(labels[question]?.displayName||q.get("title")||"Focused Practice",undefined,undefined,question);return;}
-  if(startMode==="focused"){start("Targeted Mastery");return;}
+  if(startMode==="focused"){start("Targeted Mastery","due_now");return;}
   if(nextView&&["fix-now","confusions","waiting"].includes(nextView))setView(nextView);
  },[ready,hub,labels]);
 
@@ -104,13 +105,13 @@ export default function TargetedMasteryPage(){
   {loading?<EnglishLoading text="Ranking focused practice…"/>:<>
    <section className="targeted-command-card learner-command-card">
     <div className="targeted-command-copy"><span className="targeted-command-label">Ready now</span><div className="targeted-due-line"><strong>{s?.dueNow??0}</strong><span>focused questions</span></div><p>Start with the items most likely to improve your score now.</p></div>
-    <button className="btn primary targeted-start-button" disabled={!s?.active} onClick={()=>start("Targeted Mastery")}>Start Focused Practice</button>
+    <button className="btn primary targeted-start-button" disabled={!s?.dueNow} onClick={()=>start("Targeted Mastery","due_now")}>Start Focused Practice</button>
    </section>
 
    <section className="targeted-learning-section tone-fix">
     <SectionHead title="FIX NOW" count={`${s?.dueNow??0} questions are ready now`} onOpen={()=>setView("fix-now")}/>
     {fixRows.slice(0,3).length?<div className="targeted-learning-preview">{fixRows.slice(0,3).map(row=><LearnerRow key={row.key} row={row} compact onPractice={()=>row.confusionId?start(row.title,"confusion",row.confusionId):start(row.title,row.kind,undefined,row.questionId)}/>)}</div>:<EmptyCopy text="Nothing needs immediate repair right now."/>}
-    {!!fixRows.length&&<button className="targeted-practice-all" type="button" onClick={()=>start("Fix Now")}>Practice all <span>›</span></button>}
+    {!!fixRows.length&&<button className="targeted-practice-all" type="button" onClick={()=>start("Fix Now","due_now")}>Practice all <span>›</span></button>}
    </section>
 
    {!!hub?.confusions?.length&&<section className="targeted-learning-section tone-confusion">
@@ -129,7 +130,7 @@ export default function TargetedMasteryPage(){
 }
 
 function TargetedDetail({view,hub,fixRows,waitingRows,onBack,onPractice}:{view:View;hub:Hub;fixRows:ActionRow[];waitingRows:ActionRow[];onBack:()=>void;onPractice:(title:string,kind?:Kind,confusionId?:string,questionId?:string)=>void}){
- if(view==="fix-now")return <DetailShell title="Fix Now" subtitle="Practice the items that can improve your score now." onBack={onBack} action={fixRows.length?<button className="btn primary" onClick={()=>onPractice("Fix Now")}>Practice all</button>:null}>
+ if(view==="fix-now")return <DetailShell title="Fix Now" subtitle="Practice the items that can improve your score now." onBack={onBack} action={fixRows.length?<button className="btn primary" onClick={()=>onPractice("Fix Now","due_now")}>Practice all</button>:null}>
   <section className="targeted-clean-list">{fixRows.length?fixRows.map(row=><LearnerRow key={row.key} row={row} onPractice={()=>row.confusionId?onPractice(row.title,"confusion",row.confusionId):onPractice(row.title,row.kind,undefined,row.questionId)}/>):<EmptyCopy text="Nothing needs immediate repair right now."/>}</section>
  </DetailShell>;
  if(view==="confusions")return <DetailShell title="Your Confusions" subtitle="Clear the meanings and rules you said get mixed up." onBack={onBack}>
