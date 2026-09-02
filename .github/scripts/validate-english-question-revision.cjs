@@ -1,3 +1,4 @@
+// Final branch-head contract gate for question repair, SSC toughness, related practice, and quality intelligence.
 const fs=require('fs');
 const path=require('path');
 const root=path.resolve(__dirname,'../..');
