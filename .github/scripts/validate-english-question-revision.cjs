@@ -1,4 +1,5 @@
 // Final branch-head contract gate for question repair, SSC toughness, related practice, and learner-facing study UI.
+// This file is intentionally touched after the documentation audit so CI validates the exact release-candidate head.
 const fs=require('fs');
 const path=require('path');
 const root=path.resolve(__dirname,'../..');
