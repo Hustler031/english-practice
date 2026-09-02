@@ -15,6 +15,7 @@ on:
       - '.github/scripts/validate-english-v2-starred-counter.cjs'
       - '.github/scripts/validate-english-v2-search-path.cjs'
       - '.github/scripts/validate-english-question-revision.cjs'
+      - '.github/scripts/validate-english-question-revision.sql'
       - '.github/english-v2-fresh-session-module-audit.md'
       - '.github/workflows/validate-english-v2-web.yml'
   pull_request:
@@ -30,6 +31,7 @@ on:
       - '.github/scripts/validate-english-v2-starred-counter.cjs'
       - '.github/scripts/validate-english-v2-search-path.cjs'
       - '.github/scripts/validate-english-question-revision.cjs'
+      - '.github/scripts/validate-english-question-revision.sql'
       - '.github/english-v2-fresh-session-module-audit.md'
       - '.github/workflows/validate-english-v2-web.yml'
 
@@ -76,7 +78,7 @@ jobs:
           psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260830180000_english_quiz_session_freshness.sql
           psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260830181000_english_source_group_fresh_session.sql
           psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260830210000_english_interaction_cooldown.sql
-      - name: Execute question revision migrations in ephemeral Postgres
+      - name: Execute and behavior-test question revision migrations
         env:
           PGPASSWORD: postgres
         run: |
@@ -106,6 +108,7 @@ jobs:
             if not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='english_use_question_revision') then raise exception 'apply RPC missing'; end if;
           end $$;
           SQL
+          psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../.github/scripts/validate-english-question-revision.sql
       - name: Validate English V2 fresh-session and mastery contracts
         run: |
           node ../.github/scripts/validate-english-v2-fresh-session.cjs
