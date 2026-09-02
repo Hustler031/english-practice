@@ -17,6 +17,7 @@ type HinduWord={id:string};
 type Intelligence={queues?:Record<string,number>;daily?:{actionableRemaining:number;suppressed?:number};coreCoverage?:{percent:number}};
 type HomeSnapshot={ok:boolean;studyDay:number;summary:Summary;intelligence:Intelligence;phrasal:PhrasalHub;bank:BankHub;saved:SavedHub;starred:StarredHub;hindu:HinduWord[]};
 type ExamSummary={daysLeft:number;goalMarks:number};
+type TargetedSummary={ok:boolean;active:number;dueNow:number;confusions:number;needLearning:number;transferChecks:number;retentionChecks:number};
 
 const quick = [
  ["📰", "The Hindu – Today", "Fresh vocabulary batch", "/english/hindu?return=/english", "hindu"],
@@ -24,6 +25,7 @@ const quick = [
  ["↗", "Phrasal Verb", "Today’s batch + smart revision", "/english/phrasal", "phrasal"],
  ["★", "Starred Revision", "Marked and difficult focus", "/english/starred", "starred"],
  ["◫", "Bank Coverage", "Controlled unseen exposure", "/english/bank", "bank"],
+ ["◎", "Targeted Mastery", "Concept repair + transfer checks", "/english/targeted", "targeted"],
 ] as const;
 
 function fallbackStudyDay(){
@@ -39,6 +41,7 @@ export default function EnglishHome() {
  const ready=useAuthGuard();
  const[snapshot,setSnapshot]=useState<HomeSnapshot|null>(null);
  const[exam,setExam]=useState<ExamSummary|null>(null);
+ const[targeted,setTargeted]=useState<TargetedSummary|null>(null);
  const[error,setError]=useState("");
  const[paused,setPaused]=useState<PausedQuizSession|null>(null);
 
@@ -49,6 +52,7 @@ export default function EnglishHome() {
   const unsubscribe=subscribeRpcFresh<HomeSnapshot>("english_get_home_snapshot",undefined,accept);
   rpc<HomeSnapshot>("english_get_home_snapshot").then(accept).catch((e:any)=>{if(alive)setError(e.message)});
   rpc<ExamSummary>("english_get_exam_preparation").then(x=>{if(alive)setExam(x)}).catch(()=>{});
+  rpc<TargetedSummary>("english_get_targeted_summary").then(x=>{if(alive)setTargeted(x)}).catch(()=>{});
   setPaused(readPausedQuiz());
   return()=>{alive=false;unsubscribe();};
  },[ready]);
@@ -71,6 +75,7 @@ export default function EnglishHome() {
    return `${Number(starred.stats.focus||0)} focus${diff?` · ${diff} ⚡`:""}`;
   }
   if(accent==="bank")return bank?`${bank.coverage.toFixed(0)}% exposed`:"…";
+  if(accent==="targeted")return targeted?`${targeted.active} active${targeted.confusions?` · ${targeted.confusions} confusion`:""}`:"…";
   return "Open";
  };
 

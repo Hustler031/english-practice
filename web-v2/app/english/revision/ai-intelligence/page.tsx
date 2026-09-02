@@ -7,8 +7,10 @@ import { useAuthGuard } from "@/lib/use-auth";
 
 type Summary={concepts:number;mapped_questions:number;unresolved_mappings:number;needs_review:number;seen:number;secure:number;exam_ready:number;weak:number;retention_risk:number};
 type Row={concept_id:string;domain:string;skill_family:string;name:string;exam_relevance:string;coverage_state:string;confidence_score:number;attempts:number;wrong:number;next_review?:string};
-type ContextRow={note_id:string;question_id:string;note:string;processing_status:string;diagnosis?:{type?:string;action?:string;related_terms?:string[];needs_ai?:boolean};created_at:string};
-type Signals={context_total:number;context_done:number;context_pending:number;context_failed:number;guessed_total:number;context_targeted:number;recent_context:ContextRow[]};
+type ContextRow={note_id:string;question_id:string;note:string;processing_status:string;ai_status?:string;diagnosis?:{type?:string;action?:string;related_terms?:string[];needs_ai?:boolean;processor?:string;model?:string};created_at:string};
+type Activity={id:number;type:string;title:string;detail?:string;questionId?:string;conceptId?:string;route?:string;metadata?:Record<string,unknown>;at:string};
+type TodayActivity={ok:boolean;count:number;items:Activity[]};
+type Signals={context_total:number;context_done:number;context_pending:number;context_failed:number;guessed_total:number;guessed_open?:number;confusions_open?:number;context_targeted:number;recent_context:ContextRow[];today_activity?:TodayActivity};
 
 const labels:Record<string,string>={exam_ready:"Exam-ready",secure:"Secure",weak:"Weak",retention_risk:"Retention risk",seen:"Learning",unseen:"Unseen"};
 
@@ -19,6 +21,7 @@ export default function AIIntelligencePage(){
   const [rows,setRows]=useState<Row[]>([]);
   const [kind,setKind]=useState("weak");
   const [open,setOpen]=useState<string|null>(null);
+  const [todayOpen,setTodayOpen]=useState(false);
   const [error,setError]=useState("");
   const [loading,setLoading]=useState(true);
 
@@ -37,6 +40,8 @@ export default function AIIntelligencePage(){
   },[ready,kind]);
 
   const priorityRows=useMemo(()=>rows.slice(0,36),[rows]);
+  const today=signals?.today_activity;
+  const activities=Array.isArray(today?.items)?today.items:[];
   if(!ready)return <main className="top-level-parity"><div className="loading-copy">Checking session…</div></main>;
 
   return <main className="top-level-parity learning-intelligence-page">
@@ -58,24 +63,29 @@ export default function AIIntelligencePage(){
     </section>
 
     <section className="section-block intelligence-signals-section">
-      <div className="section-title-line"><div><h2>Your learning signals</h2><p className="muted">These alter future validation and routing; they do not create a chatbot.</p></div></div>
+      <div className="section-title-line intelligence-today-head"><div><h2>Your learning signals</h2><p className="muted">Signals change future validation and routing; AI stays in the background.</p></div><button className={`today-info-button ${todayOpen?"active":""}`} type="button" onClick={()=>setTodayOpen(v=>!v)} aria-expanded={todayOpen}><span>Today’s Info</span><b>{today?.count??0}</b></button></div>
+      {todayOpen&&<div className="today-activity-panel">
+        <div className="today-activity-top"><div><b>Today’s learning actions</b><small>Only real routing, diagnosis and transfer actions are shown.</small></div><Link href="/english/targeted">Targeted ›</Link></div>
+        {activities.length?<div className="today-activity-list">{activities.map(item=><div className="today-activity-row" key={item.id}><span className="activity-dot"/><div><b>{item.title}</b>{item.detail&&<p>{item.detail}</p>}<small>{item.questionId?`${item.questionId} · `:""}{item.route?`${item.route.replaceAll("_"," ")} · `:""}{new Date(item.at).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</small></div></div>)}</div>:<div className="today-activity-empty">No background learning action was needed today yet.</div>}
+      </div>}
       <div className="intelligence-signal-grid">
-        <SignalStat label="Context used" value={signals?.context_done??0} detail={`${signals?.context_pending??0} pending`}/>
-        <SignalStat label="I Guessed" value={signals?.guessed_total??0} detail="confidence downgraded"/>
-        <SignalStat label="Context → Targeted" value={signals?.context_targeted??0} detail="future repair routes"/>
+        <SignalStat label="Context used" value={signals?.context_done??0} detail={`${signals?.context_pending??0} background pending`}/>
+        <SignalStat label="I Guessed" value={signals?.guessed_total??0} detail={`${signals?.guessed_open??0} awaiting fresh proof`}/>
+        <SignalStat label="My Confusions" value={signals?.confusions_open??0} detail="open focused repairs"/>
       </div>
-      {!!signals?.recent_context?.length&&<details className="intelligence-details"><summary>Recent context signals</summary><div className="context-history-list">{signals.recent_context.map(row=><div className="context-history-row" key={row.note_id}><div><b>{row.question_id}</b><span>{row.note}</span></div><div className="context-history-meta"><span>{row.diagnosis?.type?.replaceAll("_"," ")||row.processing_status}</span>{row.diagnosis?.related_terms?.length? <small>{[...new Set(row.diagnosis.related_terms)].join(" · ")}</small>:null}</div></div>)}</div></details>}
+      <div className="intelligence-targeted-link"><Link href="/english/targeted"><span><b>Targeted Mastery</b><small>{signals?.context_targeted??0} context-routed items · confusion and transfer checks</small></span><i>›</i></Link></div>
+      {!!signals?.recent_context?.length&&<details className="intelligence-details"><summary>Recent context signals</summary><div className="context-history-list">{signals.recent_context.map(row=><div className="context-history-row" key={row.note_id}><div><b>{row.question_id}</b><span>{row.note}</span></div><div className="context-history-meta"><span>{row.diagnosis?.type?.replaceAll("_"," ")||row.processing_status}</span>{row.diagnosis?.related_terms?.length?<small>{[...new Set(row.diagnosis.related_terms)].join(" · ")}</small>:null}{row.diagnosis?.processor==="luna_background"&&<small>Background interpreted</small>}</div></div>)}</div></details>}
     </section>
 
     <section className="section-block intelligence-priority-section">
       <div className="section-title-line intelligence-filter-head"><div><h2>Priority concepts</h2><p className="muted">Concepts are ranked by exam relevance and current evidence.</p></div></div>
       <div className="intelligence-filter-row" role="tablist" aria-label="Concept filter">
-        {[['weak','Needs work'],['retention','Retention'],['coverage','Coverage'],['all','All']].map(([value,label])=><button key={value} type="button" className={kind===value?"active":""} onClick={()=>{setKind(value);setOpen(null)}}>{label}</button>)}
+        {[["weak","Needs work"],["retention","Retention"],["coverage","Coverage"],["all","All"]].map(([value,label])=><button key={value} type="button" className={kind===value?"active":""} onClick={()=>{setKind(value);setOpen(null)}}>{label}</button>)}
       </div>
       {loading?<div className="loading-copy compact-loading">Refreshing concept evidence…</div>:priorityRows.length?<div className="intelligence-concept-list">{priorityRows.map(row=>{
         const expanded=open===row.concept_id; const state=labels[row.coverage_state]||row.coverage_state.replaceAll("_"," ");
         return <button className="intelligence-concept-row" key={row.concept_id} onClick={()=>setOpen(expanded?null:row.concept_id)} aria-expanded={expanded}>
-          <div className="intelligence-concept-main"><div className="intelligence-concept-title"><b>{row.name}</b><span className={`state-dot state-${row.coverage_state}`}>{state}</span></div><small>{row.skill_family} · {row.exam_relevance} priority</small><div className="confidence-track"><i style={{width:`${Math.max(0,Math.min(100,Number(row.confidence_score)||0))}%`}}/></div>{expanded&&<div className="intelligence-concept-detail"><span><b>{Math.round(Number(row.confidence_score)||0)}%</b> confidence</span><span><b>{row.attempts}</b> attempts</span><span><b>{row.wrong}</b> wrong</span>{row.next_review&&<span>Next check: <b>{new Date(row.next_review).toLocaleDateString()}</b></span>}</div>}</div><span className="row-chevron">{expanded?'−':'›'}</span>
+          <div className="intelligence-concept-main"><div className="intelligence-concept-title"><b>{row.name}</b><span className={`state-dot state-${row.coverage_state}`}>{state}</span></div><small>{row.skill_family} · {row.exam_relevance} priority</small><div className="confidence-track"><i style={{width:`${Math.max(0,Math.min(100,Number(row.confidence_score)||0))}%`}}/></div>{expanded&&<div className="intelligence-concept-detail"><span><b>{Math.round(Number(row.confidence_score)||0)}%</b> confidence</span><span><b>{row.attempts}</b> attempts</span><span><b>{row.wrong}</b> wrong</span>{row.next_review&&<span>Next check: <b>{new Date(row.next_review).toLocaleDateString()}</b></span>}</div>}</div><span className="row-chevron">{expanded?"−":"›"}</span>
         </button>})}</div>:<div className="empty-state compact-empty"><p className="muted">No concepts in this view right now.</p></div>}
     </section>
 
