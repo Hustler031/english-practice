@@ -13,86 +13,141 @@ type Proposal = {
   feedbackReason?: string;
   feedbackNote?: string;
   proposed?: RevisionPayload;
-  generationSource?: "bank_first" | "ai_last_resort";
+  generationSource?: "bank_informed_ai" | "ai_last_resort";
   lastError?: string;
 };
-type RevisionState = { ok?: boolean; activeVersion?: number; proposal?: Proposal | null };
+type QualityReview = {
+  reviewId: string;
+  status: "queued" | "processing" | "reviewed" | "failed" | "closed";
+  verdict?: "valid" | "issue_suspected";
+  rationale?: string;
+  confidence?: number;
+};
+type RevisionState = { ok?: boolean; activeVersion?: number; proposal?: Proposal | null; qualityReview?: QualityReview | null };
 
 type Reason = { value: string; label: string };
 const REASONS: Reason[] = [
   { value: "options_too_obvious", label: "Options too obvious" },
   { value: "distractors_unrelated", label: "Distractors are unrelated" },
   { value: "explanation_weak", label: "Explanation is weak" },
-  { value: "correct_answer_doubtful", label: "Correct answer looks doubtful" },
+  { value: "correct_answer_doubtful", label: "Correct answer looks doubtful · review only" },
   { value: "custom", label: "Write your own note" },
 ];
 
 export default function QuestionRevisionActions({ questionId }: { questionId: string }) {
   const [open,setOpen]=useState(false);
+  const [relatedOpen,setRelatedOpen]=useState(false);
   const [preview,setPreview]=useState(false);
   const [reason,setReason]=useState("");
   const [note,setNote]=useState("");
+  const [relatedNote,setRelatedNote]=useState("");
   const [state,setState]=useState<RevisionState|null>(null);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
+  const [message,setMessage]=useState("");
 
   const refresh=useCallback(async()=>{
     if(!questionId)return;
     try{
       const next=await rpc<RevisionState>("english_get_question_revision_state",{p_question_id:questionId,p_cache_buster:Date.now()});
       setState(next);setError("");
-    }catch(e:any){setError(learnerErrorMessage(e,"Could not check the revision proposal right now."));}
+    }catch(e:any){setError(learnerErrorMessage(e,"Could not check the question-improvement state right now."));}
   },[questionId]);
 
-  useEffect(()=>{setOpen(false);setPreview(false);setReason("");setNote("");setState(null);setError("");void refresh();},[questionId,refresh]);
   useEffect(()=>{
-    const status=state?.proposal?.status;
-    if(status!=="queued"&&status!=="processing")return;
-    const timer=window.setTimeout(()=>void refresh(),7000);
-    return()=>window.clearTimeout(timer);
-  },[state?.proposal?.status,state?.proposal?.version,refresh]);
+    setOpen(false);setRelatedOpen(false);setPreview(false);setReason("");setNote("");setRelatedNote("");setState(null);setError("");setMessage("");
+    void refresh();
+  },[questionId,refresh]);
+
+  useEffect(()=>{
+    const proposalBusy=state?.proposal?.status==="queued"||state?.proposal?.status==="processing";
+    const reviewBusy=state?.qualityReview?.status==="queued"||state?.qualityReview?.status==="processing";
+    if(!proposalBusy&&!reviewBusy)return;
+    const timer=window.setInterval(()=>void refresh(),7000);
+    return()=>window.clearInterval(timer);
+  },[state?.proposal?.status,state?.qualityReview?.status,refresh]);
 
   async function submit(){
     if(!reason||busy)return;
     if(reason==="custom"&&note.trim().length<3){setError("Add a short note describing what should improve.");return;}
-    setBusy(true);setError("");
+    setBusy(true);setError("");setMessage("");
     try{
-      await rpc("english_request_question_revision",{p_question_id:questionId,p_feedback_reason:reason,p_feedback_note:note.trim()||null});
+      if(reason==="correct_answer_doubtful"){
+        await rpc("english_request_question_quality_review",{p_question_id:questionId,p_note:note.trim()||null});
+        setMessage("Sent for answer review. The current question will not be changed automatically.");
+      }else{
+        await rpc("english_request_question_revision",{p_question_id:questionId,p_feedback_reason:reason,p_feedback_note:note.trim()||null});
+        setMessage("Improvement queued. Keep studying — it is checked in the background.");
+      }
       setOpen(false);setNote("");setReason("");await refresh();
     }catch(e:any){setError(learnerErrorMessage(e,"Could not queue this question improvement."));}
     finally{setBusy(false);}
   }
+
+  async function requestRelatedPractice(){
+    if(busy)return;
+    setBusy(true);setError("");setMessage("");
+    try{
+      const result=await rpc<any>("english_request_related_practice",{p_question_id:questionId,p_note:relatedNote.trim()||null});
+      setRelatedOpen(false);setRelatedNote("");
+      setMessage(result?.status==="ready"?"Related practice added to Targeted Mastery.":"Related practice queued. A close SSC-level question will be prepared in the background.");
+    }catch(e:any){setError(learnerErrorMessage(e,"Could not prepare related practice."));}
+    finally{setBusy(false);}
+  }
+
   async function useRevision(){
     const proposal=state?.proposal;if(!proposal?.proposalId||proposal.status!=="ready"||busy)return;
     setBusy(true);setError("");
-    try{await rpc("english_use_question_revision",{p_proposal_id:proposal.proposalId});setPreview(false);await refresh();}
+    try{await rpc("english_use_question_revision",{p_proposal_id:proposal.proposalId});setPreview(false);setMessage("Revised version will be used in future practice.");await refresh();}
     catch(e:any){setError(learnerErrorMessage(e,"Could not apply this revision."));}
     finally{setBusy(false);}
   }
   async function keepCurrent(){
     const proposal=state?.proposal;if(!proposal?.proposalId||proposal.status!=="ready"||busy)return;
     setBusy(true);setError("");
-    try{await rpc("english_keep_question_revision",{p_proposal_id:proposal.proposalId});setPreview(false);await refresh();}
+    try{await rpc("english_keep_question_revision",{p_proposal_id:proposal.proposalId});setPreview(false);setMessage("Current version kept.");await refresh();}
     catch(e:any){setError(learnerErrorMessage(e,"Could not keep the current version."));}
     finally{setBusy(false);}
   }
 
   const proposal=state?.proposal;
+  const review=state?.qualityReview;
+  const repairOnly=reason==="options_too_obvious"||reason==="distractors_unrelated";
   return <div className="question-revision-actions">
-    <button className="btn ghost" type="button" onClick={()=>setOpen(v=>!v)}>Too Easy / Improve Question</button>
+    <button className="btn ghost" type="button" onClick={()=>{setOpen(v=>!v);setRelatedOpen(false);}}>Too Easy / Improve Question</button>
+    <button className="btn ghost" type="button" onClick={()=>{setRelatedOpen(v=>!v);setOpen(false);}}>Related practice</button>
+
     {proposal?.status==="queued"||proposal?.status==="processing"?<div className="context-saved">Improvement queued. Keep studying — the proposal is being checked in the background.</div>:null}
     {proposal?.status==="ready"&&proposal.proposed?<div className="context-saved"><b>Revision proposal ready</b> <button className="btn ghost" type="button" onClick={()=>setPreview(true)}>Preview</button></div>:null}
     {proposal?.status==="applied"?<div className="context-saved">Revised version active for future practice.</div>:null}
     {proposal?.status==="kept"?<div className="context-saved">Current version kept.</div>:null}
     {proposal?.status==="failed"?<div className="error-box">This proposal did not pass the quality checks. You can submit fresh feedback.</div>:null}
+
+    {review?.status==="queued"||review?.status==="processing"?<div className="context-saved">Correct-answer review queued. Nothing will be changed automatically.</div>:null}
+    {review?.status==="reviewed"&&review.verdict==="valid"?<div className="context-saved">Answer review: the current key looks valid.</div>:null}
+    {review?.status==="reviewed"&&review.verdict==="issue_suspected"?<div className="error-box">Answer review found a possible content issue. The canonical question is still unchanged.</div>:null}
+
+    {message&&<div className="context-saved">{message}</div>}
     {error&&<div className="error-box">{error}</div>}
+
     {open&&<div className="ai-help-panel">
       <strong>What should improve?</strong>
       <div className="action-matrix">{REASONS.map(item=><button key={item.value} className={`btn ${reason===item.value?"primary":"soft"}`} type="button" aria-pressed={reason===item.value} onClick={()=>setReason(item.value)}>{item.label}</button>)}</div>
+      {repairOnly&&<span>Only the weak options and matching explanation will be repaired. The question stem and correct answer stay the same.</span>}
+      {reason==="explanation_weak"&&<span>The question and all four options stay unchanged; only the explanation is rewritten.</span>}
+      {reason==="correct_answer_doubtful"&&<span>This sends the canonical answer for independent review. It does not rewrite the question.</span>}
       {reason==="custom"&&<input value={note} maxLength={600} onChange={e=>setNote(e.target.value)} placeholder="Briefly describe the problem…"/>}
       {reason&&reason!=="custom"&&<input value={note} maxLength={600} onChange={e=>setNote(e.target.value)} placeholder="Optional detail…"/>}
-      <button className="btn primary" type="button" disabled={busy||!reason||(reason==="custom"&&note.trim().length<3)} onClick={()=>void submit()}>{busy?"Saving…":"Request improvement"}</button>
+      <button className="btn primary" type="button" disabled={busy||!reason||(reason==="custom"&&note.trim().length<3)} onClick={()=>void submit()}>{busy?"Saving…":reason==="correct_answer_doubtful"?"Send for answer review":"Request improvement"}</button>
     </div>}
+
+    {relatedOpen&&<div className="ai-help-panel">
+      <strong>Prepare related practice</strong>
+      <span>Use this only when you want a new question around related/confusable words or the same concept.</span>
+      <input value={relatedNote} maxLength={600} onChange={e=>setRelatedNote(e.target.value)} placeholder="Optional: e.g. I mix desultory, cursory and sporadic…"/>
+      <button className="btn primary" type="button" disabled={busy} onClick={()=>void requestRelatedPractice()}>{busy?"Queuing…":"Prepare related question"}</button>
+    </div>}
+
     {preview&&proposal?.status==="ready"&&proposal.proposed&&<RevisionPreview payload={proposal.proposed} busy={busy} onUse={()=>void useRevision()} onKeep={()=>void keepCurrent()} onClose={()=>setPreview(false)}/>} 
   </div>;
 }
