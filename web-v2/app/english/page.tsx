@@ -78,14 +78,13 @@ export default function EnglishHome() {
   if(accent==="targeted")return targeted?`${targeted.dueNow} due${targeted.confusions?` · ${targeted.confusions} confusion`:""}`:"…";
   return "Open";
  };
- const nextBest:NextBest=targeted?.confusions?
+ const targetedDue=Math.max(0,Number(targeted?.dueNow||0));
+ const nextBest:NextBest=targetedDue>0&&!!targeted?.confusions?
   {title:`Clear ${targeted.confusions} confusion pair${targeted.confusions===1?"":"s"}`,detail:"Start with the mix-ups you explicitly flagged.",href:"/english/targeted?start=focused",cta:"Start focused practice",tone:"confusion"}:
-  targeted?.transferChecks?
-  {title:`Complete ${targeted.transferChecks} fresh understanding check${targeted.transferChecks===1?"":"s"}`,detail:"Use a fresh question to confirm the concept independently.",href:"/english/targeted?start=focused",cta:"Start focused practice",tone:"check"}:
-  targeted?.retentionChecks?
-  {title:`Confirm ${targeted.retentionChecks} spaced recall check${targeted.retentionChecks===1?"":"s"}`,detail:"Protect what you already learned before it fades.",href:"/english/targeted?start=focused",cta:"Start focused practice",tone:"check"}:
-  targeted?.dueNow?
-  {title:`Finish ${targeted.dueNow} focused-practice item${targeted.dueNow===1?"":"s"}`,detail:"Work on the highest-value repair that is ready now.",href:"/english/targeted?start=focused",cta:"Start focused practice",tone:"check"}:
+  targetedDue>0&&!!targeted?.transferChecks?
+  {title:`Complete focused understanding checks`,detail:`${targetedDue} focused item${targetedDue===1?" is":"s are"} ready now; fresh checks are prioritised first.`,href:"/english/targeted?start=focused",cta:"Start focused practice",tone:"check"}:
+  targetedDue>0?
+  {title:`Finish ${targetedDue} focused-practice item${targetedDue===1?"":"s"}`,detail:"Work on the highest-value repair that is ready now.",href:"/english/targeted?start=focused",cta:"Start focused practice",tone:"check"}:
   !dailyComplete&&actionableRemaining>0?
   {title:`Finish today’s ${actionableRemaining} due question${actionableRemaining===1?"":"s"}`,detail:"Complete the adaptive Daily queue before adding extra work.",href:"/english/daily",cta:completed?"Continue Daily":"Start Daily",tone:"daily"}:
   (saved?.stats.due??0)>0?
