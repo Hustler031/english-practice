@@ -17,14 +17,15 @@ insert into english.questions(
   question_id,topic,word,question,option_a,option_b,option_c,option_d,correct,explanation,subtopic,question_type,difficulty,exam_relevance,active
 ) values
   ('REV_Q1','Vocabulary','desultory','Choose the correct meaning of the test word.','Correct base','Weak distractor one','Weak distractor two','Weak distractor three','A','Base explanation for the original options only.','Vocabulary','Vocabulary','Moderate','high',true),
-  ('REV_Q2','Vocabulary','desultory','Choose the best use of the same test concept.','Correct bank','Close bank one','Close bank two','Close bank three','A','Bank explanation for the same concept.','Vocabulary','Vocabulary','Hard','high',true)
+  ('REV_Q2','Vocabulary','desultory','Choose the best use of the same test concept.','Correct bank','Close bank one','Close bank two','Close bank three','A','Bank explanation for the same concept.','Vocabulary','Vocabulary','Hard','high',true),
+  ('REV_Q3','Vocabulary','desultory','Choose the option that best distinguishes the target word in context.','Correct strong bank','Plausible near meaning one','Plausible near meaning two','Plausible near meaning three','A','Strong bank explanation distinguishes the close alternatives.','Vocabulary','Vocabulary','Hard','high',true)
 on conflict(question_id) do nothing;
 
 insert into english.question_concept_mappings(question_id,concept_id,family_id)
-values ('REV_Q1','REV_CONCEPT','REV_FAMILY'),('REV_Q2','REV_CONCEPT','REV_FAMILY')
+values ('REV_Q1','REV_CONCEPT','REV_FAMILY'),('REV_Q2','REV_CONCEPT','REV_FAMILY'),('REV_Q3','REV_CONCEPT','REV_FAMILY')
 on conflict(question_id) do update set concept_id=excluded.concept_id,family_id=excluded.family_id;
 
--- Learner-specific difficulty calibration: three fast clean attempts should mark the item trivial for this learner.
+-- Learner-specific difficulty calibration: three fast clean attempts should mark REV_Q2 trivial for this learner.
 insert into english.attempts(attempt_id,user_id,question_id,attempted_at,selected_answer,correct,time_seconds)
 values
  ('QMET1',auth.uid(),'REV_Q2',now()-interval '3 minutes','A',true,6),
@@ -184,13 +185,13 @@ begin
   assert (select correct from english.questions where question_id='REV_Q1')='A', 'quality review must never mutate the canonical key';
 end $$;
 
--- Explicit related practice reuses a non-trivial bank item before generation.
+-- Explicit related practice skips a learner-trivial alternate and reuses the suitable bank item before generation.
 do $$
 declare outv jsonb;
 begin
   outv:=public.english_request_related_practice('REV_Q1','I want a related/confusable-word question.');
   assert outv->>'source'='bank_first', 'explicit related practice must reuse a suitable bank item first';
-  assert outv->>'questionId'='REV_Q2', 'bank-first related practice should select the alternate test item';
+  assert outv->>'questionId'='REV_Q3', 'bank-first related practice must skip the learner-trivial alternate';
 end $$;
 
 -- Another authenticated user cannot apply or inspect this user's revision proposal.
