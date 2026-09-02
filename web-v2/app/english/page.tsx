@@ -19,6 +19,8 @@ type HomeSnapshot={ok:boolean;studyDay:number;summary:Summary;intelligence:Intel
 type ExamSummary={daysLeft:number;goalMarks:number};
 type TargetedSummary={ok:boolean;active:number;dueNow:number;confusions:number;needLearning:number;transferChecks:number;retentionChecks:number};
 
+type NextBest={title:string;detail:string;href:string;cta:string;tone:"confusion"|"check"|"daily"|"saved"|"exam"};
+
 const quick = [
  ["📰", "The Hindu – Today", "Fresh vocabulary batch", "/english/hindu?return=/english", "hindu"],
  ["🔖", "My Saved Words", "Personal recall queue", "/english/saved", "saved"],
@@ -76,6 +78,19 @@ export default function EnglishHome() {
   if(accent==="targeted")return targeted?`${targeted.dueNow} due${targeted.confusions?` · ${targeted.confusions} confusion`:""}`:"…";
   return "Open";
  };
+ const nextBest:NextBest=targeted?.confusions?
+  {title:`Clear ${targeted.confusions} confusion pair${targeted.confusions===1?"":"s"}`,detail:"Start with the mix-ups you explicitly flagged.",href:"/english/targeted?start=focused",cta:"Start focused practice",tone:"confusion"}:
+  targeted?.transferChecks?
+  {title:`Complete ${targeted.transferChecks} fresh understanding check${targeted.transferChecks===1?"":"s"}`,detail:"Use a fresh question to confirm the concept independently.",href:"/english/targeted?start=focused",cta:"Start focused practice",tone:"check"}:
+  targeted?.retentionChecks?
+  {title:`Confirm ${targeted.retentionChecks} spaced recall check${targeted.retentionChecks===1?"":"s"}`,detail:"Protect what you already learned before it fades.",href:"/english/targeted?start=focused",cta:"Start focused practice",tone:"check"}:
+  targeted?.dueNow?
+  {title:`Finish ${targeted.dueNow} focused-practice item${targeted.dueNow===1?"":"s"}`,detail:"Work on the highest-value repair that is ready now.",href:"/english/targeted?start=focused",cta:"Start focused practice",tone:"check"}:
+  !dailyComplete&&actionableRemaining>0?
+  {title:`Finish today’s ${actionableRemaining} due question${actionableRemaining===1?"":"s"}`,detail:"Complete the adaptive Daily queue before adding extra work.",href:"/english/daily",cta:completed?"Continue Daily":"Start Daily",tone:"daily"}:
+  (saved?.stats.due??0)>0?
+  {title:`Review ${saved!.stats.due} saved item${saved!.stats.due===1?"":"s"} due`,detail:"A short recall pass will keep your saved vocabulary active.",href:"/english/saved",cta:"Review saved",tone:"saved"}:
+  {title:"Keep momentum with Exam Sprint",detail:"No urgent repair is waiting, so use an exam-focused set.",href:"/english/exam",cta:"Open Exam Sprint",tone:"exam"};
 
  return <>
   {error&&<div className="error-box">{error}</div>}
@@ -94,6 +109,8 @@ export default function EnglishHome() {
     <div className="progress-track daily-active-progress"><i style={{width:`${percent}%`}}/></div>
    </section>
   }
+
+  <section className={`next-best-action-card tone-${nextBest.tone}`}><div className="next-best-action-copy"><span className="eyebrow">Next Best Action</span><h2>{nextBest.title}</h2><p>{nextBest.detail}</p></div><Link className="btn primary" href={nextBest.href}>{nextBest.cta}</Link></section>
 
   {dailyComplete&&<section className="practice-more-card compact-extra-card"><div className="practice-more-copy"><span className="eyebrow">Optional · after Daily</span><h2>Focused extra practice</h2><p>Wrong, Difficult, Marked · Weak/PW</p></div><Link className="btn primary" href="/english/extra?count=20">Start 20</Link></section>}
 
