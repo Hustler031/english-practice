@@ -22,6 +22,7 @@ const files={
  runtime:'supabase/managed-migrations/20260831209000_english_sprint_pause_resume.sql',
  edge:'supabase/functions/english-ssc-sprint/index.ts',
  home:'web-v2/app/english/page.tsx',
+ practice:'web-v2/app/english/practice/page.tsx',
  examPage:'web-v2/app/english/exam/page.tsx',
  exam:'web-v2/components/exam-preparation-final.tsx',
  fast:'web-v2/app/english/fast-track/page.tsx',
@@ -88,13 +89,11 @@ ok(examRows===1, 'Home contains exactly one EXAM PREPARATION entry');
 ok(T.home.indexOf('exam-home-row')<T.home.indexOf('Quick Start') && T.home.indexOf('exam-home-row')>T.home.indexOf('paused&&'), 'Exam Preparation row is immediately in the pre-Quick-Start Home region');
 ok(!T.home.includes('/english/fast-track'), 'Home has no Fast Track card/link');
 
-// Revision placement: agreed final location is Personal Revision, immediately after My Saved.
-has(T.revision,['Personal Revision','My Saved Words','Fast Track Mastery','/english/fast-track'], 'Fast Track lives inside Personal Revision under Revision');
+// Final learner navigation: Fast Track is a Practice mode, while Revision stays focused on due/repair/saved/topic/insights.
+has(T.practice,['Fast Track','/english/fast-track','Daily Practice','Targeted Mastery','Exam Sprint'], 'Fast Track lives in Practice with the other practice modes');
+ok(!T.revision.includes('/english/fast-track'), 'Revision does not duplicate the Fast Track practice entry');
 ok(!T.revision.includes('Fast Verification'), 'No separate Fast Verification section clutters Revision');
-const savedRow=T.revision.indexOf('<b>🔖 My Saved Words</b>');
-const fastRow=T.revision.indexOf('<b>⚡ Fast Track Mastery</b>');
-const masteredRow=T.revision.indexOf('<b>✓ Mastered / Don’t Repeat</b>');
-ok(savedRow>=0&&fastRow>savedRow&&masteredRow>fastRow, 'Fast Track is immediately between My Saved and Mastered in Personal Revision');
+has(T.revision,['Due Now','Difficult &amp; Incorrect','Starred','My Saved','Browse by Topic','Learning Insights'], 'Revision keeps the final learner-facing study structure');
 
 // Sprint exam contract and answer leak guard.
 has(T.exam,['25 Questions · 15 Minutes','50 marks · −0.50 wrong · no Reading Comprehension','Start Sprint'], 'Exam page states exact Standard Sprint contract without dashboard clutter');
