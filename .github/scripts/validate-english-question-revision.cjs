@@ -8,7 +8,8 @@ const integrity=read('supabase/managed-migrations/20260902151000_english_questio
 const quality=read('supabase/managed-migrations/20260902153000_english_question_quality_intelligence.sql');
 const hardening=read('supabase/managed-migrations/20260902154000_english_revision_transfer_quality_hardening.sql');
 const uiSupport=read('supabase/managed-migrations/20260902161000_english_learning_insights_ui_support.sql');
-const migration=[base,integrity,quality,hardening,uiSupport].join('\n');
+const auditFix=read('supabase/managed-migrations/20260902162000_english_predeploy_question_ui_audit_fixes.sql');
+const migration=[base,integrity,quality,hardening,uiSupport,auditFix].join('\n');
 const worker=read('supabase/functions/english-context-worker/index.ts');
 const ui=read('web-v2/components/question-revision-actions.tsx');
 const runner=read('web-v2/components/quiz-runner.tsx');
@@ -18,6 +19,8 @@ const practice=read('web-v2/app/english/practice/page.tsx');
 const revision=read('web-v2/app/english/revision/page.tsx');
 const targeted=read('web-v2/app/english/targeted/page.tsx');
 const insights=read('web-v2/app/english/revision/ai-intelligence/page.tsx');
+const daily=read('web-v2/app/english/daily/page.tsx');
+const hindu=read('web-v2/app/english/hindu/page.tsx');
 const frame=read('web-v2/components/english-frame.tsx');
 const finalCss=read('web-v2/app/learning-insights-final-ui.css');
 function requireText(text,needle,label){if(!text.includes(needle))throw new Error(`${label}: missing ${needle}`);}
@@ -38,7 +41,9 @@ function forbid(text,re,label){if(re.test(text))throw new Error(`${label}: forbi
  ['explanation-only revision changed options','explanation-only invariant'],['revision failed SSC toughness gate','SSC revision gate'],
  ['bank_references','bank references instead of bank replacement'],["'newQuestionAllowed',false",'revision cannot silently create a new question'],
  ['text_token_jaccard','near-duplicate guard'],['generated transfer failed SSC quality gate','generated-transfer quality gate'],
- ['english_get_question_labels','learner-facing question-label RPC'],['english_get_targeted_question','exact targeted-question RPC']
+ ['english_get_question_labels','learner-facing question-label RPC'],['english_get_targeted_question','exact targeted-question RPC'],
+ ['english_get_targeted_due_session','Targeted due-only learner session'],['observed_difficulty','bank candidate difficulty evidence'],
+ ["in ('hard','difficult','advanced')",'hard bank suitability gate'],['confusableTerms','explicit related-practice anchor terms']
 ].forEach(([needle,label])=>requireText(migration,needle,label));
 forbid(migration,/update\s+english\.questions\b/i,'canonical question immutability');
 forbid(migration,/delete\s+from\s+english\.attempts\b/i,'attempt preservation');
@@ -69,23 +74,26 @@ requireText(overlay,'questionId','same canonical id overlay');
 requireText(overlay,'p_cache_buster: Date.now()','live applied-revision read');
 
 [
- [home,'Next Best Action','Home next-best action'],[home,'Start focused practice','Home focused CTA'],
+ [home,'Next Best Action','Home next-best action'],[home,'Start focused practice','Home focused CTA'],[home,'targetedDue>0','Home Targeted recommendation is due-gated'],
  [practice,'Daily Practice','Practice Daily'],[practice,'Targeted Mastery','Practice Targeted'],[practice,'Fast Track','Practice Fast Track'],[practice,'New Practice','Practice New'],[practice,'Topic Practice','Practice Topic'],[practice,'Exam Sprint','Practice Exam Sprint'],
  [revision,'Due Now','Revision due'],[revision,'Difficult &amp; Incorrect','Revision difficult/incorrect'],[revision,'Starred','Revision starred'],[revision,'My Saved','Revision saved'],[revision,'Browse by Topic','Revision topic'],[revision,'Learning Insights','Revision insights'],
- [targeted,'FIX NOW','Targeted Fix Now'],[targeted,'YOUR CONFUSIONS','Targeted confusions'],[targeted,'WAITING FOR LATER','Targeted waiting'],[targeted,'english_get_question_labels','Targeted display labels'],[targeted,'english_get_targeted_question','Targeted exact question'],
+ [targeted,'FIX NOW','Targeted Fix Now'],[targeted,'YOUR CONFUSIONS','Targeted confusions'],[targeted,'WAITING FOR LATER','Targeted waiting'],[targeted,'english_get_question_labels','Targeted display labels'],[targeted,'english_get_targeted_question','Targeted exact question'],[targeted,'english_get_targeted_due_session','Targeted Fix Now uses due-only session'],[targeted,'"due_now"','Targeted due-only UI kind'],
  [insights,'Learning Insights','Learning Insights title'],[insights,'TODAY’S INFO','Today info'],[insights,'What changed today','Today learner copy'],[insights,'FIX NOW','Insights Fix Now'],[insights,'CHECK SOON','Insights Check Soon'],[insights,'IMPROVING','Insights Improving'],[insights,'SCHEDULED FOR LATER','Insights scheduled'],[insights,'How your learning plan works','Learning-plan explainer'],[insights,'activityName(item,labels)','Today uses learner-facing names'],
+ [daily,'QuestionRevisionActions','Daily Improve Question action'],[daily,'english_get_applied_question_revisions','Daily applied revision overlay'],[daily,'I Guessed','Daily confidence signal'],[daily,'Add Context','Daily context signal'],
+ [hindu,'QuestionRevisionActions','Hindu Improve Question action'],[hindu,'english_get_applied_question_revisions','Hindu applied revision overlay'],[hindu,'english_record_guess','Hindu confidence signal'],[hindu,'english_save_context_note','Hindu context signal'],
  [frame,'targeted|fast-track|exam','Practice nav routing'],[frame,'pathname.startsWith("/english/revision/")','Revision nav routing'],
  [finalCss,'.insights-today-card','colourful Today UI'],[finalCss,'.targeted-learning-section','Targeted learner UI'],[finalCss,'.next-best-action-card','Home next action UI'],[finalCss,'grid-template-columns:repeat(3','three question actions layout']
 ].forEach(([text,needle,label])=>requireText(text,needle,label));
+forbid(home,/targeted\?\.retentionChecks\?/,'Home must not recommend future retention merely because it exists');
 forbid(insights,/\{item\.questionId\}/,'no question IDs on Today surface');
 forbid(targeted,/Question IDs are visible/i,'no developer audit copy in Targeted');
 
-for(const [name,text] of [['base migration',base],['integrity migration',integrity],['quality migration',quality],['hardening migration',hardening],['UI support migration',uiSupport]]){
+for(const [name,text] of [['base migration',base],['integrity migration',integrity],['quality migration',quality],['hardening migration',hardening],['UI support migration',uiSupport],['audit fix migration',auditFix]]){
  const dollars=(text.match(/\$\$/g)||[]).length;if(dollars%2)throw new Error(`${name}: unbalanced $$ function delimiters`);
 }
 try{
  const ts=require(path.join(root,'web-v2/node_modules/typescript'));
- for(const [name,source,jsx] of [['worker',worker,false],['revision ui',ui,true],['overlay',overlay,false],['targeted page',targeted,true],['learning insights',insights,true],['home',home,true],['practice',practice,true],['revision',revision,true],['frame',frame,true]]){
+ for(const [name,source,jsx] of [['worker',worker,false],['revision ui',ui,true],['overlay',overlay,false],['targeted page',targeted,true],['learning insights',insights,true],['home',home,true],['practice',practice,true],['revision',revision,true],['daily',daily,true],['hindu',hindu,true],['frame',frame,true]]){
   const out=ts.transpileModule(source,{reportDiagnostics:true,compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,jsx:jsx?ts.JsxEmit.ReactJSX:ts.JsxEmit.Preserve}});
   const bad=(out.diagnostics||[]).filter(d=>d.category===ts.DiagnosticCategory.Error);
   if(bad.length)throw new Error(`${name}: TypeScript parse error ${bad.map(d=>ts.flattenDiagnosticMessageText(d.messageText,' ')).join('; ')}`);
