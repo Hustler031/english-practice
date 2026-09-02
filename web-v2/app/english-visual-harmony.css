@@ -1,0 +1,351 @@
+/* English V2 visual harmony layer.
+   Home remains the visual reference: confident typography, comfortable cards,
+   restrained colour, and readable supporting copy. This file changes presentation
+   only; route structure, learning logic, quiz semantics, and data contracts stay intact. */
+
+/* ---------- Shared hierarchy ---------- */
+.english-app{
+  --eh-page-title:22px;
+  --eh-page-copy:13px;
+  --eh-section:12px;
+  --eh-card-title:14px;
+  --eh-card-copy:11px;
+  --eh-small:10.5px;
+  --eh-row-height:68px;
+  --eh-card-radius:15px;
+}
+
+.english-app .page-intro{margin-bottom:17px}
+.english-app .page-intro h1,
+.english-app .legacy-subhead h1,
+.english-app .pv-page-subhead h1,
+.english-app .saved-subhead h1,
+.english-app .starred-subhead h1{
+  font-size:var(--eh-page-title)!important;
+  line-height:1.12;
+  letter-spacing:-.03em;
+  font-weight:900;
+}
+.english-app .page-intro p{
+  margin-top:6px;
+  font-size:var(--eh-page-copy)!important;
+  line-height:1.45;
+}
+.english-app .section-title-line{margin-bottom:10px}
+.english-app .section-title-line h2{font-size:18px!important;letter-spacing:-.02em;font-weight:900}
+.english-app .section-cap{font-size:var(--eh-section)!important;font-weight:900;letter-spacing:.055em}
+.english-app .section-cap-line{min-height:28px}
+.english-app .section-block{margin-top:20px}
+.english-app .back-link{font-size:11.5px!important;font-weight:850}
+.english-app .intelligence-kicker{font-size:10.5px!important;font-weight:900;letter-spacing:.065em}
+
+/* The Home rows are the reference, not a target for another redesign. */
+.english-app .home-page .home-quick-row .row-copy b{font-size:14px}
+.english-app .home-page .home-quick-row .row-copy small{font-size:11px!important;line-height:1.35}
+
+/* ---------- Practice landing ---------- */
+.english-app .practice-primary-grid{gap:11px}
+.english-app .practice-primary-card{
+  min-height:86px;
+  grid-template-columns:40px minmax(0,1fr) auto;
+  gap:12px;
+  padding:14px 13px;
+  border-radius:17px;
+  box-shadow:0 8px 22px color-mix(in srgb,var(--bg) 76%,transparent);
+}
+.english-app .practice-primary-icon{
+  width:38px;
+  height:38px;
+  border-radius:12px;
+  font-size:18px;
+}
+.english-app .practice-primary-card b{font-size:14.5px;font-weight:900;letter-spacing:-.012em}
+.english-app .practice-primary-card small{margin-top:4px;font-size:11px;line-height:1.38}
+.english-app .practice-primary-card>i{font-size:20px}
+.english-app .practice-more-details{margin-top:12px;border-radius:16px}
+.english-app .practice-more-details>summary{min-height:58px;padding:12px 13px}
+.english-app .practice-more-details>summary b{font-size:13.5px}
+.english-app .practice-more-details>summary small{margin-top:3px;font-size:10.5px;line-height:1.35}
+.english-app .practice-more-list>a{min-height:58px;padding:11px 13px}
+.english-app .practice-more-list b{font-size:13px}
+.english-app .practice-more-list small{font-size:10.5px;line-height:1.35}
+
+/* ---------- Revision landing ---------- */
+.english-app .revision-primary-list{gap:9px}
+.english-app .revision-primary-row{
+  min-height:72px;
+  grid-template-columns:38px minmax(0,1fr) auto auto;
+  gap:11px;
+  padding:12px 13px;
+  border-radius:16px;
+}
+.english-app .revision-row-icon{
+  width:36px;
+  height:36px;
+  border-radius:11px;
+  font-size:17px;
+}
+.english-app .revision-primary-row b{font-size:14px;font-weight:900;letter-spacing:-.01em}
+.english-app .revision-primary-row small{margin-top:4px;font-size:11px;line-height:1.38}
+.english-app .revision-primary-row>strong{font-size:13.5px;font-weight:900}
+.english-app .revision-primary-row>i{font-size:20px}
+
+/* ---------- Shared inner-page rows/cards ---------- */
+.english-app .legacy-list{gap:9px!important}
+.english-app .legacy-row{
+  min-height:var(--eh-row-height)!important;
+  padding:12px 13px!important;
+  border-radius:var(--eh-card-radius)!important;
+}
+.english-app .legacy-row-copy b,
+.english-app .legacy-row>b,
+.english-app .legacy-row strong{font-size:var(--eh-card-title)!important;font-weight:900;letter-spacing:-.01em}
+.english-app .legacy-row-copy small,
+.english-app .legacy-row small{margin-top:4px;font-size:var(--eh-card-copy)!important;line-height:1.38!important}
+.english-app .legacy-chevron{font-size:20px!important}
+
+.english-app .category-list{gap:10px}
+.english-app .category-row{
+  padding:13px 14px;
+  border-radius:var(--eh-card-radius);
+}
+.english-app .category-title,
+.english-app .category-row b{font-size:13.5px;font-weight:900}
+.english-app .category-title span,
+.english-app .category-row small{font-size:10.8px;line-height:1.4}
+
+.english-app .card,
+.english-app .legacy-card,
+.english-app .module-card,
+.english-app .platform-card,
+.english-app .list-card,
+.english-app .saved-row{
+  border-radius:16px;
+}
+.english-app .card:not(.quiz-card),
+.english-app .legacy-card,
+.english-app .module-card,
+.english-app .platform-card,
+.english-app .list-card{padding:15px}
+.english-app .card:not(.quiz-card) h2,
+.english-app .card:not(.quiz-card) h3,
+.english-app .legacy-card h2,
+.english-app .legacy-card h3,
+.english-app .module-card h2,
+.english-app .module-card h3{font-size:15px;letter-spacing:-.015em}
+.english-app .saved-row{padding:13px 14px}
+.english-app .saved-row b{font-size:14px}
+.english-app .saved-row small{font-size:11px;line-height:1.4}
+
+/* ---------- Library ---------- */
+.english-app .library-groups{gap:20px}
+.english-app .library-group{gap:9px}
+.english-app .library-group .legacy-row{
+  min-height:74px!important;
+  background:linear-gradient(145deg,color-mix(in srgb,var(--card) 97%,var(--card-2)),var(--card));
+}
+.english-app .library-group:first-child .legacy-row:first-child{border-color:color-mix(in srgb,var(--ok) 24%,var(--line))!important}
+.english-app .library-group:first-child .legacy-row:nth-child(2){border-color:color-mix(in srgb,var(--primary) 22%,var(--line))!important}
+.english-app .library-group:nth-child(2) .legacy-row:first-child{border-color:color-mix(in srgb,var(--warn) 24%,var(--line))!important}
+.english-app .library-group:nth-child(2) .legacy-row:nth-child(2){border-color:color-mix(in srgb,#7aa2ff 22%,var(--line))!important}
+
+/* ---------- Targeted Mastery + detail pages ---------- */
+.english-app .targeted-intro-note{font-size:10.5px;line-height:1.4}
+.english-app .targeted-command-card{
+  padding:15px 16px!important;
+  border-radius:18px!important;
+}
+.english-app .targeted-command-label{font-size:10.5px!important}
+.english-app .targeted-due-line strong{font-size:31px!important;letter-spacing:-.045em}
+.english-app .targeted-due-line span{font-size:13px!important;font-weight:850}
+.english-app .targeted-command-copy p{font-size:11px!important;line-height:1.42!important}
+.english-app .targeted-start-button{min-height:43px!important;font-size:12.5px!important}
+.english-app .targeted-learning-section{
+  margin-top:11px;
+  padding:14px 15px;
+  border-radius:18px;
+}
+.english-app .targeted-section-head b{font-size:11.5px;letter-spacing:.07em}
+.english-app .targeted-section-head small{margin-top:4px;font-size:10.5px;line-height:1.35}
+.english-app .targeted-section-head>button{font-size:11px}
+.english-app .targeted-section-copy{margin-top:9px;font-size:10.8px;line-height:1.45}
+.english-app .targeted-learning-preview{margin-top:9px}
+.english-app .targeted-clean-list{gap:8px}
+.english-app .targeted-clean-row{
+  min-height:64px;
+  grid-template-columns:34px minmax(0,1fr) auto;
+  gap:11px;
+  padding:12px 4px;
+}
+.english-app .targeted-clean-row.compact{padding:11px 2px}
+.english-app .targeted-row-glyph{width:32px;height:32px;border-radius:10px;font-size:13px}
+.english-app .targeted-row-copy b{font-size:13px;line-height:1.25}
+.english-app .targeted-row-copy p{margin-top:4px;font-size:10.5px;line-height:1.38}
+.english-app .targeted-row-copy small{margin-top:4px;font-size:10px}
+.english-app .targeted-clean-row>button{font-size:10.8px;font-weight:900}
+.english-app .targeted-practice-all{min-height:38px;margin-top:7px;font-size:11px}
+.english-app .targeted-learning-insights-link{min-height:64px;margin-top:12px;padding:12px 14px;border-radius:16px}
+.english-app .targeted-learning-insights-link b{font-size:13.5px}
+.english-app .targeted-learning-insights-link small{margin-top:3px;font-size:10.5px}
+.english-app .confusion-clean-row{padding:13px;border-radius:15px}
+.english-app .targeted-detail-title h1{font-size:22px!important}
+.english-app .targeted-detail-title p{font-size:12px!important;line-height:1.45}
+
+/* ---------- Learning Insights ---------- */
+.english-app .learner-insights-intro{padding-bottom:9px}
+.english-app .insights-today-card{
+  margin:9px 0 13px;
+  padding:15px;
+  border-radius:19px;
+}
+.english-app .insights-today-heading{padding-bottom:11px}
+.english-app .insights-today-heading h2{margin-top:3px;font-size:16px;letter-spacing:-.015em}
+.english-app .insights-today-heading p{margin-top:4px;font-size:10.8px;line-height:1.4}
+.english-app .insights-today-heading>strong{min-width:40px;height:40px;border-radius:12px;font-size:15px}
+.english-app .insights-today-list{gap:7px}
+.english-app .insights-today-row{
+  min-height:62px;
+  gap:11px;
+  padding:11px 12px;
+  border-radius:13px;
+}
+.english-app .insights-activity-mark{margin-top:5px}
+.english-app .insights-today-row b{font-size:13px;line-height:1.25}
+.english-app .insights-today-row p{margin-top:4px;font-size:10.5px;line-height:1.4}
+.english-app .insights-today-row small{margin-top:5px;font-size:9.5px}
+.english-app .insights-more-button{min-height:35px;font-size:10.5px}
+.english-app .insight-category-card{
+  margin-top:11px;
+  padding:14px;
+  border-radius:18px;
+}
+.english-app .insight-category-head p{font-size:10.8px!important;line-height:1.4!important}
+.english-app .insight-category-head>a{font-size:10.8px!important;font-weight:900}
+.english-app .insight-category-list{gap:7px!important}
+.english-app .insight-category-row{
+  min-height:62px;
+  grid-template-columns:32px minmax(0,1fr) auto!important;
+  gap:10px!important;
+  padding:10px 2px!important;
+}
+.english-app .insight-row-icon{width:30px!important;height:30px!important;border-radius:9px!important;font-size:13px!important}
+.english-app .insight-category-row b{font-size:12.8px!important;line-height:1.28}
+.english-app .insight-category-row p{margin-top:4px!important;font-size:10.5px!important;line-height:1.4!important}
+.english-app .insight-category-row>a{font-size:10.5px!important;font-weight:900}
+.english-app .insight-empty{font-size:10.8px!important;line-height:1.45!important}
+.english-app .insights-how-card{margin-top:12px!important;border-radius:18px!important}
+.english-app .insights-how-details>summary{min-height:62px!important;padding:12px 14px!important}
+.english-app .insights-how-details>summary b{font-size:13.5px!important}
+.english-app .insights-how-details>summary small{font-size:10.5px!important}
+.english-app .insights-how-copy{font-size:11px!important;line-height:1.5!important}
+
+/* ---------- Progress ---------- */
+.english-app .progress-insight{
+  margin-bottom:15px;
+  padding:15px 16px;
+  border-radius:17px;
+}
+.english-app .progress-insight>span{font-size:10.5px}
+.english-app .progress-insight h2{margin:5px 0;font-size:17.5px}
+.english-app .progress-insight p{font-size:11px;line-height:1.45}
+.english-app .progress-summary{gap:6px}
+.english-app .progress-summary>div{padding:10px 5px}
+.english-app .progress-summary b{font-size:15px!important}
+.english-app .progress-summary span{margin-top:4px;font-size:9.5px!important}
+.english-app .progress-subnote{font-size:10.8px}
+.english-app .progress-category{padding:13px 14px!important}
+.english-app .progress-category-head b{font-size:13px!important}
+.english-app .progress-category-head small,
+.english-app .progress-category-count{font-size:10.5px!important}
+.english-app .progress-category-details small{font-size:10px!important;line-height:1.45}
+
+/* ---------- Saved / words / Hindu / Phrasal / Bank / Source history ---------- */
+.english-app .mywords-final-row,
+.english-app .hindu-word-card,
+.english-app .pv-history-card,
+.english-app .bc-cat-card,
+.english-app .sr-group,
+.english-app .si-fold{
+  border-radius:15px!important;
+}
+.english-app .mywords-final-row,
+.english-app .hindu-word-card,
+.english-app .pv-history-card,
+.english-app .bc-cat-card{padding:13px 14px!important}
+.english-app .mywords-final-row b,
+.english-app .hindu-word-card b,
+.english-app .pv-history-card b,
+.english-app .bc-cat-card b{font-size:13.5px!important}
+.english-app .mywords-final-row small,
+.english-app .hindu-word-card small,
+.english-app .pv-history-card small,
+.english-app .bc-cat-card small{font-size:10.5px!important;line-height:1.4!important}
+.english-app .saved-smart-card{padding:16px!important;border-radius:18px!important}
+.english-app .saved-due-number strong{font-size:30px!important}
+.english-app .saved-due-number span{font-size:13px!important}
+.english-app .saved-stat-strip span{font-size:10.5px!important}
+.english-app .saved-stat-strip b{font-size:12px!important}
+.english-app .saved-focus-lanes .btn{min-height:40px!important;font-size:11px!important}
+.english-app .pv-today-legacy{padding:16px!important;border-radius:18px!important}
+.english-app .pv-today-head h2{font-size:18px!important}
+.english-app .pv-today-head p{font-size:11px!important;line-height:1.4!important}
+.english-app .pv-legacy-card{padding:14px 15px!important}
+.english-app .bc-overview{padding:16px!important;border-radius:18px!important}
+
+/* ---------- Forms, sheets, secondary actions ---------- */
+.english-app .legacy-sheet,
+.english-app .add-word-sheet{border-radius:18px!important;padding:16px!important}
+.english-app .legacy-sheet h3,
+.english-app .sheet-heading strong{font-size:16px!important;letter-spacing:-.015em}
+.english-app .legacy-muted,
+.english-app .sheet-heading span{font-size:11px!important;line-height:1.4}
+.english-app .legacy-counts button{min-height:40px;font-size:12px;font-weight:900}
+.english-app .intelligence-list>div{padding:11px 0!important}
+.english-app .intelligence-list span{font-size:10.5px!important}
+.english-app .intelligence-list b{font-size:11.5px!important;line-height:1.42!important}
+
+/* Keep question-reading sizes stable; only harmonise the surrounding controls. */
+.english-app .quiz .quiz-title .brand{font-size:14px}
+.english-app .quiz .quiz-count{font-size:11px}
+.english-app .quiz .question{font-size:20px}
+.english-app .quiz .explanation{font-size:16px}
+.english-app .quiz .btn{font-size:13px}
+
+/* ---------- Responsive balance ---------- */
+@media(max-width:560px){
+  .english-app{
+    --eh-page-title:21px;
+    --eh-page-copy:12px;
+    --eh-section:11px;
+    --eh-card-title:13.5px;
+    --eh-card-copy:10.5px;
+    --eh-row-height:64px;
+  }
+  .english-app .practice-primary-card{min-height:80px;grid-template-columns:36px minmax(0,1fr) auto;gap:10px;padding:12px}
+  .english-app .practice-primary-icon{width:34px;height:34px;font-size:16px}
+  .english-app .practice-primary-card b{font-size:13.5px}
+  .english-app .practice-primary-card small{font-size:10px}
+  .english-app .revision-primary-row{min-height:68px;grid-template-columns:34px minmax(0,1fr) auto auto;gap:9px;padding:11px 12px}
+  .english-app .revision-row-icon{width:33px;height:33px;font-size:15px}
+  .english-app .revision-primary-row b{font-size:13.5px}
+  .english-app .revision-primary-row small{font-size:10px}
+  .english-app .targeted-command-card{display:grid!important;grid-template-columns:1fr!important;gap:12px!important}
+  .english-app .targeted-start-button{width:100%}
+  .english-app .targeted-learning-section{padding:13px}
+  .english-app .targeted-clean-row{grid-template-columns:32px minmax(0,1fr) auto;gap:9px}
+  .english-app .targeted-row-copy b{font-size:12.5px}
+  .english-app .insights-today-card{padding:13px}
+  .english-app .insights-today-row{padding:10px}
+  .english-app .insight-category-card{padding:13px}
+  .english-app .library-group .legacy-row{min-height:68px!important}
+}
+
+@media(max-width:390px){
+  .english-app .practice-primary-grid{grid-template-columns:1fr;gap:8px}
+  .english-app .practice-primary-card{min-height:70px}
+  .english-app .revision-primary-row{grid-template-columns:32px minmax(0,1fr) auto auto}
+  .english-app .revision-primary-row small{white-space:normal}
+  .english-app .targeted-section-head{align-items:flex-start}
+  .english-app .targeted-clean-row>button,
+  .english-app .insight-category-row>a{font-size:10px}
+}
