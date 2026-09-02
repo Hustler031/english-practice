@@ -6,18 +6,35 @@ import { learnerErrorMessage, rpc } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
 import { makeDisplayOptions, type DisplayOption } from "@/lib/options";
 import AddWordSheet from "@/components/add-word-sheet";
+import QuestionRevisionActions from "@/components/question-revision-actions";
+import type { RevisionPayload } from "@/lib/question-revisions";
 
 type DailyItem = {
   sequence:number; priority:number; reason:string; quiz_date:string; status:string;
   question_id:string; topic:string; word:string; question:string; question_type:string;
   option_a:string; option_b:string; option_c:string; option_d:string; correct_key:string;
   explanation:string; tip:string; usage_note:string; example_sentence:string; memory_aid:string;
-  related_words:string; source_file:string; source_page:string; starred:boolean; difficult:boolean; mastered?:boolean;
+  related_words:string; source_file:string; source_page:string; starred:boolean; difficult:boolean; mastered?:boolean; revisionVersion?:number;
 };
 type DailyResult = { ok:boolean; total:number; completed:number; remaining:number; batch_date:string; target_is_maximum:boolean; items:DailyItem[] };
 type AnswerState = { selectedDisplayKey:string; correct:boolean; correctCanonicalKey:string; attemptId?:string };
+type AppliedRevision={questionId:string;version:number;payload:RevisionPayload};
 
 const positionKey=(date:string)=>`revision-v2:english:daily:${date}:current-question`;
+
+async function applyDailyRevisions(batch:DailyResult):Promise<DailyResult>{
+  const ids=[...new Set((batch.items||[]).map(x=>String(x.question_id||"").trim()).filter(Boolean))].slice(0,120);
+  if(!ids.length)return batch;
+  try{
+    const out=await rpc<{revisions?:AppliedRevision[]}>("english_get_applied_question_revisions",{p_question_ids:ids,p_cache_buster:Date.now()});
+    const byId=new Map((out.revisions||[]).map(x=>[x.questionId,x]));
+    return {...batch,items:batch.items.map(item=>{
+      const revision=byId.get(item.question_id),p=revision?.payload;if(!revision||!p)return item;
+      const key=String(p.correctKey||"").toUpperCase();if(!["A","B","C","D"].includes(key))return item;
+      return {...item,question:p.question||item.question,option_a:p.optionA||item.option_a,option_b:p.optionB||item.option_b,option_c:p.optionC||item.option_c,option_d:p.optionD||item.option_d,correct_key:key,explanation:p.explanation||item.explanation,revisionVersion:Number(revision.version)||undefined};
+    })};
+  }catch{return batch;}
+}
 
 export default function DailyPage(){
   const ready=useAuthGuard();
@@ -42,6 +59,7 @@ export default function DailyPage(){
     optionCache.current.clear();
     setAnswers({});
     rpc<DailyResult>("english_resume_daily")
+      .then(applyDailyRevisions)
       .then(x=>{
         let next=0;
         try{
@@ -154,6 +172,7 @@ export default function DailyPage(){
         <div className="quiz-ai-actions learning-signal-actions">
           <button className="btn ghost" type="button" onClick={()=>setContextOpen(v=>!v)} aria-expanded={contextOpen}>Add Context</button>
           <button className={`btn ghost ${guessed?"warn":""}`} type="button" disabled={guessed} onClick={()=>void recordGuessed()}>{guessed?"I Guessed ✓":"I Guessed"}</button>
+          <QuestionRevisionActions key={item.question_id} questionId={item.question_id}/>
         </div>
         {contextSaved&&<div className="context-saved">✓ Added to learning context</div>}
         {contextOpen&&<div className="ai-help-panel learning-context-panel"><input value={contextNote} maxLength={600} onChange={e=>setContextNote(e.target.value)} placeholder="What are you confusing or struggling with?"/><button className="btn primary" type="button" disabled={contextBusy||!contextNote.trim()} onClick={()=>void saveContext()}>{contextBusy?"Saving…":"Save"}</button></div>}
@@ -162,7 +181,7 @@ export default function DailyPage(){
     </section>
     <div className="quiz-tools quiz-tools-four"><button className={`btn ghost ${item.starred?"warn":""}`} onClick={()=>void mark()}>{item.starred?"★ Marked":"☆ Mark"}</button><AddWordSheet questionId={item.question_id} initialWord={item.word||""} source="Daily Practice" label="📝 Add Word"/><button className={`btn ghost ${item.mastered?"good":""}`} aria-pressed={!!item.mastered} disabled={masterBusy} onClick={()=>void toggleMastered()}>{item.mastered?"↶ Unmaster":"✓ Mastered"}</button><button className="btn ghost" onClick={goHome}>Ⅱ Pause</button></div>
     <div className="quiz-nav"><button className="btn ghost" disabled={idx===0} onClick={()=>move(idx-1)}>← Previous</button><button className="btn primary" onClick={()=>idx<batch.items.length-1?move(idx+1):goHome()}>{idx===batch.items.length-1?"Finish":"Next →"}</button></div>
-    {intelOpen&&<div className="sheet-backdrop" role="dialog" aria-modal="true" onMouseDown={e=>{if(e.target===e.currentTarget)setIntelOpen(false)}}><section className="add-word-sheet intelligence-sheet"><div className="sheet-heading"><div><strong>Question Intelligence</strong><span>Why this item is in today’s set.</span></div><button className="control-icon" onClick={()=>setIntelOpen(false)} type="button">×</button></div><div className="intelligence-list"><div><span>Selection</span><b>{item.reason}</b></div><div><span>Learning state</span><b>{item.status||"Not available"}</b></div><div><span>Module</span><b>Daily Practice</b></div></div></section></div>}
+    {intelOpen&&<div className="sheet-backdrop" role="dialog" aria-modal="true" onMouseDown={e=>{if(e.target===e.currentTarget)setIntelOpen(false)}}><section className="add-word-sheet intelligence-sheet"><div className="sheet-heading"><div><strong>Question Intelligence</strong><span>Why this item is in today’s set.</span></div><button className="control-icon" onClick={()=>setIntelOpen(false)} type="button">×</button></div><div className="intelligence-list"><div><span>Selection</span><b>{item.reason}</b></div><div><span>Learning state</span><b>{item.status||"Not available"}</b></div><div><span>Module</span><b>Daily Practice</b></div>{item.revisionVersion&&<div><span>Question version</span><b>Revision {item.revisionVersion}</b></div>}</div></section></div>}
   </main>;
 }
 
