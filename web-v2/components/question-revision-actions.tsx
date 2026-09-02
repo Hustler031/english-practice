@@ -30,17 +30,21 @@ const REASONS: Reason[] = [
   { value: "options_too_obvious", label: "Options too obvious" },
   { value: "distractors_unrelated", label: "Distractors are unrelated" },
   { value: "explanation_weak", label: "Explanation is weak" },
-  { value: "correct_answer_doubtful", label: "Correct answer looks doubtful · review only" },
+  { value: "correct_answer_doubtful", label: "Correct answer looks doubtful" },
   { value: "custom", label: "Write your own note" },
 ];
 
+function looksLikeRelatedPractice(note:string){
+ const value=note.trim().toLowerCase();
+ return /^(related practice|related question|new related question|another related question)\b/.test(value)
+  || (/\b(related|confus\w*|mix\w*)\b/.test(value)&&/\b(question|practice)\b/.test(value));
+}
+
 export default function QuestionRevisionActions({ questionId }: { questionId: string }) {
   const [open,setOpen]=useState(false);
-  const [relatedOpen,setRelatedOpen]=useState(false);
   const [preview,setPreview]=useState(false);
   const [reason,setReason]=useState("");
   const [note,setNote]=useState("");
-  const [relatedNote,setRelatedNote]=useState("");
   const [state,setState]=useState<RevisionState|null>(null);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
@@ -55,7 +59,7 @@ export default function QuestionRevisionActions({ questionId }: { questionId: st
   },[questionId]);
 
   useEffect(()=>{
-    setOpen(false);setRelatedOpen(false);setPreview(false);setReason("");setNote("");setRelatedNote("");setState(null);setError("");setMessage("");
+    setOpen(false);setPreview(false);setReason("");setNote("");setState(null);setError("");setMessage("");
     void refresh();
   },[questionId,refresh]);
 
@@ -75,23 +79,15 @@ export default function QuestionRevisionActions({ questionId }: { questionId: st
       if(reason==="correct_answer_doubtful"){
         await rpc("english_request_question_quality_review",{p_question_id:questionId,p_note:note.trim()||null});
         setMessage("Sent for answer review. The current question will not be changed automatically.");
+      }else if(reason==="custom"&&looksLikeRelatedPractice(note)){
+        const result=await rpc<any>("english_request_related_practice",{p_question_id:questionId,p_note:note.trim()});
+        setMessage(result?.status==="ready"?"Related practice added to Targeted Mastery.":"Related practice queued. A close SSC-level question will be prepared in the background.");
       }else{
         await rpc("english_request_question_revision",{p_question_id:questionId,p_feedback_reason:reason,p_feedback_note:note.trim()||null});
         setMessage("Improvement queued. Keep studying — it is checked in the background.");
       }
       setOpen(false);setNote("");setReason("");await refresh();
     }catch(e:any){setError(learnerErrorMessage(e,"Could not queue this question improvement."));}
-    finally{setBusy(false);}
-  }
-
-  async function requestRelatedPractice(){
-    if(busy)return;
-    setBusy(true);setError("");setMessage("");
-    try{
-      const result=await rpc<any>("english_request_related_practice",{p_question_id:questionId,p_note:relatedNote.trim()||null});
-      setRelatedOpen(false);setRelatedNote("");
-      setMessage(result?.status==="ready"?"Related practice added to Targeted Mastery.":"Related practice queued. A close SSC-level question will be prepared in the background.");
-    }catch(e:any){setError(learnerErrorMessage(e,"Could not prepare related practice."));}
     finally{setBusy(false);}
   }
 
@@ -114,11 +110,10 @@ export default function QuestionRevisionActions({ questionId }: { questionId: st
   const review=state?.qualityReview;
   const repairOnly=reason==="options_too_obvious"||reason==="distractors_unrelated";
   return <div className="question-revision-actions">
-    <button className="btn ghost" type="button" onClick={()=>{setOpen(v=>!v);setRelatedOpen(false);}}>Too Easy / Improve Question</button>
-    <button className="btn ghost" type="button" onClick={()=>{setRelatedOpen(v=>!v);setOpen(false);}}>Related practice</button>
+    <button className="btn ghost" type="button" onClick={()=>setOpen(v=>!v)}>Too Easy / Improve Question</button>
 
     {proposal?.status==="queued"||proposal?.status==="processing"?<div className="context-saved">Improvement queued. Keep studying — the proposal is being checked in the background.</div>:null}
-    {proposal?.status==="ready"&&proposal.proposed?<div className="context-saved"><b>Revision proposal ready</b> <button className="btn ghost" type="button" onClick={()=>setPreview(true)}>Preview</button></div>:null}
+    {proposal?.status==="ready"&&proposal.proposed?<div className="context-saved revision-ready-inline"><b>Revision proposal ready</b><button className="btn ghost" type="button" onClick={()=>setPreview(true)}>Preview</button></div>:null}
     {proposal?.status==="applied"?<div className="context-saved">Revised version active for future practice.</div>:null}
     {proposal?.status==="kept"?<div className="context-saved">Current version kept.</div>:null}
     {proposal?.status==="failed"?<div className="error-box">This proposal did not pass the quality checks. You can submit fresh feedback.</div>:null}
@@ -130,22 +125,15 @@ export default function QuestionRevisionActions({ questionId }: { questionId: st
     {message&&<div className="context-saved">{message}</div>}
     {error&&<div className="error-box">{error}</div>}
 
-    {open&&<div className="ai-help-panel">
+    {open&&<div className="ai-help-panel question-improve-sheet">
       <strong>What should improve?</strong>
       <div className="action-matrix">{REASONS.map(item=><button key={item.value} className={`btn ${reason===item.value?"primary":"soft"}`} type="button" aria-pressed={reason===item.value} onClick={()=>setReason(item.value)}>{item.label}</button>)}</div>
       {repairOnly&&<span>Only the weak options and matching explanation will be repaired. The question stem and correct answer stay the same.</span>}
       {reason==="explanation_weak"&&<span>The question and all four options stay unchanged; only the explanation is rewritten.</span>}
       {reason==="correct_answer_doubtful"&&<span>This sends the canonical answer for independent review. It does not rewrite the question.</span>}
-      {reason==="custom"&&<input value={note} maxLength={600} onChange={e=>setNote(e.target.value)} placeholder="Briefly describe the problem…"/>}
+      {reason==="custom"&&<><input value={note} maxLength={600} onChange={e=>setNote(e.target.value)} placeholder="Briefly describe the problem…"/><small className="improve-related-hint">Want a new related/confusable question? Start with “Related practice: …”</small></>}
       {reason&&reason!=="custom"&&<input value={note} maxLength={600} onChange={e=>setNote(e.target.value)} placeholder="Optional detail…"/>}
       <button className="btn primary" type="button" disabled={busy||!reason||(reason==="custom"&&note.trim().length<3)} onClick={()=>void submit()}>{busy?"Saving…":reason==="correct_answer_doubtful"?"Send for answer review":"Request improvement"}</button>
-    </div>}
-
-    {relatedOpen&&<div className="ai-help-panel">
-      <strong>Prepare related practice</strong>
-      <span>Use this only when you want a new question around related/confusable words or the same concept.</span>
-      <input value={relatedNote} maxLength={600} onChange={e=>setRelatedNote(e.target.value)} placeholder="Optional: e.g. I mix desultory, cursory and sporadic…"/>
-      <button className="btn primary" type="button" disabled={busy} onClick={()=>void requestRelatedPractice()}>{busy?"Queuing…":"Prepare related question"}</button>
     </div>}
 
     {preview&&proposal?.status==="ready"&&proposal.proposed&&<RevisionPreview payload={proposal.proposed} busy={busy} onUse={()=>void useRevision()} onKeep={()=>void keepCurrent()} onClose={()=>setPreview(false)}/>} 
