@@ -22,9 +22,9 @@ with uid as (
     q.question_id,
     coalesce(
       nullif(trim(q.word),''),
+      nullif(left(regexp_replace(coalesce(q.question,''),'\s+',' ','g'),88),''),
       nullif(trim(c.name),''),
       nullif(trim(q.topic),''),
-      nullif(left(regexp_replace(coalesce(q.question,''),'\s+',' ','g'),88),''),
       'English question'
     ) as display_name,
     nullif(trim(q.topic),'') as topic,
