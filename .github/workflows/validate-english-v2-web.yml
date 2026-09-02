@@ -7,12 +7,15 @@ on:
       - 'web-v2/**'
       - 'supabase/managed-migrations/**english**.sql'
       - 'supabase/functions/english-ssc-sprint/**'
+      - 'supabase/functions/english-context-worker/**'
       - '.github/scripts/validate-english-v2-fresh-session.cjs'
       - '.github/scripts/validate-english-v2-interaction-cooldown.cjs'
       - '.github/scripts/validate-english-v2-fresh-session-module-audit.cjs'
       - '.github/scripts/validate-english-v2-mastery-sprint.cjs'
       - '.github/scripts/validate-english-v2-starred-counter.cjs'
       - '.github/scripts/validate-english-v2-search-path.cjs'
+      - '.github/scripts/validate-english-question-revision.cjs'
+      - '.github/scripts/validate-english-question-revision.sql'
       - '.github/english-v2-fresh-session-module-audit.md'
       - '.github/workflows/validate-english-v2-web.yml'
   pull_request:
@@ -20,12 +23,15 @@ on:
       - 'web-v2/**'
       - 'supabase/managed-migrations/**english**.sql'
       - 'supabase/functions/english-ssc-sprint/**'
+      - 'supabase/functions/english-context-worker/**'
       - '.github/scripts/validate-english-v2-fresh-session.cjs'
       - '.github/scripts/validate-english-v2-interaction-cooldown.cjs'
       - '.github/scripts/validate-english-v2-fresh-session-module-audit.cjs'
       - '.github/scripts/validate-english-v2-mastery-sprint.cjs'
       - '.github/scripts/validate-english-v2-starred-counter.cjs'
       - '.github/scripts/validate-english-v2-search-path.cjs'
+      - '.github/scripts/validate-english-question-revision.cjs'
+      - '.github/scripts/validate-english-question-revision.sql'
       - '.github/english-v2-fresh-session-module-audit.md'
       - '.github/workflows/validate-english-v2-web.yml'
 
@@ -72,6 +78,133 @@ jobs:
           psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260830180000_english_quiz_session_freshness.sql
           psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260830181000_english_source_group_fresh_session.sql
           psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260830210000_english_interaction_cooldown.sql
+      - name: Execute and behavior-test question revision migrations
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 <<'SQL'
+          create extension if not exists pgcrypto;
+          create table if not exists auth.users(id uuid primary key);
+          create table if not exists english.questions(
+            question_id text primary key,
+            topic text, word text, question text not null default '',
+            option_a text, option_b text, option_c text, option_d text,
+            correct text, explanation text, subtopic text, question_type text,
+            source_file text, source_page text, concept_id text, difficulty text, source_id text,
+            learning_status text, content_status text, exam_relevance text, related_words text, review_notes text,
+            active boolean not null default true
+          );
+          alter table english.questions add column if not exists topic text;
+          alter table english.questions add column if not exists word text;
+          alter table english.questions add column if not exists subtopic text;
+          alter table english.questions add column if not exists source_file text;
+          alter table english.questions add column if not exists source_page text;
+          alter table english.questions add column if not exists concept_id text;
+          alter table english.questions add column if not exists source_id text;
+          alter table english.questions add column if not exists learning_status text;
+          alter table english.questions add column if not exists content_status text;
+          alter table english.questions add column if not exists exam_relevance text;
+          alter table english.questions add column if not exists related_words text;
+          alter table english.questions add column if not exists review_notes text;
+
+          create table if not exists english.question_concept_mappings(
+            question_id text primary key,concept_id text,family_id text,mapping_confidence numeric,mapping_method text,
+            model text,review_status text,relation_type text,updated_at timestamptz default now()
+          );
+          alter table english.question_concept_mappings add column if not exists family_id text;
+          alter table english.question_concept_mappings add column if not exists mapping_confidence numeric;
+          alter table english.question_concept_mappings add column if not exists mapping_method text;
+          alter table english.question_concept_mappings add column if not exists model text;
+          alter table english.question_concept_mappings add column if not exists review_status text;
+          alter table english.question_concept_mappings add column if not exists relation_type text;
+          alter table english.question_concept_mappings add column if not exists updated_at timestamptz default now();
+
+          create table if not exists english.concepts(
+            concept_id text primary key,name text,skill_family text,description text,exam_relevance text,active boolean not null default true
+          );
+          alter table english.concepts add column if not exists exam_relevance text;
+          alter table english.concepts add column if not exists active boolean not null default true;
+
+          create table if not exists english.attempts(
+            attempt_id text primary key,user_id uuid,question_id text,attempted_at timestamptz default now(),
+            selected_answer text,correct boolean,time_seconds numeric
+          );
+          alter table english.attempts add column if not exists selected_answer text;
+          alter table english.attempts add column if not exists correct boolean;
+          alter table english.attempts add column if not exists time_seconds numeric;
+          alter table english.attempts add column if not exists attempted_at timestamptz default now();
+
+          create table if not exists english.learner_confidence_signals(
+            signal_id uuid primary key default gen_random_uuid(),user_id uuid,question_id text,signal text,resolved_at timestamptz
+          );
+          create table if not exists english.learner_context_notes(note_id uuid primary key default gen_random_uuid(),note text);
+          create table if not exists english.targeted_transfer_jobs(
+            job_id uuid primary key default gen_random_uuid(),user_id uuid,concept_id text,source_question_id text,source_note_id uuid,
+            related_term text,reason text,status text not null default 'queued',attempts integer not null default 0,
+            next_attempt_at timestamptz,last_error text,generated_question_id text,metadata jsonb not null default '{}'::jsonb,
+            created_at timestamptz not null default now(),updated_at timestamptz not null default now(),processed_at timestamptz,
+            unique(user_id,concept_id,source_question_id)
+          );
+          create table if not exists english.learning_route_state(
+            user_id uuid,question_id text,route text,metadata jsonb not null default '{}'::jsonb,origins text[] not null default '{}',
+            last_route_reason text,targeted_at timestamptz,updated_at timestamptz not null default now(),primary key(user_id,question_id)
+          );
+          create table if not exists english.question_state(
+            user_id uuid,question_id text,mastered boolean not null default false,last_attempt timestamptz,primary key(user_id,question_id)
+          );
+          create table if not exists english.question_origins(
+            question_id text primary key,origin_kind text,origin_ref text,owner_user_id uuid
+          );
+          create table if not exists english.concept_evidence(
+            user_id uuid,concept_id text,coverage_state text,confidence_score numeric,next_review timestamptz,primary key(user_id,concept_id)
+          );
+          create table if not exists english.learner_confusions(
+            confusion_id uuid primary key default gen_random_uuid(),user_id uuid,primary_concept_id text,related_concept_id text,status text
+          );
+
+          create or replace function english.question_visible_to_user(uuid,text) returns boolean language sql stable as $$ select true $$;
+          create or replace function english.context_worker_authorized(text) returns boolean language sql stable as $$ select true $$;
+          create or replace function english.targeted_route_kind(p_metadata jsonb,p_origins text[]) returns text language sql stable as $$ select coalesce(nullif(p_metadata->>'targetedKind',''),'need_learning') $$;
+          create or replace function english.question_payload(p_user_id uuid,p_question_id text) returns jsonb language sql stable as $$
+            select jsonb_build_object(
+              'id',q.question_id,'category',q.topic,'topic',q.topic,'word',q.word,'question',q.question,
+              'options',jsonb_build_array(
+                jsonb_build_object('key','A','text',q.option_a),jsonb_build_object('key','B','text',q.option_b),
+                jsonb_build_object('key','C','text',q.option_c),jsonb_build_object('key','D','text',q.option_d)
+              ),'correctKey',q.correct,'questionType',q.question_type,'explanation',q.explanation
+            ) from english.questions q where q.question_id=p_question_id;
+          $$;
+          create or replace function english.route_to_targeted(p_user_id uuid,p_question_id text,p_origin text,p_reason text)
+          returns jsonb language plpgsql security definer set search_path to 'pg_catalog','english' as $$
+          begin
+            insert into english.learning_route_state(user_id,question_id,route,last_route_reason,targeted_at,updated_at)
+            values(p_user_id,p_question_id,'targeted',p_reason,now(),now())
+            on conflict(user_id,question_id) do update set route='targeted',last_route_reason=excluded.last_route_reason,updated_at=now();
+            return jsonb_build_object('ok',true);
+          end $$;
+          SQL
+          psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260902150000_english_question_revision_proposals.sql
+          psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260902151000_english_question_revision_integrity.sql
+          psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260902153000_english_question_quality_intelligence.sql
+          psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260902154000_english_revision_transfer_quality_hardening.sql
+          psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260902161000_english_learning_insights_ui_support.sql
+          psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260902162000_english_predeploy_question_ui_audit_fixes.sql
+          psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 <<'SQL'
+          do $$
+          begin
+            if to_regclass('english.question_revision_proposals') is null then raise exception 'proposal table missing'; end if;
+            if to_regclass('english.user_question_revisions') is null then raise exception 'active revision table missing'; end if;
+            if to_regclass('english.question_quality_metrics') is null then raise exception 'question quality metrics missing'; end if;
+            if to_regclass('english.question_quality_reviews') is null then raise exception 'question quality review queue missing'; end if;
+            if to_regclass('english.question_generation_provenance') is null then raise exception 'generation provenance missing'; end if;
+            if not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='english_request_question_revision') then raise exception 'request RPC missing'; end if;
+            if not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='english_request_related_practice') then raise exception 'related practice RPC missing'; end if;
+            if not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='english_get_question_labels') then raise exception 'question labels RPC missing'; end if;
+            if not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='english_get_targeted_question') then raise exception 'exact targeted question RPC missing'; end if;
+            if not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='english_get_targeted_due_session') then raise exception 'due-only targeted session RPC missing'; end if;
+          end $$;
+          SQL
+          psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../.github/scripts/validate-english-question-revision.sql
       - name: Validate English V2 fresh-session and mastery contracts
         run: |
           node ../.github/scripts/validate-english-v2-fresh-session.cjs
@@ -80,6 +213,7 @@ jobs:
           node ../.github/scripts/validate-english-v2-mastery-sprint.cjs
           node ../.github/scripts/validate-english-v2-starred-counter.cjs
           node ../.github/scripts/validate-english-v2-search-path.cjs
+          node ../.github/scripts/validate-english-question-revision.cjs
       - name: Validate existing English reliability and learning contracts
         run: |
           cd ..

@@ -26,6 +26,7 @@ import "./route-context-compact-fix.css";
 import "./exam-ui-followup.css";
 import "./english-intelligence-reliability.css";
 import "./targeted-intelligence-ui.css";
+import "./learning-insights-final-ui.css";
 
 export const metadata: Metadata = {
   title: "English Mastery",

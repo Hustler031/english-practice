@@ -4,66 +4,35 @@ import Link from "next/link";
 import { useCallback,useEffect,useState } from "react";
 import QuizRunner from "@/components/quiz-runner";
 import { EnglishLoading } from "@/components/english-frame";
-import { rpc } from "@/lib/supabase";
+import { learnerErrorMessage,rpc } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
 
 type Hub={due:number;weak:number;persistentWeak:number;difficult:number;starred:number;seenBefore:number;mastered:number;learning:number};
-type Pick={mode:"due"|"weak"|"recall"|"difficult";label:string;count:number};
-type Pending={mode:Pick["mode"];label:string;available:number};
-type RouteOverview={fastTrack:{readyToVerify:number;retentionWatch:number;mastered:number;remaining:number}};
-type TargetedSummary={ok:boolean;active:number;dueNow:number;confusions:number;needLearning:number;transferChecks:number;retentionChecks:number};
+type Pick={mode:"due";label:string;count:number};
+type Pending={mode:"due";label:string;available:number};
 
 export default function RevisionHome(){
  const ready=useAuthGuard();
  const[hub,setHub]=useState<Hub|null>(null);
- const[routes,setRoutes]=useState<RouteOverview|null>(null);
- const[targeted,setTargeted]=useState<TargetedSummary|null>(null);
  const[pick,setPick]=useState<Pick|null>(null);
  const[pending,setPending]=useState<Pending|null>(null);
  const[error,setError]=useState("");
-
- useEffect(()=>{
-  if(!ready)return;
-  Promise.all([
-   rpc<Hub>("english_get_revision_hub"),
-   rpc<RouteOverview>("english_get_learning_route_overview"),
-   rpc<TargetedSummary>("english_get_targeted_summary"),
-  ]).then(([h,r,t])=>{setHub(h);setRoutes(r);setTargeted(t)}).catch((e:any)=>setError(e.message));
- },[ready]);
-
+ useEffect(()=>{if(!ready)return;rpc<Hub>("english_get_revision_hub").then(setHub).catch((e:any)=>setError(learnerErrorMessage(e,"Could not load Revision.")))},[ready]);
  const load=useCallback(()=>pick?rpc<any[]>("english_get_revision_batch",{p_mode:pick.mode,p_count:pick.count}):Promise.resolve([]),[pick]);
  if(!ready)return <EnglishLoading text="Checking session…"/>;
  if(pick)return <QuizRunner title={pick.label} backHref="/english/revision" load={load} module="revision" onExit={()=>setPick(null)}/>;
- const open=(mode:Pending["mode"],label:string,n:number)=>n>0&&setPending({mode,label,available:n});
- const ft=routes?.fastTrack;
-
- return <div className="top-level-parity">
-  <section className="page-intro"><h1>Revision</h1><p>Review only what needs attention.</p></section>
+ const openDue=()=>hub?.due&&setPending({mode:"due",label:"Due Now",available:hub.due});
+ return <main className="top-level-parity revision-clean-page">
+  <section className="page-intro"><h1>Revision</h1><p>Return to what is worth remembering now.</p></section>
   {error&&<div className="error-box">{error}</div>}
-
-  <section className="section-block">
-   <h2 className="section-cap">Needs Attention</h2>
-   <div className="legacy-list">
-    <button className="legacy-row" disabled={!hub?.due} onClick={()=>open("due","Due Today",hub?.due||0)}><span className="legacy-row-copy"><b>⏰ Due Today</b><small>Spaced revision</small></span><span>{hub?.due??"—"} ›</span></button>
-    <Link className="legacy-row" href="/english/weak"><span className="legacy-row-copy"><b>🔥 Weak</b><small>System-diagnosed concept repair · {hub?.weak??"—"} priority items</small></span><span>{hub?.weak??"—"} ›</span></Link>
-    <Link className="legacy-row" href="/english/starred"><span className="legacy-row-copy"><b>⭐ Starred Revision</b><small>Temporary uncertainty · day-wise central review</small></span><span>{hub?.starred??"—"} ›</span></Link>
-    <Link className="legacy-row" href="/english/difficult"><span className="legacy-row-copy"><b>⚡ Difficult</b><small>Manual learner signal · recommended practice</small></span><span>{hub?.difficult??"—"} ›</span></Link>
-    <button className="legacy-row" disabled={!hub?.seenBefore} onClick={()=>open("recall","Seen Before / Recall",hub?.seenBefore||0)}><span className="legacy-row-copy"><b>↻ Seen Before</b><small>Targeted recall rotation; Fast Track stays separate</small></span><span>{hub?.seenBefore??"—"} ›</span></button>
-   </div>
+  <section className="revision-primary-list">
+   <button className="revision-primary-row tone-due" type="button" disabled={!hub?.due} onClick={openDue}><span className="revision-row-icon">◷</span><span><b>Due Now</b><small>Spaced revision ready today</small></span><strong>{hub?.due??"—"}</strong><i>›</i></button>
+   <Link className="revision-primary-row tone-repair" href="/english/revision/difficult-incorrect"><span className="revision-row-icon">!</span><span><b>Difficult &amp; Incorrect</b><small>{hub?`${hub.weak} weak / incorrect · ${hub.difficult} difficult`:"Recent mistakes and manually difficult items"}</small></span><i>›</i></Link>
+   <Link className="revision-primary-row tone-star" href="/english/starred"><span className="revision-row-icon">★</span><span><b>Starred</b><small>Items you want to revisit</small></span><strong>{hub?.starred??"—"}</strong><i>›</i></Link>
+   <Link className="revision-primary-row tone-saved" href="/english/saved"><span className="revision-row-icon">▣</span><span><b>My Saved</b><small>Your personal words and learning collection</small></span><i>›</i></Link>
+   <Link className="revision-primary-row tone-topic" href="/english/topics"><span className="revision-row-icon">▦</span><span><b>Browse by Topic</b><small>Open a topic when you want deliberate revision</small></span><i>›</i></Link>
+   <Link className="revision-primary-row tone-insights" href="/english/revision/ai-intelligence"><span className="revision-row-icon">◌</span><span><b>Learning Insights</b><small>What needs attention, what is improving, and what is scheduled later</small></span><i>›</i></Link>
   </section>
-
-  <section className="section-block">
-   <h2 className="section-cap">Personal Revision</h2>
-   <div className="legacy-list">
-    <Link className="legacy-row" href="/english/saved"><span className="legacy-row-copy"><b>🔖 My Saved Words</b><small>Permanent collection · learning route stays independent</small></span><span className="legacy-chevron">›</span></Link>
-    <Link className="legacy-row targeted-revision-row" href="/english/targeted"><span className="legacy-row-copy"><b>◎ Targeted Mastery</b><small>{targeted?`${targeted.dueNow} due · ${targeted.confusions} confusions · ${targeted.transferChecks} transfer checks`:"Concept repair · confusion · transfer validation"}</small></span><span className="legacy-chevron">›</span></Link>
-    <Link className="legacy-row fast-track-revision-row" href="/english/fast-track"><span className="legacy-row-copy"><b>⚡ Fast Track Mastery</b><small>Ready {ft?.readyToVerify??"—"} · Retention {ft?.retentionWatch??"—"} · Proven {ft?.mastered??"—"}</small></span><span className="legacy-chevron">›</span></Link>
-    <Link className="legacy-row" href="/english/revision/ai-intelligence"><span className="legacy-row-copy"><b>◌ Learning Intelligence</b><small>Today’s actions · concept coverage · retention risk</small></span><span className="legacy-chevron">›</span></Link>
-    <Link className="legacy-row" href="/english/bank"><span className="legacy-row-copy"><b>◫ Bank Coverage</b><small>Controlled unseen exposure · inspect bank coverage when needed</small></span><span className="legacy-chevron">›</span></Link>
-    <Link className="legacy-row" href="/english/mastered"><span className="legacy-row-copy"><b>✓ Mastered / Don’t Repeat</b><small>{hub?.mastered??0} excluded items · restore anything marked by mistake</small></span><span className="legacy-chevron">›</span></Link>
-   </div>
-  </section>
-
-  {pending&&<div className="sheet-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setPending(null)}}><div className="legacy-sheet"><h3>{pending.label}</h3><div className="legacy-muted">{pending.available} available · how many questions?</div><div className="legacy-counts">{[10,20,30,50].map(n=><button key={n} onClick={()=>{setPick({mode:pending.mode,label:pending.label,count:n});setPending(null)}}>{n}</button>)}</div><button className="btn ghost full-width" style={{marginTop:12}} onClick={()=>setPending(null)}>Cancel</button></div></div>}
- </div>;
+  {pending&&<div className="sheet-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setPending(null)}}><div className="legacy-sheet"><h3>{pending.label}</h3><div className="legacy-muted">{pending.available} available · how many questions?</div><div className="legacy-counts">{[10,20,30,50].map(n=><button key={n} onClick={()=>{setPick({mode:"due",label:pending.label,count:n});setPending(null)}}>{n}</button>)}</div><button className="btn ghost full-width" style={{marginTop:12}} onClick={()=>setPending(null)}>Cancel</button></div></div>}
+ </main>;
 }
