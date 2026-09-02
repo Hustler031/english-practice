@@ -56,9 +56,10 @@ export default function RevisionHome(){
    <h2 className="section-cap">Personal Revision</h2>
    <div className="legacy-list">
     <Link className="legacy-row" href="/english/saved"><span className="legacy-row-copy"><b>🔖 My Saved Words</b><small>Permanent collection · learning route stays independent</small></span><span className="legacy-chevron">›</span></Link>
-    <Link className="legacy-row targeted-revision-row" href="/english/targeted"><span className="legacy-row-copy"><b>◎ Targeted Mastery</b><small>{targeted?`${targeted.active} active · ${targeted.confusions} confusions · ${targeted.transferChecks} transfer checks`:"Concept repair · confusion · transfer validation"}</small></span><span className="legacy-chevron">›</span></Link>
+    <Link className="legacy-row targeted-revision-row" href="/english/targeted"><span className="legacy-row-copy"><b>◎ Targeted Mastery</b><small>{targeted?`${targeted.dueNow} due · ${targeted.confusions} confusions · ${targeted.transferChecks} transfer checks`:"Concept repair · confusion · transfer validation"}</small></span><span className="legacy-chevron">›</span></Link>
     <Link className="legacy-row fast-track-revision-row" href="/english/fast-track"><span className="legacy-row-copy"><b>⚡ Fast Track Mastery</b><small>Ready {ft?.readyToVerify??"—"} · Retention {ft?.retentionWatch??"—"} · Proven {ft?.mastered??"—"}</small></span><span className="legacy-chevron">›</span></Link>
     <Link className="legacy-row" href="/english/revision/ai-intelligence"><span className="legacy-row-copy"><b>◌ Learning Intelligence</b><small>Today’s actions · concept coverage · retention risk</small></span><span className="legacy-chevron">›</span></Link>
+    <Link className="legacy-row" href="/english/bank"><span className="legacy-row-copy"><b>◫ Bank Coverage</b><small>Controlled unseen exposure · inspect bank coverage when needed</small></span><span className="legacy-chevron">›</span></Link>
     <Link className="legacy-row" href="/english/mastered"><span className="legacy-row-copy"><b>✓ Mastered / Don’t Repeat</b><small>{hub?.mastered??0} excluded items · restore anything marked by mistake</small></span><span className="legacy-chevron">›</span></Link>
    </div>
   </section>
