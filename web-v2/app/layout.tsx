@@ -27,6 +27,8 @@ import "./exam-ui-followup.css";
 import "./english-intelligence-reliability.css";
 import "./targeted-intelligence-ui.css";
 import "./learning-insights-final-ui.css";
+import "./english-visual-harmony.css";
+import "./english-visual-harmony-inner.css";
 
 export const metadata: Metadata = {
   title: "English Mastery",

@@ -1,0 +1,97 @@
+/* Companion inner-page harmony overrides for English route/exam surfaces.
+   Kept separate from simulator answer geometry so exam interaction density is preserved. */
+
+/* Fast Track and route detail surfaces */
+.english-app .route-page{display:grid;gap:14px}
+.english-app .route-head{gap:12px!important;margin-bottom:2px}
+.english-app .route-head .eyebrow{font-size:10.5px!important;font-weight:900;letter-spacing:.06em}
+.english-app .route-head h1{margin:4px 0 0!important;font-size:22px!important;line-height:1.12;letter-spacing:-.03em;font-weight:900}
+.english-app .route-head p{margin:6px 0 0!important;font-size:12px!important;line-height:1.45!important;color:var(--muted)}
+.english-app .route-head>.btn{min-height:38px;font-size:11.5px}
+.english-app .route-summary{gap:8px!important}
+.english-app .route-summary>div{padding:11px 8px!important;border-radius:13px!important}
+.english-app .route-summary span{font-size:9.8px!important;font-weight:850}
+.english-app .route-summary b{font-size:17px!important}
+.english-app .route-start{padding:15px 16px!important;border-radius:17px!important}
+.english-app .route-start h2{font-size:16px!important;letter-spacing:-.015em}
+.english-app .route-start p{font-size:11px!important;line-height:1.45!important}
+.english-app .route-sizes{gap:7px!important}
+.english-app .route-sizes .btn{min-height:38px;font-size:11.5px}
+.english-app .route-start>.btn{font-size:12px}
+.english-app .route-details{margin-top:2px}
+.english-app .route-table{border-radius:15px!important;overflow:hidden}
+.english-app .route-table-head,
+.english-app .route-table-row{min-height:48px!important;padding:9px 11px!important}
+.english-app .route-table-head{font-size:9.5px!important;letter-spacing:.04em}
+.english-app .route-table-row b{font-size:11.5px!important}
+.english-app .route-table-row span{font-size:10.5px!important}
+
+/* Compact route/origin viewer */
+.english-app .route-clean-page .module-compact-head{min-height:48px}
+.english-app .route-clean-page .compact-head-copy strong{font-size:15px!important}
+.english-app .route-clean-page .compact-head-copy span{font-size:11px!important}
+.english-app .route-compact-summary{gap:8px}
+.english-app .route-compact-summary>div{padding:10px 11px!important}
+.english-app .route-compact-summary span{font-size:9.8px!important}
+.english-app .route-compact-summary b{font-size:16px!important}
+.english-app .route-chip-scroll button{min-height:37px;padding:7px 11px}
+.english-app .route-chip-scroll span{font-size:10.5px!important}
+.english-app .route-view-questions{font-size:11.5px}
+.english-app .route-inventory-clean>header span{font-size:10.5px!important}
+.english-app .route-question-row.clean{border-radius:13px!important}
+
+/* Exam preparation landing: same confidence as Home, while the timed simulator stays dense. */
+.english-app .exam-clean-page{gap:14px}
+.english-app .exam-clean-page .module-compact-head{min-height:48px;grid-template-columns:auto minmax(0,1fr) 40px}
+.english-app .exam-clean-page .compact-head-copy strong{font-size:15px!important;letter-spacing:-.012em}
+.english-app .exam-clean-page .compact-head-copy span{font-size:11px!important;line-height:1.35}
+.english-app .exam-clean-page .compact-back,
+.english-app .exam-clean-page .compact-info{min-height:40px}
+.english-app .exam-launch-card{padding:17px!important;border-radius:18px!important;gap:17px}
+.english-app .exam-launch-title>span{font-size:10.5px!important;letter-spacing:.075em}
+.english-app .exam-launch-title h1{margin:5px 0 4px!important;font-size:22px!important;letter-spacing:-.03em}
+.english-app .exam-launch-title p{font-size:12px!important;line-height:1.45!important}
+.english-app .exam-start-button{min-height:44px;font-size:12.5px}
+.english-app .resume-sprint-strip{padding:12px 13px!important;border-radius:14px!important}
+.english-app .resume-sprint-strip span{font-size:9.8px!important}
+.english-app .resume-sprint-strip small{font-size:10.8px!important}
+.english-app .section-inline-title strong{font-size:14px!important}
+.english-app .section-inline-title>button{font-size:11px}
+.english-app .exam-practice-actions button{min-height:40px;font-size:11.5px}
+.english-app .readiness-strip{gap:8px}
+.english-app .mini-metric{padding:10px 11px!important;border-radius:13px!important}
+.english-app .mini-metric span{font-size:9.8px!important}
+.english-app .mini-metric strong{font-size:15px!important}
+.english-app .exam-clean-note{font-size:10.5px!important;line-height:1.4}
+.english-app .clean-modal{border-radius:19px 19px 13px 13px;padding:15px}
+.english-app .clean-modal>header span,
+.english-app .question-map-drawer>header span{font-size:10.5px!important}
+.english-app .info-section h3{font-size:13px!important}
+.english-app .info-section p{font-size:11px!important;line-height:1.45}
+.english-app .simple-list b{font-size:11.5px!important}
+.english-app .simple-list small{font-size:10px!important}
+
+/* Starred / source history / grouped revision folds */
+.english-app .sr-summary{padding:15px!important;border-radius:17px!important}
+.english-app .sr-summary h2,.english-app .sr-summary h3{font-size:15px!important}
+.english-app .sr-summary p{font-size:11px!important;line-height:1.42!important}
+.english-app .sr-group>summary,
+.english-app .si-fold>summary{min-height:54px!important;padding:11px 12px!important}
+.english-app .sr-group>summary b,
+.english-app .si-fold>summary b{font-size:12.5px!important}
+.english-app .sr-group>summary small,
+.english-app .si-fold>summary small{font-size:10px!important}
+
+/* Preserve intentionally exam-like compactness once a timed Sprint is running. */
+body.english-sprint-mode .english-app .sprint-question-clean h1{font-size:1.05rem!important}
+body.english-sprint-mode .english-app .sprint-bottom-actions button{font-size:.76rem!important}
+body.english-sprint-mode .english-app .question-eyebrow{font-size:.71rem!important}
+
+@media(max-width:560px){
+  .english-app .route-head h1,
+  .english-app .exam-launch-title h1{font-size:21px!important}
+  .english-app .exam-launch-card{grid-template-columns:1fr!important}
+  .english-app .exam-start-button{width:100%}
+  .english-app .route-table-head,
+  .english-app .route-table-row{padding:8px 9px!important}
+}
