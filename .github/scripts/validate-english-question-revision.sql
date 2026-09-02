@@ -185,13 +185,35 @@ begin
   assert (select correct from english.questions where question_id='REV_Q1')='A', 'quality review must never mutate the canonical key';
 end $$;
 
--- Explicit related practice skips a learner-trivial alternate and reuses the suitable bank item before generation.
+-- Explicit related practice skips a learner-trivial alternate and reuses the suitable hard bank item first.
 do $$
 declare outv jsonb;
 begin
   outv:=public.english_request_related_practice('REV_Q1','I want a related/confusable-word question.');
   assert outv->>'source'='bank_first', 'explicit related practice must reuse a suitable bank item first';
   assert outv->>'questionId'='REV_Q3', 'bank-first related practice must skip the learner-trivial alternate';
+end $$;
+
+-- An unproven Medium alternate is not enough for an explicit SSC-tough related-practice request.
+insert into english.concepts(concept_id,name,skill_family,description,exam_relevance,active)
+values ('REV_EASY_CONCEPT','quiescent','Vocabulary','Easy-bank rejection fixture','high',true)
+on conflict(concept_id) do nothing;
+insert into english.questions(question_id,topic,word,question,option_a,option_b,option_c,option_d,correct,explanation,subtopic,question_type,difficulty,exam_relevance,active)
+values
+ ('REV_Q4','Vocabulary','quiescent','Choose the closest antonym of QUIESCENT.','Active','Quiet','Still','Dormant','A','Base source explanation.','Vocabulary','Vocabulary','Medium','high',true),
+ ('REV_Q5','Vocabulary','quiescent','Choose the closest synonym of QUIESCENT.','Inactive','Oceanic','Metallic','Circular','A','An intentionally easy bank alternate.','Vocabulary','Vocabulary','Medium','high',true)
+on conflict(question_id) do nothing;
+insert into english.question_concept_mappings(question_id,concept_id,family_id)
+values ('REV_Q4','REV_EASY_CONCEPT','REV_FAMILY'),('REV_Q5','REV_EASY_CONCEPT','REV_FAMILY')
+on conflict(question_id) do update set concept_id=excluded.concept_id,family_id=excluded.family_id;
+
+do $$
+declare outv jsonb; meta jsonb;
+begin
+  outv:=public.english_request_related_practice('REV_Q4','Related practice: test close confusables for quiescent.');
+  assert outv->>'source'='generation_queue', 'an unproven Medium alternate must not bypass the SSC toughness path';
+  select metadata into meta from english.targeted_transfer_jobs where job_id=(outv->>'jobId')::uuid;
+  assert coalesce(meta->'confusableTerms','[]'::jsonb) @> jsonb_build_array('quiescent'), 'explicit related practice must preserve the real source word as an anchor';
 end $$;
 
 -- Learner-facing label and exact-question reads must never require exposing internal IDs in the UI.
@@ -210,6 +232,33 @@ begin
   assert jsonb_array_length(exact)=1, 'exact Targeted question RPC must return one item';
   assert exact->0->>'id'='REV_Q1', 'exact Targeted question must preserve canonical identity';
   assert exact->0->>'learningRoute'='targeted', 'exact Targeted question must preserve route metadata';
+end $$;
+
+-- Due-only Targeted practice must not pull a future spaced-recall item into Fix Now.
+alter table english.learner_confusions add column if not exists primary_question_id text;
+alter table english.learner_confusions add column if not exists related_question_id text;
+insert into english.concepts(concept_id,name,skill_family,description,exam_relevance,active)
+values ('REV_WAIT_CONCEPT','waiting concept','Vocabulary','Future retention fixture','high',true)
+on conflict(concept_id) do nothing;
+insert into english.questions(question_id,topic,word,question,option_a,option_b,option_c,option_d,correct,explanation,subtopic,question_type,difficulty,exam_relevance,active)
+values ('REV_Q6','Vocabulary','waiting','Future retention question.','One','Two','Three','Four','A','Future retention explanation.','Vocabulary','Vocabulary','Hard','high',true)
+on conflict(question_id) do nothing;
+insert into english.question_concept_mappings(question_id,concept_id,family_id)
+values ('REV_Q6','REV_WAIT_CONCEPT','REV_FAMILY')
+on conflict(question_id) do update set concept_id=excluded.concept_id,family_id=excluded.family_id;
+insert into english.concept_evidence(user_id,concept_id,coverage_state,confidence_score,next_review)
+values(auth.uid(),'REV_WAIT_CONCEPT','secure',0.8,now()+interval '2 days')
+on conflict(user_id,concept_id) do update set next_review=excluded.next_review;
+insert into english.learning_route_state(user_id,question_id,route,metadata,origins,last_route_reason,targeted_at,updated_at)
+values(auth.uid(),'REV_Q6','targeted',jsonb_build_object('targetedKind','retention_check'),'{}'::text[],'Future spaced recall',now(),now())
+on conflict(user_id,question_id) do update set route='targeted',metadata=excluded.metadata,last_route_reason=excluded.last_route_reason,updated_at=now();
+
+do $$
+declare outv jsonb;
+begin
+  outv:=public.english_get_targeted_due_session(15,'ci-due-only');
+  assert jsonb_array_length(outv)>0, 'due-only Targeted session should retain ready work';
+  assert not exists(select 1 from jsonb_array_elements(outv) x where x->>'id'='REV_Q6'), 'future retention must stay in Waiting for Later';
 end $$;
 
 -- Another authenticated user cannot apply or inspect this user's revision proposal.
