@@ -194,13 +194,31 @@ begin
   assert outv->>'questionId'='REV_Q3', 'bank-first related practice must skip the learner-trivial alternate';
 end $$;
 
+-- Learner-facing label and exact-question reads must never require exposing internal IDs in the UI.
+insert into english.learning_route_state(user_id,question_id,route,metadata,origins,last_route_reason,targeted_at,updated_at)
+values(auth.uid(),'REV_Q1','targeted',jsonb_build_object('targetedKind','need_learning'),'{}'::text[],'UI exact-question fixture',now(),now())
+on conflict(user_id,question_id) do update set route='targeted',metadata=excluded.metadata,last_route_reason=excluded.last_route_reason,updated_at=now();
+
+do $$
+declare labels jsonb; exact jsonb;
+begin
+  labels:=public.english_get_question_labels(array['REV_Q1']);
+  assert labels->>'ok'='true', 'question labels RPC must succeed for authenticated user';
+  assert jsonb_array_length(labels->'items')=1, 'question labels RPC must return one visible row';
+  assert labels->'items'->0->>'displayName'='desultory', 'learner-facing label must prefer the real word/name';
+  exact:=public.english_get_targeted_question('REV_Q1');
+  assert jsonb_array_length(exact)=1, 'exact Targeted question RPC must return one item';
+  assert exact->0->>'id'='REV_Q1', 'exact Targeted question must preserve canonical identity';
+  assert exact->0->>'learningRoute'='targeted', 'exact Targeted question must preserve route metadata';
+end $$;
+
 -- Another authenticated user cannot apply or inspect this user's revision proposal.
 create or replace function auth.uid() returns uuid
 language sql stable
 as $$ select '22222222-2222-2222-2222-222222222222'::uuid $$;
 
 do $$
-declare pid uuid; outv jsonb; rejected boolean:=false;
+declare pid uuid; outv jsonb; rejected boolean:=false; exact jsonb;
 begin
   select proposal_id into pid from english.question_revision_proposals
   where user_id='11111111-1111-1111-1111-111111111111'::uuid and question_id='REV_Q1' and proposal_version=2;
@@ -211,6 +229,8 @@ begin
   assert rejected, 'cross-user apply must be rejected';
   outv:=public.english_get_question_revision_state('REV_Q1',2);
   assert (outv->>'proposal') is null, 'cross-user proposal state must not be disclosed';
+  exact:=public.english_get_targeted_question('REV_Q1');
+  assert jsonb_array_length(exact)=0, 'cross-user exact Targeted read must not disclose another learner route';
 end $$;
 
 create or replace function auth.uid() returns uuid
