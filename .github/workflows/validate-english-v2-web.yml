@@ -188,6 +188,7 @@ jobs:
           psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260902153000_english_question_quality_intelligence.sql
           psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260902154000_english_revision_transfer_quality_hardening.sql
           psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260902161000_english_learning_insights_ui_support.sql
+          psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260902162000_english_predeploy_question_ui_audit_fixes.sql
           psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 <<'SQL'
           do $$
           begin
@@ -200,6 +201,7 @@ jobs:
             if not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='english_request_related_practice') then raise exception 'related practice RPC missing'; end if;
             if not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='english_get_question_labels') then raise exception 'question labels RPC missing'; end if;
             if not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='english_get_targeted_question') then raise exception 'exact targeted question RPC missing'; end if;
+            if not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='english_get_targeted_due_session') then raise exception 'due-only targeted session RPC missing'; end if;
           end $$;
           SQL
           psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../.github/scripts/validate-english-question-revision.sql
