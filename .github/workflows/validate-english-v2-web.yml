@@ -76,6 +76,36 @@ jobs:
           psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260830180000_english_quiz_session_freshness.sql
           psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260830181000_english_source_group_fresh_session.sql
           psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260830210000_english_interaction_cooldown.sql
+      - name: Execute question revision migrations in ephemeral Postgres
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 <<'SQL'
+          create extension if not exists pgcrypto;
+          create table if not exists auth.users(id uuid primary key);
+          create table if not exists english.questions(
+            question_id text primary key,
+            question text not null default '',
+            option_a text, option_b text, option_c text, option_d text,
+            correct text, explanation text, question_type text, difficulty text, word text,
+            active boolean not null default true
+          );
+          create table if not exists english.question_concept_mappings(question_id text primary key,concept_id text);
+          create table if not exists english.concepts(concept_id text primary key,name text,skill_family text,description text);
+          create or replace function english.question_visible_to_user(uuid,text) returns boolean language sql stable as $$ select true $$;
+          create or replace function english.context_worker_authorized(text) returns boolean language sql stable as $$ select true $$;
+          SQL
+          psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260902150000_english_question_revision_proposals.sql
+          psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260902151000_english_question_revision_integrity.sql
+          psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 <<'SQL'
+          do $$
+          begin
+            if to_regclass('english.question_revision_proposals') is null then raise exception 'proposal table missing'; end if;
+            if to_regclass('english.user_question_revisions') is null then raise exception 'active revision table missing'; end if;
+            if not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='english_request_question_revision') then raise exception 'request RPC missing'; end if;
+            if not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='english_use_question_revision') then raise exception 'apply RPC missing'; end if;
+          end $$;
+          SQL
       - name: Validate English V2 fresh-session and mastery contracts
         run: |
           node ../.github/scripts/validate-english-v2-fresh-session.cjs
