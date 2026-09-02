@@ -164,6 +164,16 @@ jobs:
 
           create or replace function english.question_visible_to_user(uuid,text) returns boolean language sql stable as $$ select true $$;
           create or replace function english.context_worker_authorized(text) returns boolean language sql stable as $$ select true $$;
+          create or replace function english.targeted_route_kind(p_metadata jsonb,p_origins text[]) returns text language sql stable as $$ select coalesce(nullif(p_metadata->>'targetedKind',''),'need_learning') $$;
+          create or replace function english.question_payload(p_user_id uuid,p_question_id text) returns jsonb language sql stable as $$
+            select jsonb_build_object(
+              'id',q.question_id,'category',q.topic,'topic',q.topic,'word',q.word,'question',q.question,
+              'options',jsonb_build_array(
+                jsonb_build_object('key','A','text',q.option_a),jsonb_build_object('key','B','text',q.option_b),
+                jsonb_build_object('key','C','text',q.option_c),jsonb_build_object('key','D','text',q.option_d)
+              ),'correctKey',q.correct,'questionType',q.question_type,'explanation',q.explanation
+            ) from english.questions q where q.question_id=p_question_id;
+          $$;
           create or replace function english.route_to_targeted(p_user_id uuid,p_question_id text,p_origin text,p_reason text)
           returns jsonb language plpgsql security definer set search_path to 'pg_catalog','english' as $$
           begin
@@ -177,6 +187,7 @@ jobs:
           psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260902151000_english_question_revision_integrity.sql
           psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260902153000_english_question_quality_intelligence.sql
           psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260902154000_english_revision_transfer_quality_hardening.sql
+          psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../supabase/managed-migrations/20260902161000_english_learning_insights_ui_support.sql
           psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 <<'SQL'
           do $$
           begin
@@ -187,6 +198,8 @@ jobs:
             if to_regclass('english.question_generation_provenance') is null then raise exception 'generation provenance missing'; end if;
             if not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='english_request_question_revision') then raise exception 'request RPC missing'; end if;
             if not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='english_request_related_practice') then raise exception 'related practice RPC missing'; end if;
+            if not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='english_get_question_labels') then raise exception 'question labels RPC missing'; end if;
+            if not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='english_get_targeted_question') then raise exception 'exact targeted question RPC missing'; end if;
           end $$;
           SQL
           psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f ../.github/scripts/validate-english-question-revision.sql
