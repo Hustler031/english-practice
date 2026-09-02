@@ -22,10 +22,9 @@ type TargetedSummary={ok:boolean;active:number;dueNow:number;confusions:number;n
 const quick = [
  ["📰", "The Hindu – Today", "Fresh vocabulary batch", "/english/hindu?return=/english", "hindu"],
  ["🔖", "My Saved Words", "Personal recall queue", "/english/saved", "saved"],
+ ["◎", "Targeted Mastery", "Focused concept repair + transfer proof", "/english/targeted", "targeted"],
  ["↗", "Phrasal Verb", "Today’s batch + smart revision", "/english/phrasal", "phrasal"],
  ["★", "Starred Revision", "Marked and difficult focus", "/english/starred", "starred"],
- ["◫", "Bank Coverage", "Controlled unseen exposure", "/english/bank", "bank"],
- ["◎", "Targeted Mastery", "Concept repair + transfer checks", "/english/targeted", "targeted"],
 ] as const;
 
 function fallbackStudyDay(){
@@ -59,7 +58,7 @@ export default function EnglishHome() {
 
  if(!ready)return <EnglishLoading text="Checking session…"/>;
 
- const data=snapshot?.summary,phrasal=snapshot?.phrasal,bank=snapshot?.bank,saved=snapshot?.saved,starred=snapshot?.starred,hinduCount=snapshot?.hindu?.length??null;
+ const data=snapshot?.summary,phrasal=snapshot?.phrasal,saved=snapshot?.saved,starred=snapshot?.starred,hinduCount=snapshot?.hindu?.length??null;
  const total=data?.daily_total??0,completed=data?.daily_completed??0,percent=total?Math.min(100,Math.round((completed/total)*100)):0,dayNo=snapshot?.studyDay??fallbackStudyDay();
  const fallbackRemaining=Math.max(0,total-completed);
  const actionableRemaining=snapshot?.intelligence?.daily?.actionableRemaining??fallbackRemaining;
@@ -74,8 +73,7 @@ export default function EnglishHome() {
    const diff=Number(starred.stats.manualDifficult??starred.stats.difficult??0);
    return `${Number(starred.stats.focus||0)} focus${diff?` · ${diff} ⚡`:""}`;
   }
-  if(accent==="bank")return bank?`${bank.coverage.toFixed(0)}% exposed`:"…";
-  if(accent==="targeted")return targeted?`${targeted.active} active${targeted.confusions?` · ${targeted.confusions} confusion`:""}`:"…";
+  if(accent==="targeted")return targeted?`${targeted.dueNow} due${targeted.confusions?` · ${targeted.confusions} confusion`:""}`:"…";
   return "Open";
  };
 
