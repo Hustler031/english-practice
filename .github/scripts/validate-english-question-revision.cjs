@@ -1,4 +1,4 @@
-// Final branch-head contract gate for question repair, SSC toughness, related practice, and quality intelligence.
+// Final branch-head contract gate for question repair, SSC toughness, related practice, and learner-facing study UI.
 const fs=require('fs');
 const path=require('path');
 const root=path.resolve(__dirname,'../..');
@@ -7,11 +7,19 @@ const base=read('supabase/managed-migrations/20260902150000_english_question_rev
 const integrity=read('supabase/managed-migrations/20260902151000_english_question_revision_integrity.sql');
 const quality=read('supabase/managed-migrations/20260902153000_english_question_quality_intelligence.sql');
 const hardening=read('supabase/managed-migrations/20260902154000_english_revision_transfer_quality_hardening.sql');
-const migration=[base,integrity,quality,hardening].join('\n');
+const uiSupport=read('supabase/managed-migrations/20260902161000_english_learning_insights_ui_support.sql');
+const migration=[base,integrity,quality,hardening,uiSupport].join('\n');
 const worker=read('supabase/functions/english-context-worker/index.ts');
 const ui=read('web-v2/components/question-revision-actions.tsx');
 const runner=read('web-v2/components/quiz-runner.tsx');
 const overlay=read('web-v2/lib/question-revisions.ts');
+const home=read('web-v2/app/english/page.tsx');
+const practice=read('web-v2/app/english/practice/page.tsx');
+const revision=read('web-v2/app/english/revision/page.tsx');
+const targeted=read('web-v2/app/english/targeted/page.tsx');
+const insights=read('web-v2/app/english/revision/ai-intelligence/page.tsx');
+const frame=read('web-v2/components/english-frame.tsx');
+const finalCss=read('web-v2/app/learning-insights-final-ui.css');
 function requireText(text,needle,label){if(!text.includes(needle))throw new Error(`${label}: missing ${needle}`);}
 function forbid(text,re,label){if(re.test(text))throw new Error(`${label}: forbidden pattern ${re}`);}
 [
@@ -29,7 +37,8 @@ function forbid(text,re,label){if(re.test(text))throw new Error(`${label}: forbi
  ['correct option changed during a repair-only revision','repair-only correct-option invariant'],
  ['explanation-only revision changed options','explanation-only invariant'],['revision failed SSC toughness gate','SSC revision gate'],
  ['bank_references','bank references instead of bank replacement'],["'newQuestionAllowed',false",'revision cannot silently create a new question'],
- ['text_token_jaccard','near-duplicate guard'],['generated transfer failed SSC quality gate','generated-transfer quality gate']
+ ['text_token_jaccard','near-duplicate guard'],['generated transfer failed SSC quality gate','generated-transfer quality gate'],
+ ['english_get_question_labels','learner-facing question-label RPC'],['english_get_targeted_question','exact targeted-question RPC']
 ].forEach(([needle,label])=>requireText(migration,needle,label));
 forbid(migration,/update\s+english\.questions\b/i,'canonical question immutability');
 forbid(migration,/delete\s+from\s+english\.attempts\b/i,'attempt preservation');
@@ -47,24 +56,39 @@ forbid(migration,/update\s+english\.question_state\b/i,'mastery preservation');
 forbid(worker,/function\s+bankRevisionDraft/i,'bank question must not replace the current question');
 [
  ['Options too obvious','feedback reason'],['Distractors are unrelated','feedback reason'],['Explanation is weak','feedback reason'],
- ['Correct answer looks doubtful · review only','canonical review wording'],['Write your own note','custom feedback'],
- ['Related practice','explicit new-question action'],['Prepare related question','related practice action'],
- ['Revision proposal ready','ready state'],['Preview','preview action'],['Use revised version','explicit apply action'],['Keep current','keep action'],
- ['setInterval','continuous background-ready polling'],['The question stem and correct answer stay the same','repair-only learner contract']
+ ['Correct answer looks doubtful','canonical review wording'],['Write your own note','custom feedback'],
+ ['looksLikeRelatedPractice','custom-note related-practice intent'],['english_request_related_practice','related-practice backend route'],
+ ['Related practice: …','related-practice learner hint'],['Revision proposal ready','ready state'],['Preview','preview action'],
+ ['Use revised version','explicit apply action'],['Keep current','keep action'],['setInterval','continuous background-ready polling'],
+ ['The question stem and correct answer stay the same','repair-only learner contract']
 ].forEach(([needle,label])=>requireText(ui,needle,label));
+forbid(ui,/onClick=.*Related practice<\/button>/i,'no fourth visible question action');
 requireText(runner,'applyActiveQuestionRevisions','future-session overlay');
 requireText(runner,'QuestionRevisionActions','question-screen action');
 requireText(overlay,'questionId','same canonical id overlay');
 requireText(overlay,'p_cache_buster: Date.now()','live applied-revision read');
-for(const [name,text] of [['base migration',base],['integrity migration',integrity],['quality migration',quality],['hardening migration',hardening]]){
+
+[
+ [home,'Next Best Action','Home next-best action'],[home,'Start focused practice','Home focused CTA'],
+ [practice,'Daily Practice','Practice Daily'],[practice,'Targeted Mastery','Practice Targeted'],[practice,'Fast Track','Practice Fast Track'],[practice,'New Practice','Practice New'],[practice,'Topic Practice','Practice Topic'],[practice,'Exam Sprint','Practice Exam Sprint'],
+ [revision,'Due Now','Revision due'],[revision,'Difficult &amp; Incorrect','Revision difficult/incorrect'],[revision,'Starred','Revision starred'],[revision,'My Saved','Revision saved'],[revision,'Browse by Topic','Revision topic'],[revision,'Learning Insights','Revision insights'],
+ [targeted,'FIX NOW','Targeted Fix Now'],[targeted,'YOUR CONFUSIONS','Targeted confusions'],[targeted,'WAITING FOR LATER','Targeted waiting'],[targeted,'english_get_question_labels','Targeted display labels'],[targeted,'english_get_targeted_question','Targeted exact question'],
+ [insights,'Learning Insights','Learning Insights title'],[insights,'TODAY’S INFO','Today info'],[insights,'What changed today','Today learner copy'],[insights,'FIX NOW','Insights Fix Now'],[insights,'CHECK SOON','Insights Check Soon'],[insights,'IMPROVING','Insights Improving'],[insights,'SCHEDULED FOR LATER','Insights scheduled'],[insights,'How your learning plan works','Learning-plan explainer'],[insights,'activityName(item,labels)','Today uses learner-facing names'],
+ [frame,'targeted|fast-track|exam','Practice nav routing'],[frame,'pathname.startsWith("/english/revision/")','Revision nav routing'],
+ [finalCss,'.insights-today-card','colourful Today UI'],[finalCss,'.targeted-learning-section','Targeted learner UI'],[finalCss,'.next-best-action-card','Home next action UI'],[finalCss,'grid-template-columns:repeat(3','three question actions layout']
+].forEach(([text,needle,label])=>requireText(text,needle,label));
+forbid(insights,/\{item\.questionId\}/,'no question IDs on Today surface');
+forbid(targeted,/Question IDs are visible/i,'no developer audit copy in Targeted');
+
+for(const [name,text] of [['base migration',base],['integrity migration',integrity],['quality migration',quality],['hardening migration',hardening],['UI support migration',uiSupport]]){
  const dollars=(text.match(/\$\$/g)||[]).length;if(dollars%2)throw new Error(`${name}: unbalanced $$ function delimiters`);
 }
 try{
  const ts=require(path.join(root,'web-v2/node_modules/typescript'));
- for(const [name,source,jsx] of [['worker',worker,false],['revision ui',ui,true],['overlay',overlay,false]]){
+ for(const [name,source,jsx] of [['worker',worker,false],['revision ui',ui,true],['overlay',overlay,false],['targeted page',targeted,true],['learning insights',insights,true],['home',home,true],['practice',practice,true],['revision',revision,true],['frame',frame,true]]){
   const out=ts.transpileModule(source,{reportDiagnostics:true,compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,jsx:jsx?ts.JsxEmit.ReactJSX:ts.JsxEmit.Preserve}});
   const bad=(out.diagnostics||[]).filter(d=>d.category===ts.DiagnosticCategory.Error);
   if(bad.length)throw new Error(`${name}: TypeScript parse error ${bad.map(d=>ts.flattenDiagnosticMessageText(d.messageText,' ')).join('; ')}`);
  }
 }catch(e){if(/Cannot find module/.test(String(e)))console.warn('TypeScript parser unavailable; web typecheck will cover frontend syntax.');else throw e;}
-console.log('English question revision + quality contracts: OK');
+console.log('English question revision + quality + learner UI contracts: OK');
