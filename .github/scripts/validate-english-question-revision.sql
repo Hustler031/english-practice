@@ -183,7 +183,7 @@ begin
   end;
   assert rejected, 'cross-user apply must be rejected';
   outv:=public.english_get_question_revision_state('REV_Q1',2);
-  assert outv->'proposal' is null, 'cross-user proposal state must not be disclosed';
+  assert (outv->>'proposal') is null, 'cross-user proposal state must not be disclosed';
 end $$;
 
 -- Restore neutral auth fixture for any later CI checks.
