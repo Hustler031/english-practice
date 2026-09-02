@@ -17,7 +17,8 @@ declare
   outv jsonb;
 begin
   if uid is null then raise exception 'Authentication required'; end if;
-  base:=public.english_get_targeted_session(30,null,null,p_session_nonce);
+  perform set_config('english.targeted_session_nonce',coalesce(nullif(trim(coalesce(p_session_nonce,'')),''),md5(clock_timestamp()::text||uid::text)),true);
+  base:=public.english_get_targeted_batch(30,null,null);
   select coalesce(jsonb_agg(x.item order by x.ord),'[]'::jsonb)
   into outv
   from (
