@@ -81,8 +81,6 @@ export default function EnglishHome() {
  const targetedDue=Math.max(0,Number(targeted?.dueNow||0));
  const nextBest:NextBest=targetedDue>0&&!!targeted?.confusions?
   {title:`Clear ${targeted.confusions} confusion pair${targeted.confusions===1?"":"s"}`,detail:"Start with the mix-ups you explicitly flagged.",href:"/english/targeted?start=focused",cta:"Start focused practice",tone:"confusion"}:
-  targetedDue>0&&!!targeted?.transferChecks?
-  {title:`Complete focused understanding checks`,detail:`${targetedDue} focused item${targetedDue===1?" is":"s are"} ready now; fresh checks are prioritised first.`,href:"/english/targeted?start=focused",cta:"Start focused practice",tone:"check"}:
   targetedDue>0?
   {title:`Finish ${targetedDue} focused-practice item${targetedDue===1?"":"s"}`,detail:"Work on the highest-value repair that is ready now.",href:"/english/targeted?start=focused",cta:"Start focused practice",tone:"check"}:
   !dailyComplete&&actionableRemaining>0?
