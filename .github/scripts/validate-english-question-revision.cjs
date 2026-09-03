@@ -24,6 +24,9 @@ const daily=read('web-v2/app/english/daily/page.tsx');
 const hindu=read('web-v2/app/english/hindu/page.tsx');
 const frame=read('web-v2/components/english-frame.tsx');
 const finalCss=read('web-v2/app/learning-insights-final-ui.css');
+const learnerUi=read('web-v2/components/learner-ui.tsx');
+const learnerLabels=read('web-v2/lib/learner-label.ts');
+const learnerCss=read('web-v2/app/english-learner-rebuild.css');
 function requireText(text,needle,label){if(!text.includes(needle))throw new Error(`${label}: missing ${needle}`);}
 function forbid(text,re,label){if(re.test(text))throw new Error(`${label}: forbidden pattern ${re}`);}
 [
@@ -78,23 +81,28 @@ requireText(overlay,'p_cache_buster: Date.now()','live applied-revision read');
  [home,'Next Best Action','Home next-best action'],[home,'Start focused practice','Home focused CTA'],[home,'targetedDue>0','Home Targeted recommendation is due-gated'],
  [practice,'Daily Practice','Practice Daily'],[practice,'Targeted Mastery','Practice Targeted'],[practice,'Fast Track','Practice Fast Track'],[practice,'New Practice','Practice New'],[practice,'Topic Practice','Practice Topic'],[practice,'Exam Sprint','Practice Exam Sprint'],
  [revision,'Due Now','Revision due'],[revision,'Difficult &amp; Incorrect','Revision difficult/incorrect'],[revision,'Starred','Revision starred'],[revision,'My Saved','Revision saved'],[revision,'Browse by Topic','Revision topic'],[revision,'Learning Insights','Revision insights'],
- [targeted,'FIX NOW','Targeted Fix Now'],[targeted,'YOUR CONFUSIONS','Targeted confusions'],[targeted,'WAITING FOR LATER','Targeted waiting'],[targeted,'english_get_question_labels','Targeted display labels'],[targeted,'english_get_targeted_question','Targeted exact question'],[targeted,'english_get_targeted_due_session','Targeted Fix Now uses due-only session'],[targeted,'"due_now"','Targeted due-only UI kind'],
- [insights,'Learning Insights','Learning Insights title'],[insights,'TODAY’S INFO','Today info'],[insights,'What changed today','Today learner copy'],[insights,'FIX NOW','Insights Fix Now'],[insights,'CHECK SOON','Insights Check Soon'],[insights,'IMPROVING','Insights Improving'],[insights,'SCHEDULED FOR LATER','Insights scheduled'],[insights,'How your learning plan works','Learning-plan explainer'],[insights,'activityName(item,labels)','Today uses learner-facing names'],
+ [targeted,'Fix Now','Targeted Fix Now'],[targeted,'Your Confusions','Targeted confusions'],[targeted,'Waiting for Later','Targeted waiting'],[targeted,'OverviewCard','Targeted progressive-disclosure overview'],[targeted,'LearnerRow','Targeted learner rows'],[targeted,'english_get_question_labels','Targeted display labels'],[targeted,'english_get_targeted_question','Targeted exact question'],[targeted,'english_get_targeted_due_session','Targeted Fix Now uses due-only session'],[targeted,'"due_now"','Targeted due-only UI kind'],
+ [insights,'Learning Insights','Learning Insights title'],[insights,'Today','Today overview'],[insights,'See what changed in your learning plan.','Today learner copy'],[insights,'Fix Now','Insights Fix Now'],[insights,'Check Soon','Insights Check Soon'],[insights,'Improving','Insights Improving'],[insights,'Scheduled for Later','Insights scheduled'],[insights,'How your learning plan works','Learning-plan explainer'],[insights,'learnerName','Today uses learner-facing names'],[insights,'OverviewCard','Insights progressive-disclosure overview'],[insights,'LearnerRow','Insights learner rows'],
  [daily,'QuestionRevisionActions','Daily Improve Question action'],[daily,'english_get_applied_question_revisions','Daily applied revision overlay'],[daily,'I Guessed','Daily confidence signal'],[daily,'Add Context','Daily context signal'],
  [hindu,'QuestionRevisionActions','Hindu Improve Question action'],[hindu,'english_get_applied_question_revisions','Hindu applied revision overlay'],[hindu,'english_record_guess','Hindu confidence signal'],[hindu,'english_save_context_note','Hindu context signal'],
  [frame,'targeted|fast-track|exam','Practice nav routing'],[frame,'pathname.startsWith("/english/revision/")','Revision nav routing'],
- [finalCss,'.insights-today-card','colourful Today UI'],[finalCss,'.targeted-learning-section','Targeted learner UI'],[finalCss,'.next-best-action-card','Home next action UI'],[finalCss,'grid-template-columns:repeat(3','three question actions layout']
+ [learnerUi,'learner-overview-card','shared overview-card primitive'],[learnerUi,'learner-row','shared learner-row primitive'],[learnerLabels,'confusionLabel','learner confusion label resolver'],[learnerLabels,'cleanLearnerName','generic-label guard'],[learnerCss,'.learner-overview-card','new learner overview styling'],[learnerCss,'.learner-row','new learner row styling'],[learnerCss,'.practice-primary-card','Practice learner-card harmony'],[learnerCss,'.revision-primary-row','Revision learner-row harmony'],
+ [finalCss,'.next-best-action-card','Home next action UI'],[finalCss,'grid-template-columns:repeat(3','three question actions layout']
 ].forEach(([text,needle,label])=>requireText(text,needle,label));
 forbid(home,/targeted\?\.retentionChecks\?/,'Home must not recommend future retention merely because it exists');
 forbid(insights,/\{item\.questionId\}/,'no question IDs on Today surface');
 forbid(targeted,/Question IDs are visible/i,'no developer audit copy in Targeted');
+forbid(targeted,/Open\s*›/i,'no redundant Targeted Open affordance');
+forbid(targeted,/Practice\s*›/i,'no redundant Targeted Practice affordance');
+forbid(insights,/Open\s*›/i,'no redundant Insights Open affordance');
+forbid(insights,/Practice\s*›/i,'no redundant Insights Practice affordance');
 
 for(const [name,text] of [['base migration',base],['integrity migration',integrity],['quality migration',quality],['hardening migration',hardening],['UI support migration',uiSupport],['audit fix migration',auditFix]]){
  const dollars=(text.match(/\$\$/g)||[]).length;if(dollars%2)throw new Error(`${name}: unbalanced $$ function delimiters`);
 }
 try{
  const ts=require(path.join(root,'web-v2/node_modules/typescript'));
- for(const [name,source,jsx] of [['worker',worker,false],['revision ui',ui,true],['overlay',overlay,false],['targeted page',targeted,true],['learning insights',insights,true],['home',home,true],['practice',practice,true],['revision',revision,true],['daily',daily,true],['hindu',hindu,true],['frame',frame,true]]){
+ for(const [name,source,jsx] of [['worker',worker,false],['revision ui',ui,true],['overlay',overlay,false],['targeted page',targeted,true],['learning insights',insights,true],['learner ui',learnerUi,true],['learner labels',learnerLabels,false],['home',home,true],['practice',practice,true],['revision',revision,true],['daily',daily,true],['hindu',hindu,true],['frame',frame,true]]){
   const out=ts.transpileModule(source,{reportDiagnostics:true,compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,jsx:jsx?ts.JsxEmit.ReactJSX:ts.JsxEmit.Preserve}});
   const bad=(out.diagnostics||[]).filter(d=>d.category===ts.DiagnosticCategory.Error);
   if(bad.length)throw new Error(`${name}: TypeScript parse error ${bad.map(d=>ts.flattenDiagnosticMessageText(d.messageText,' ')).join('; ')}`);
