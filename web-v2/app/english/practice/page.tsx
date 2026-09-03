@@ -21,8 +21,8 @@ const more=[
 export default function PracticeHome(){
  const ready=useAuthGuard();if(!ready)return <EnglishLoading text="Checking session…"/>;
  return <main className="top-level-parity practice-clean-page">
-  <section className="page-intro"><h1>Practice</h1><p>Choose the kind of practice you need.</p></section>
-  <section className="practice-primary-grid">{primary.map(([icon,title,sub,href,tone])=><Link className={`practice-primary-card tone-${tone}`} href={href} key={href}><span className="practice-primary-icon">{icon}</span><span><b>{title}</b><small>{sub}</small></span><i>›</i></Link>)}</section>
-  <details className="practice-more-details"><summary><span><b>More practice options</b><small>Sources, custom batches and bank coverage</small></span><i>›</i></summary><div className="practice-more-list">{more.map(([title,sub,href])=><Link href={href} key={href}><span><b>{title}</b><small>{sub}</small></span><i>›</i></Link>)}</div></details>
+  <section className="page-intro learner-page-header"><h1>Practice</h1><p>Choose the kind of practice you need.</p></section>
+  <section className="practice-primary-grid">{primary.map(([icon,title,sub,href,tone])=><Link className={`practice-primary-card tone-${tone}`} href={href} key={href}><span className="practice-primary-icon">{icon}</span><span><b>{title}</b><small>{sub}</small></span></Link>)}</section>
+  <details className="practice-more-details"><summary><span><b>More practice options</b><small>Sources, custom batches and bank coverage</small></span></summary><div className="practice-more-list">{more.map(([title,sub,href])=><Link href={href} key={href}><span><b>{title}</b><small>{sub}</small></span></Link>)}</div></details>
  </main>;
 }
