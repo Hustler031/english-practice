@@ -14,6 +14,7 @@ const p2=read('supabase/managed-migrations/20260904093000_english_p2_content_lif
 const workerHotfix=read('supabase/managed-migrations/20260904172000_english_worker_runtime_guard_hotfix.sql');
 const rpcHardening=read('supabase/managed-migrations/20260904173000_english_public_rpc_invoker_hardening.sql');
 const transferLease=read('supabase/managed-migrations/20260904174000_english_transfer_lease_recovery.sql');
+const targetedAuth=read('supabase/managed-migrations/20260904175000_english_targeted_fresh_session_auth_hardening.sql');
 const contextWorker=read('supabase/functions/english-context-worker/index.ts');
 const supabase=read('web-v2/lib/supabase.ts');
 const targetedReliability=read('web-v2/lib/targeted-reliability.ts');
@@ -118,6 +119,9 @@ need(rpcHardening,'security invoker','audited public RPC wrappers are SECURITY I
 need(rpcHardening,'uid is distinct from caller','internal privileged RPCs bind user identity to auth.uid()');
 need(rpcHardening,'revoke execute on function public.english_get_today_extra_batch(integer) from public,anon','Extra RPC remains unavailable anonymously');
 need(rpcHardening,'revoke execute on function public.english_set_hindu_vocab(text,boolean) from public,anon','Hindu vocab mutation remains unavailable anonymously');
+need(targetedAuth,'english_start_targeted_fresh_session','Targeted fresh-session auth hardening is versioned');
+need(targetedAuth,'from public,anon','Targeted fresh-session gateway revokes anonymous execution');
+need(targetedAuth,'to authenticated','Targeted fresh-session gateway remains available to signed-in learners');
 
 need(p2,'Fixed Preposition explanation backfill','P2 contains the Fixed Preposition content backfill');
 need(p2,'“Discuss” is transitive here','no-preposition explanation is concept-specific, not filler');
