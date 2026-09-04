@@ -14,6 +14,7 @@ const p2=read('supabase/managed-migrations/20260904093000_english_p2_content_lif
 const workerHotfix=read('supabase/managed-migrations/20260904172000_english_worker_runtime_guard_hotfix.sql');
 const rpcHardening=read('supabase/managed-migrations/20260904173000_english_public_rpc_invoker_hardening.sql');
 const transferLease=read('supabase/managed-migrations/20260904174000_english_transfer_lease_recovery.sql');
+const contextWorker=read('supabase/functions/english-context-worker/index.ts');
 const supabase=read('web-v2/lib/supabase.ts');
 const targetedReliability=read('web-v2/lib/targeted-reliability.ts');
 const targetedPage=read('web-v2/app/english/targeted/page.tsx');
@@ -103,6 +104,10 @@ need(workerHotfix,'https://hytehindbmjdwcfptsic.supabase.co/functions/v1/english
 reject(workerHotfix,'vault.decrypted_secrets','worker scheduler no longer depends on unconfigured Vault secrets');
 need(workerHotfix,'worker_scheduler_state','worker hotfix preserves fair lane scheduling');
 need(workerHotfix,'reconcile_context_worker_http','worker hotfix preserves HTTP failure telemetry');
+need(contextWorker,'async function rpcNoThrow','context worker has a non-throwing best-effort RPC helper');
+need(contextWorker,'await rpcNoThrow(db, "english_log_worker_metrics"','worker metrics cannot turn completed work into HTTP 500');
+need(contextWorker,'await rpcNoThrow(db, "english_fail_transfer_generation"','transfer failure recording cannot mask the original outcome');
+reject(contextWorker,'.catch(() => undefined)','Supabase RPC builders are never treated as native Promises with .catch()');
 
 need(transferLease,"status='processing'\n        then english.targeted_transfer_jobs.updated_at",'transfer discovery cannot renew an active processing lease');
 need(transferLease,"updated_at<now()-interval '5 minutes'",'transfer stale recovery uses a bounded lease');
