@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
   const revisionLimit = Math.max(1, Math.min(1, Number(body?.revisionLimit) || 1));
   const started = Date.now();
 
-  const { data: claimed, error: claimError } = await db.rpc("english_question_revision_claim", { p_token: token, p_limit: revisionLimit });
+  const { data: claimed, error: claimError } = await db.rpc("english_question_revision_claim_dedicated", { p_token: token, p_limit: revisionLimit });
   if (claimError) return reply({ error: claimError.message }, /unauthorized/i.test(claimError.message) ? 401 : 500);
   const items = Array.isArray(claimed?.items) ? claimed.items : [];
   let processed = 0;
