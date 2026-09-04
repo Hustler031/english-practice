@@ -11,6 +11,11 @@ const assert=(condition,label)=>condition?ok(label):fail(label);
 const migration=read('supabase/managed-migrations/20260830210000_english_interaction_cooldown.sql');
 const p1=read('supabase/managed-migrations/20260904090000_english_p1_reliability_targeted_hindu_worker.sql');
 const p2=read('supabase/managed-migrations/20260904093000_english_p2_content_lifecycle_security.sql');
+const workerHotfix=read('supabase/managed-migrations/20260904172000_english_worker_runtime_guard_hotfix.sql');
+const rpcHardening=read('supabase/managed-migrations/20260904173000_english_public_rpc_invoker_hardening.sql');
+const transferLease=read('supabase/managed-migrations/20260904174000_english_transfer_lease_recovery.sql');
+const targetedAuth=read('supabase/managed-migrations/20260904175000_english_targeted_fresh_session_auth_hardening.sql');
+const contextWorker=read('supabase/functions/english-context-worker/index.ts');
 const supabase=read('web-v2/lib/supabase.ts');
 const targetedReliability=read('web-v2/lib/targeted-reliability.ts');
 const targetedPage=read('web-v2/app/english/targeted/page.tsx');
@@ -47,37 +52,24 @@ function select(rows,limit,{strict=false,pending=[]}={}){
   const first=new Map();
   rows.forEach((row,ord)=>{if(row&&row.id&&!first.has(row.id))first.set(row.id,{...row,ord});});
   const eligible=[...first.values()].filter(r=>!(strict&&((r.attempts||0)>0||pendingSet.has(r.id))));
-  eligible.forEach(r=>{
-    r.hard=pendingSet.has(r.id)||!!r.recentAttempt;
-    r.band=Math.floor(r.ord/Math.max(1,limit));
-    r.last=Number(r.lastAttempt||0);
-  });
+  eligible.forEach(r=>{r.hard=pendingSet.has(r.id)||!!r.recentAttempt;r.band=Math.floor(r.ord/Math.max(1,limit));r.last=Number(r.lastAttempt||0);});
   eligible.sort((a,b)=>Number(a.hard)-Number(b.hard)||a.band-b.band||a.last-b.last||a.ord-b.ord||String(a.id).localeCompare(String(b.id)));
   return eligible.slice(0,limit).map(r=>r.id);
 }
 const ids=n=>Array.from({length:n},(_,i)=>`Q${String(i+1).padStart(3,'0')}`);
-
-// User contract: a generated 20-question Smart batch does not consume untouched questions.
-// If only five were actually attempted, those five cool down while the other fifteen remain eligible.
 const generated=ids(20);
 const attempted=new Set(generated.slice(0,5));
-const candidates=[
-  ...generated.map((id,i)=>({id,attempts:attempted.has(id)?1:0,recentAttempt:attempted.has(id),lastAttempt:attempted.has(id)?100+i:0})),
-  ...Array.from({length:20},(_,i)=>({id:`N${String(i+1).padStart(3,'0')}`,attempts:0}))
-];
+const candidates=[...generated.map((id,i)=>({id,attempts:attempted.has(id)?1:0,recentAttempt:attempted.has(id),lastAttempt:attempted.has(id)?100+i:0})),...Array.from({length:20},(_,i)=>({id:`N${String(i+1).padStart(3,'0')}`,attempts:0}))];
 const next=select(candidates,20);
 const untouched=generated.slice(5);
 assert(untouched.every(id=>next.includes(id)),'20 generated / 5 attempted keeps all 15 untouched questions eligible in the next Smart selection');
 assert(generated.slice(0,5).every(id=>!next.slice(0,15).includes(id)),'the five actual attempts cool down ahead of untouched eligible questions');
-
 const strictNext=select(candidates,20,{strict:true});
 assert(strictNext.every(id=>!attempted.has(id)),'strict unseen excludes attempted questions');
 assert(untouched.every(id=>strictNext.includes(id)),'strict unseen does not consume generated-but-unattempted questions');
-
 const pendingCase=select(ids(25).map(id=>({id})),20,{pending:['Q001','Q002']});
 assert(!pendingCase.slice(0,20).includes('Q001')&&!pendingCase.slice(0,20).includes('Q002'),'pending local answers remain protected before durability catches up');
 
-// P1 Targeted/Next Best Action reliability contracts.
 need(p1,'english.targeted_question_in_cooldown','Targeted has an explicit exact-question cooldown');
 need(p1,"when l.correct then",'Targeted cooldown distinguishes correct evidence');
 need(p1,"else now()<l.attempted_at+interval '90 minutes'",'wrong Targeted answers receive a short exact-item cooldown');
@@ -94,14 +86,12 @@ need(targetedPage,'targetedLiveRpc<Hub>','Targeted mastery counters bypass stale
 need(homePage,'targetedLiveRpc<TargetedSummary>','Next Best Action reads live Targeted eligibility');
 need(homePage,'subscribeTargetedDurability','Next Best Action refreshes after answer durability');
 
-// Hindu exposure-only Daily boundary.
 need(p1,'english.hindu_daily_eligible','Hindu Daily eligibility has a single server-side boundary');
 need(p1,'coalesce(r.marked,false) or coalesce(r.in_vocab,false)','only explicitly retained Hindu items are Daily-eligible');
 need(p1,'daily_hindu_exposure_guard','Daily inserts cannot leak exposure-only Hindu items');
 need(p1,'hindu_daily_exposure_guard','unmark/remove actions prune future unattempted Hindu Daily leakage');
 need(p1,"lower(coalesce(a.module,''))='daily'",'Hindu cleanup preserves already-attempted Daily history');
 
-// Worker scheduler/retry/telemetry contracts.
 need(p1,'english.worker_scheduler_state','context worker has durable scheduler state');
 need(p1,'english.worker_lane_allowed','worker claim RPCs are lane-gated');
 need(p1,"worker_lane_allowed('revision')",'Revision queue can be explicitly scheduled');
@@ -109,8 +99,30 @@ need(p1,"worker_lane_allowed('quality_review')",'Quality Review queue can be exp
 need(p1,'english.context_worker_requests','scheduler records outbound worker request IDs');
 need(p1,'net._http_response','scheduler reconciles HTTP status/timeouts even if the Edge Function fails before metrics');
 need(p1,'english.worker_observability','worker failures remain observable');
+need(workerHotfix,'english.context_ai_runtime_guard','worker hotfix restores the proven runtime token source');
+need(workerHotfix,'perform english.enqueue_missing_targeted_transfers(6)','worker hotfix preserves automatic bank-first transfer discovery');
+need(workerHotfix,'https://hytehindbmjdwcfptsic.supabase.co/functions/v1/english-context-worker','worker hotfix preserves the proven production Edge endpoint');
+reject(workerHotfix,'vault.decrypted_secrets','worker scheduler no longer depends on unconfigured Vault secrets');
+need(workerHotfix,'worker_scheduler_state','worker hotfix preserves fair lane scheduling');
+need(workerHotfix,'reconcile_context_worker_http','worker hotfix preserves HTTP failure telemetry');
+need(contextWorker,'async function rpcNoThrow','context worker has a non-throwing best-effort RPC helper');
+need(contextWorker,'await rpcNoThrow(db, "english_log_worker_metrics"','worker metrics cannot turn completed work into HTTP 500');
+need(contextWorker,'await rpcNoThrow(db, "english_fail_transfer_generation"','transfer failure recording cannot mask the original outcome');
+reject(contextWorker,'.catch(() => undefined)','Supabase RPC builders are never treated as native Promises with .catch()');
 
-// P2 content/lifecycle/security contracts.
+need(transferLease,"status='processing'\n        then english.targeted_transfer_jobs.updated_at",'transfer discovery cannot renew an active processing lease');
+need(transferLease,"updated_at<now()-interval '5 minutes'",'transfer stale recovery uses a bounded lease');
+need(transferLease,"last_error='stale generation recovered'",'stale transfer work is explicitly recovered before discovery');
+need(transferLease,'Recover/terminate expired leases before discovery','transfer recovery occurs before bank-first re-enqueue');
+
+need(rpcHardening,'security invoker','audited public RPC wrappers are SECURITY INVOKER');
+need(rpcHardening,'uid is distinct from caller','internal privileged RPCs bind user identity to auth.uid()');
+need(rpcHardening,'revoke execute on function public.english_get_today_extra_batch(integer) from public,anon','Extra RPC remains unavailable anonymously');
+need(rpcHardening,'revoke execute on function public.english_set_hindu_vocab(text,boolean) from public,anon','Hindu vocab mutation remains unavailable anonymously');
+need(targetedAuth,'english_start_targeted_fresh_session','Targeted fresh-session auth hardening is versioned');
+need(targetedAuth,'from public,anon','Targeted fresh-session gateway revokes anonymous execution');
+need(targetedAuth,'to authenticated','Targeted fresh-session gateway remains available to signed-in learners');
+
 need(p2,'Fixed Preposition explanation backfill','P2 contains the Fixed Preposition content backfill');
 need(p2,'“Discuss” is transitive here','no-preposition explanation is concept-specific, not filler');
 need(p2,'“Home” functions adverbially','go-home item has a concept-specific grammar explanation');
