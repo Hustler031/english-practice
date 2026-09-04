@@ -8,7 +8,7 @@ const cors = {
 const MODEL = "gpt-5.6-luna";
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 const DRAFT_TIMEOUT_MS = 24_000;
-const CRITIC_TIMEOUT_MS = 24_000;
+const CRITIC_TIMEOUT_MS = 32_000;
 
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -35,14 +35,7 @@ function usage(payload: any) {
     responseId: String(payload?.id || ""),
   };
 }
-async function structuredAI(
-  name: string,
-  schema: any,
-  instructions: string,
-  input: any,
-  effort: "low" | "medium",
-  timeoutMs: number,
-) {
+async function structuredAI(name: string, schema: any, instructions: string, input: any, effort: "low" | "medium", timeoutMs: number) {
   const key = Deno.env.get("OPENAI_API_KEY");
   if (!key) throw new Error("OPENAI_API_KEY is not configured for english-revision-worker");
   const ctrl = new AbortController();
@@ -52,14 +45,7 @@ async function structuredAI(
       method: "POST",
       signal: ctrl.signal,
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: MODEL,
-        reasoning: { effort },
-        max_output_tokens: 2600,
-        instructions,
-        input: JSON.stringify(input),
-        text: { format: { type: "json_schema", name, strict: true, schema } },
-      }),
+      body: JSON.stringify({ model: MODEL, reasoning: { effort }, max_output_tokens: 2600, instructions, input: JSON.stringify(input), text: { format: { type: "json_schema", name, strict: true, schema } } }),
     });
     const payload = await res.json();
     if (!res.ok) throw new Error(payload?.error?.message || `OpenAI request failed (${res.status})`);
@@ -67,11 +53,9 @@ async function structuredAI(
     if (!text) throw new Error("OpenAI returned no structured output");
     return { data: JSON.parse(text), usage: usage(payload), model: String(payload?.model || MODEL) };
   } catch (e: any) {
-    if (e?.name === "AbortError") throw new Error(`Background AI request timed out safely after ${Math.round(timeoutMs / 1000)}s`);
+    if (e?.name === "AbortError") throw new Error(`${name} timed out safely after ${Math.round(timeoutMs / 1000)}s`);
     throw e;
-  } finally {
-    clearTimeout(timer);
-  }
+  } finally { clearTimeout(timer); }
 }
 
 const revisionItemProperties = {
@@ -83,37 +67,14 @@ const revisionItemProperties = {
   correctKey: { type: "string", enum: ["A", "B", "C", "D"] },
   explanation: { type: "string", minLength: 20, maxLength: 900 },
 };
-const revisionDraftSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["question", "optionA", "optionB", "optionC", "optionD", "correctKey", "explanation"],
-  properties: revisionItemProperties,
-};
+const revisionDraftSchema = { type: "object", additionalProperties: false, required: ["question", "optionA", "optionB", "optionC", "optionD", "correctKey", "explanation"], properties: revisionItemProperties };
 const revisionCriticSchema = {
   type: "object",
   additionalProperties: false,
-  required: [
-    "item", "exactlyOneCorrect", "closeDistractors", "notObviouslyEliminable", "explanationMatches", "noStaleExplanation", "noAmbiguity",
-    "faithfulConcept", "fairDifficulty", "sscDifficultyFit", "obviousElimination", "difficultyArtificial", "distractorCloseness", "realisticTrapCount",
-    "qualityScore", "rationale"
-  ],
+  required: ["item", "exactlyOneCorrect", "closeDistractors", "notObviouslyEliminable", "explanationMatches", "noStaleExplanation", "noAmbiguity", "faithfulConcept", "fairDifficulty", "sscDifficultyFit", "obviousElimination", "difficultyArtificial", "distractorCloseness", "realisticTrapCount", "qualityScore", "rationale"],
   properties: {
     item: { type: "object", additionalProperties: false, required: ["question", "optionA", "optionB", "optionC", "optionD", "correctKey", "explanation"], properties: revisionItemProperties },
-    exactlyOneCorrect: { type: "boolean" },
-    closeDistractors: { type: "boolean" },
-    notObviouslyEliminable: { type: "boolean" },
-    explanationMatches: { type: "boolean" },
-    noStaleExplanation: { type: "boolean" },
-    noAmbiguity: { type: "boolean" },
-    faithfulConcept: { type: "boolean" },
-    fairDifficulty: { type: "boolean" },
-    sscDifficultyFit: { type: "boolean" },
-    obviousElimination: { type: "boolean" },
-    difficultyArtificial: { type: "boolean" },
-    distractorCloseness: { type: "number", minimum: 0, maximum: 1 },
-    realisticTrapCount: { type: "integer", minimum: 0, maximum: 3 },
-    qualityScore: { type: "number", minimum: 0, maximum: 1 },
-    rationale: { type: "string", minLength: 1, maxLength: 280 },
+    exactlyOneCorrect: { type: "boolean" }, closeDistractors: { type: "boolean" }, notObviouslyEliminable: { type: "boolean" }, explanationMatches: { type: "boolean" }, noStaleExplanation: { type: "boolean" }, noAmbiguity: { type: "boolean" }, faithfulConcept: { type: "boolean" }, fairDifficulty: { type: "boolean" }, sscDifficultyFit: { type: "boolean" }, obviousElimination: { type: "boolean" }, difficultyArtificial: { type: "boolean" }, distractorCloseness: { type: "number", minimum: 0, maximum: 1 }, realisticTrapCount: { type: "integer", minimum: 0, maximum: 3 }, qualityScore: { type: "number", minimum: 0, maximum: 1 }, rationale: { type: "string", minLength: 1, maxLength: 280 },
   },
 };
 
@@ -147,11 +108,7 @@ Deno.serve(async (req) => {
       const bankReferences = Array.isArray(item?.bankReferences) ? item.bankReferences : [];
       const source: "bank_informed_ai" | "ai_last_resort" = bankReferences.length ? "bank_informed_ai" : "ai_last_resort";
       const draft = await structuredAI("english_question_revision_draft", revisionDraftSchema, revisionGeneratePrompt, item, "low", DRAFT_TIMEOUT_MS);
-      const final = await structuredAI("english_question_revision_critic", revisionCriticSchema, revisionCriticPrompt, {
-        ...item,
-        generationSource: source,
-        draft: draft.data,
-      }, "medium", CRITIC_TIMEOUT_MS);
+      const final = await structuredAI("english_question_revision_critic", revisionCriticSchema, revisionCriticPrompt, { ...item, generationSource: source, draft: draft.data }, "medium", CRITIC_TIMEOUT_MS);
       const { error } = await db.rpc("english_apply_question_revision_result", {
         p_token: token,
         p_proposal_id: item.proposalId,
@@ -165,26 +122,15 @@ Deno.serve(async (req) => {
       processed++;
     } catch (e) {
       failed++;
-      await rpcNoThrow(db, "english_fail_question_revision", {
-        p_token: token,
-        p_proposal_id: item.proposalId,
-        p_error: errorText(e),
-      });
+      await rpcNoThrow(db, "english_fail_question_revision", { p_token: token, p_proposal_id: item.proposalId, p_error: errorText(e) });
     }
   }
 
   const elapsedMs = Date.now() - started;
   await rpcNoThrow(db, "english_log_worker_metrics", {
     p_token: token,
-    p_metrics: {
-      lane: "revision_dedicated",
-      context: { claimed: 0, processed: 0, failed: 0 },
-      transfers: { claimed: 0, processed: 0, failed: 0 },
-      revisions: { claimed: items.length, processed, failed },
-      qualityReviews: { claimed: 0, processed: 0, failed: 0 },
-    },
+    p_metrics: { lane: "revision_dedicated", context: { claimed: 0, processed: 0, failed: 0 }, transfers: { claimed: 0, processed: 0, failed: 0 }, revisions: { claimed: items.length, processed, failed }, qualityReviews: { claimed: 0, processed: 0, failed: 0 } },
     p_elapsed_ms: elapsedMs,
   });
-
   return reply({ ok: true, model: MODEL, lane: "revision_dedicated", revisions: { claimed: items.length, processed, failed }, elapsedMs });
 });
