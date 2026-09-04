@@ -9,7 +9,12 @@ const reject=(text,needle,label)=>!text.includes(needle)?ok(label):fail(`${label
 const assert=(condition,label)=>condition?ok(label):fail(label);
 
 const migration=read('supabase/managed-migrations/20260830210000_english_interaction_cooldown.sql');
+const p1=read('supabase/managed-migrations/20260904090000_english_p1_reliability_targeted_hindu_worker.sql');
+const p2=read('supabase/managed-migrations/20260904093000_english_p2_content_lifecycle_security.sql');
 const supabase=read('web-v2/lib/supabase.ts');
+const targetedReliability=read('web-v2/lib/targeted-reliability.ts');
+const targetedPage=read('web-v2/app/english/targeted/page.tsx');
+const homePage=read('web-v2/app/english/page.tsx');
 const frame=read('web-v2/components/english-frame.tsx');
 const css=read('web-v2/app/session-rotation-ui-fixes.css');
 
@@ -72,4 +77,51 @@ assert(untouched.every(id=>strictNext.includes(id)),'strict unseen does not cons
 const pendingCase=select(ids(25).map(id=>({id})),20,{pending:['Q001','Q002']});
 assert(!pendingCase.slice(0,20).includes('Q001')&&!pendingCase.slice(0,20).includes('Q002'),'pending local answers remain protected before durability catches up');
 
-if(!process.exitCode)console.log('\n✅ English V2 interaction-cooldown + silent-sync UX contracts passed.');
+// P1 Targeted/Next Best Action reliability contracts.
+need(p1,'english.targeted_question_in_cooldown','Targeted has an explicit exact-question cooldown');
+need(p1,"when l.correct then",'Targeted cooldown distinguishes correct evidence');
+need(p1,"else now()<l.attempted_at+interval '90 minutes'",'wrong Targeted answers receive a short exact-item cooldown');
+need(p1,"kind in('confusion','transfer_check','need_learning')",'Targeted repair lanes can choose an alternate same-concept item');
+need(p1,'Never force-fill by replaying the same exact item','Targeted may underfill instead of violating spacing');
+need(p1,'english.targeted_recent_session_excludes','immediate next Targeted session excludes the prior Targeted exposure set');
+need(p1,'p_client_exclude text[]','Targeted gateway accepts pending local answer IDs');
+need(targetedReliability,'waitForAnswerDurability','Targeted waits for the durable answer outbox before a fresh set');
+need(targetedReliability,'p_client_exclude: exclude','still-pending Targeted answers are sent as hard server exclusions');
+need(targetedReliability,'english_start_targeted_fresh_session','Targeted has a dedicated fresh-session gateway');
+need(targetedReliability,'Exact-item reads must never come from the 12-hour generic RPC cache','exact Targeted clicks bypass stale generic cache');
+need(targetedPage,'targetedSessionRpc<any[]>','Targeted practice uses the durable fresh-session adapter');
+need(targetedPage,'targetedLiveRpc<Hub>','Targeted mastery counters bypass stale cache');
+need(homePage,'targetedLiveRpc<TargetedSummary>','Next Best Action reads live Targeted eligibility');
+need(homePage,'subscribeTargetedDurability','Next Best Action refreshes after answer durability');
+
+// Hindu exposure-only Daily boundary.
+need(p1,'english.hindu_daily_eligible','Hindu Daily eligibility has a single server-side boundary');
+need(p1,'coalesce(r.marked,false) or coalesce(r.in_vocab,false)','only explicitly retained Hindu items are Daily-eligible');
+need(p1,'daily_hindu_exposure_guard','Daily inserts cannot leak exposure-only Hindu items');
+need(p1,'hindu_daily_exposure_guard','unmark/remove actions prune future unattempted Hindu Daily leakage');
+need(p1,"lower(coalesce(a.module,''))='daily'",'Hindu cleanup preserves already-attempted Daily history');
+
+// Worker scheduler/retry/telemetry contracts.
+need(p1,'english.worker_scheduler_state','context worker has durable scheduler state');
+need(p1,'english.worker_lane_allowed','worker claim RPCs are lane-gated');
+need(p1,"worker_lane_allowed('revision')",'Revision queue can be explicitly scheduled');
+need(p1,"worker_lane_allowed('quality_review')",'Quality Review queue can be explicitly scheduled');
+need(p1,'english.context_worker_requests','scheduler records outbound worker request IDs');
+need(p1,'net._http_response','scheduler reconciles HTTP status/timeouts even if the Edge Function fails before metrics');
+need(p1,'english.worker_observability','worker failures remain observable');
+
+// P2 content/lifecycle/security contracts.
+need(p2,'Fixed Preposition explanation backfill','P2 contains the Fixed Preposition content backfill');
+need(p2,'“Discuss” is transitive here','no-preposition explanation is concept-specific, not filler');
+need(p2,'“Home” functions adverbially','go-home item has a concept-specific grammar explanation');
+need(p2,'Fixed Preposition explanation backfill incomplete','migration fails closed if any targeted explanation remains blank');
+need(p2,"terminal_reason='expired'",'stale quiz sessions get an explicit expired terminal state');
+need(p2,'quiz_sessions_expire_stale_before_insert','new quiz sessions opportunistically close stale sessions');
+need(p2,"'completed'::text,'abandoned'::text",'Sprint generation jobs have real terminal lifecycle states');
+need(p2,'sprint_generation_terminal_sync','Sprint job terminal state follows the learner session');
+need(p2,'revoke execute on function public.english_set_hindu_vocab','anonymous Hindu mutation execution is revoked');
+need(p2,'revoke execute on function public.english_get_today_extra_batch','anonymous Extra execution is revoked');
+need(p2,'using ((select auth.uid())=user_id)','quiz-session RLS evaluates auth.uid once per statement');
+need(p2,'english_transfer_jobs_source_question_idx','Targeted transfer FK path is indexed');
+
+if(!process.exitCode)console.log('\n✅ English V2 interaction-cooldown + P1/P2 reliability contracts passed.');
