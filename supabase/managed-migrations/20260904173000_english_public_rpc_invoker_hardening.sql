@@ -1,7 +1,8 @@
 -- Remove public-schema SECURITY DEFINER exposure for the two audited RPCs.
 -- Public functions remain the stable API surface but run as SECURITY INVOKER;
--- privileged implementation lives in the non-exposed english schema and is
--- executable only by authenticated callers.
+-- privileged implementation lives in the non-exposed english schema.
+-- Internal functions also bind p_user_id to auth.uid() so a caller cannot
+-- spoof another learner even if the internal schema is exposed in future.
 
 create or replace function english.get_today_extra_batch_internal(
   p_user_id uuid,
@@ -13,12 +14,15 @@ security definer
 set search_path to 'pg_catalog','english','auth'
 as $$
 declare
+  caller uuid:=auth.uid();
   uid uuid:=p_user_id;
   n integer:=greatest(1,least(30,coalesce(p_count,20)));
   d date:=(now() at time zone 'Asia/Kolkata')::date;
   outv jsonb;
 begin
-  if uid is null then raise exception 'Authentication required'; end if;
+  if caller is null or uid is null or uid is distinct from caller then
+    raise exception 'Authentication required';
+  end if;
 
   with base as (
     select q.question_id,
@@ -113,11 +117,15 @@ security definer
 set search_path to 'pg_catalog','public','english','auth'
 as $$
 declare
+  caller uuid:=auth.uid();
   uid uuid:=p_user_id;
   raw text:=regexp_replace(btrim(coalesce(p_hindu_id,'')),'^HINDU_','','i');
   v_sid text;
 begin
-  if uid is null then raise exception 'Authentication required'; end if;
+  if caller is null or uid is null or uid is distinct from caller then
+    raise exception 'Authentication required';
+  end if;
+
   if coalesce(p_in_vocab,false) then return public.english_add_hindu_to_vocab(raw); end if;
 
   select saved_id into v_sid
