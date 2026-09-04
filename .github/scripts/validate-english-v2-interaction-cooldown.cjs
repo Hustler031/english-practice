@@ -105,7 +105,7 @@ need(p1,"lower(coalesce(a.module,''))='daily'",'Hindu cleanup preserves already-
 need(p1,'english.worker_scheduler_state','context worker has durable scheduler state');
 need(p1,'english.worker_lane_allowed','worker claim RPCs are lane-gated');
 need(p1,"worker_lane_allowed('revision')",'Revision queue can be explicitly scheduled');
-need(p1,"worker_lane_allowed('quality')",'Quality Review queue can be explicitly scheduled');
+need(p1,"worker_lane_allowed('quality_review')",'Quality Review queue can be explicitly scheduled');
 need(p1,'english.context_worker_requests','scheduler records outbound worker request IDs');
 need(p1,'net._http_response','scheduler reconciles HTTP status/timeouts even if the Edge Function fails before metrics');
 need(p1,'english.worker_observability','worker failures remain observable');
