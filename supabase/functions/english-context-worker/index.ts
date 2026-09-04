@@ -14,6 +14,13 @@ const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body)
   headers: { ...cors, "Content-Type": "application/json" },
 });
 const errorText = (e: unknown) => e instanceof Error ? e.message : String(e || "Unknown context worker error");
+async function rpcNoThrow(db: any, name: string, args: Record<string, unknown>) {
+  try {
+    await db.rpc(name, args);
+  } catch {
+    // Best-effort failure/telemetry writes must never turn completed worker work into HTTP 500.
+  }
+}
 function responseText(payload: any) {
   if (typeof payload?.output_text === "string") return payload.output_text;
   for (const item of payload?.output || []) for (const content of item?.content || []) {
@@ -231,7 +238,7 @@ Deno.serve(async (req) => {
       contextDone++;
     } catch (e) {
       contextFailed++;
-      await db.rpc("english_fail_context_ai", { p_token: token, p_note_id: item.noteId, p_error: errorText(e) }).catch(() => undefined);
+      await rpcNoThrow(db, "english_fail_context_ai", { p_token: token, p_note_id: item.noteId, p_error: errorText(e) });
     }
   }));
 
@@ -267,7 +274,7 @@ Deno.serve(async (req) => {
         transferDone++;
       } catch (e) {
         transferFailed++;
-        await db.rpc("english_fail_transfer_generation", { p_token: token, p_job_id: item.jobId, p_error: errorText(e) }).catch(() => undefined);
+        await rpcNoThrow(db, "english_fail_transfer_generation", { p_token: token, p_job_id: item.jobId, p_error: errorText(e) });
       }
     }
   };
@@ -301,7 +308,7 @@ Deno.serve(async (req) => {
         revisionDone++;
       } catch (e) {
         revisionFailed++;
-        await db.rpc("english_fail_question_revision", { p_token: token, p_proposal_id: item.proposalId, p_error: errorText(e) }).catch(() => undefined);
+        await rpcNoThrow(db, "english_fail_question_revision", { p_token: token, p_proposal_id: item.proposalId, p_error: errorText(e) });
       }
     }
   };
@@ -325,7 +332,7 @@ Deno.serve(async (req) => {
         reviewDone++;
       } catch (e) {
         reviewFailed++;
-        await db.rpc("english_fail_question_quality_review", { p_token: token, p_review_id: item.reviewId, p_error: errorText(e) }).catch(() => undefined);
+        await rpcNoThrow(db, "english_fail_question_quality_review", { p_token: token, p_review_id: item.reviewId, p_error: errorText(e) });
       }
     }
   };
@@ -355,7 +362,7 @@ Deno.serve(async (req) => {
     revisions: { claimed: revisionClaimed, processed: revisionDone, failed: revisionFailed },
     qualityReviews: { claimed: reviewClaimed, processed: reviewDone, failed: reviewFailed },
   };
-  await db.rpc("english_log_worker_metrics", { p_token: token, p_metrics: metrics, p_elapsed_ms: elapsedMs }).catch(() => undefined);
+  await rpcNoThrow(db, "english_log_worker_metrics", { p_token: token, p_metrics: metrics, p_elapsed_ms: elapsedMs });
 
   return reply({ ok: true, model: MODEL, ...metrics, elapsedMs });
 });
