@@ -12,6 +12,8 @@ const migration=read('supabase/managed-migrations/20260830210000_english_interac
 const p1=read('supabase/managed-migrations/20260904090000_english_p1_reliability_targeted_hindu_worker.sql');
 const p2=read('supabase/managed-migrations/20260904093000_english_p2_content_lifecycle_security.sql');
 const workerHotfix=read('supabase/managed-migrations/20260904172000_english_worker_runtime_guard_hotfix.sql');
+const rpcHardening=read('supabase/managed-migrations/20260904173000_english_public_rpc_invoker_hardening.sql');
+const transferLease=read('supabase/managed-migrations/20260904174000_english_transfer_lease_recovery.sql');
 const supabase=read('web-v2/lib/supabase.ts');
 const targetedReliability=read('web-v2/lib/targeted-reliability.ts');
 const targetedPage=read('web-v2/app/english/targeted/page.tsx');
@@ -99,8 +101,18 @@ need(workerHotfix,'english.context_ai_runtime_guard','worker hotfix restores the
 need(workerHotfix,'perform english.enqueue_missing_targeted_transfers(6)','worker hotfix preserves automatic bank-first transfer discovery');
 need(workerHotfix,'https://hytehindbmjdwcfptsic.supabase.co/functions/v1/english-context-worker','worker hotfix preserves the proven production Edge endpoint');
 reject(workerHotfix,'vault.decrypted_secrets','worker scheduler no longer depends on unconfigured Vault secrets');
-need(workerHotfix,"worker_scheduler_state",'worker hotfix preserves fair lane scheduling');
-need(workerHotfix,"reconcile_context_worker_http",'worker hotfix preserves HTTP failure telemetry');
+need(workerHotfix,'worker_scheduler_state','worker hotfix preserves fair lane scheduling');
+need(workerHotfix,'reconcile_context_worker_http','worker hotfix preserves HTTP failure telemetry');
+
+need(transferLease,"status='processing'\n        then english.targeted_transfer_jobs.updated_at",'transfer discovery cannot renew an active processing lease');
+need(transferLease,"updated_at<now()-interval '5 minutes'",'transfer stale recovery uses a bounded lease');
+need(transferLease,"last_error='stale generation recovered'",'stale transfer work is explicitly recovered before discovery');
+need(transferLease,'Recover/terminate expired leases before discovery','transfer recovery occurs before bank-first re-enqueue');
+
+need(rpcHardening,'security invoker','audited public RPC wrappers are SECURITY INVOKER');
+need(rpcHardening,'uid is distinct from caller','internal privileged RPCs bind user identity to auth.uid()');
+need(rpcHardening,'revoke execute on function public.english_get_today_extra_batch(integer) from public,anon','Extra RPC remains unavailable anonymously');
+need(rpcHardening,'revoke execute on function public.english_set_hindu_vocab(text,boolean) from public,anon','Hindu vocab mutation remains unavailable anonymously');
 
 need(p2,'Fixed Preposition explanation backfill','P2 contains the Fixed Preposition content backfill');
 need(p2,'“Discuss” is transitive here','no-preposition explanation is concept-specific, not filler');
