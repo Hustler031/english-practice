@@ -66,7 +66,7 @@ export default function DailyAnalysisReviewPage(){
  const backHref=category?`/english/revision/ai-intelligence/daily-analysis/questions?category=${encodeURIComponent(category)}&range=${categoryRange}`:"/english/revision/ai-intelligence/daily-analysis";
  const periodAttempts=a?.periodAttempts??0,periodWrong=a?.periodWrong??0;
  return <main className="top-level-parity learner-rebuild-page learner-insights-page daily-analysis-page daily-analysis-detail-page">
-  <PageHeader back={<Link href={backHref} className="back-link">← {meta?.title||"Daily Analysis"}</Link>} eyebrow="Read-only review" title={a?.displayName||"Question review"} subtitle="Correct answer is visible for manual weakness review."/>
+  <PageHeader back={<Link href={backHref} className="back-link">← {meta?.title||"Daily Analysis"}</Link>} eyebrow="Read-only review" title={a?.displayName||"Question review"} subtitle="Correct answer is shown for manual weakness review."/>
   {error&&<div className="error-box">{error}</div>}
   {loading?<div className="loading-copy">Opening review…</div>:q&&a?<>
    <section className="daily-analysis-evidence-strip">
@@ -89,7 +89,7 @@ export default function DailyAnalysisReviewPage(){
    {q.explanation&&<section className="daily-review-explanation"><span>Explanation</span><p>{q.explanation}</p>{q.example&&<p><b>Example:</b> {q.example}</p>}{q.tip&&<p><b>Tip:</b> {q.tip}</p>}</section>}
    <section className="daily-review-why"><span>Why it is here</span><p>{whyHere(category,a.dailyReason,a.conceptState,periodWrong,a.totalWrong,categoryRange)}</p></section>
 
-   <section className="daily-review-attempts">
+   <section className="daily-review-attempts" aria-label="Review only · nothing is recorded here">
     <div className="daily-review-section-head">
      <span><h2>Recent attempts</h2><small>{attemptSummaryText(data)}</small></span>
      <RangeFilter value={attemptRange} onChange={changeAttemptRange}/>
