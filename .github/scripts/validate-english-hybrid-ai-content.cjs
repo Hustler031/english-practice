@@ -71,6 +71,16 @@ need(generation,'A="I knew this", B="Unsure", C="Forgot", D=""','Generated recal
 need(generation,'googleSearch:true','Hindu current-news research uses Search grounding');
 need(generation,'Never label a source The Hindu unless','Truthful The Hindu provenance prompt');
 need(generation,'candidateType:{type:"string",enum:["vocabulary","discourse_marker"]}','Discourse-marker candidate lane');
+need(generation,'discourseOnly=false','General/focused Hindu research mode split');
+need(generation,'initialDiscourse.length<2','Focused discourse backfill begins below two useful markers');
+need(generation,'focusedDiscourseSchema','Focused connector search has its own bounded schema');
+need(generation,'Return ONLY genuinely useful discourse/transition/connective expressions','Focused connector research is explicit and quality-first');
+need(generation,'if(initialDiscourse.length+focusedDiscourse.length>=3)break','Daily connector enrichment caps at three');
+need(generation,'weeklyToneSlot','Tone uses weekly cadence rather than daily generation');
+need(generation,'![2,4,6].includes(d.getUTCDay())','Tone cadence is three fixed days per week');
+need(generation,'const toneItem=await buildToneItem(ordered[0],toneKind)','At most one tone item is generated on a cadence day');
+need(generation,'optional_tone_failed','Optional tone failure cannot invalidate Hindu vocabulary publication');
+forbid(generation,'ordered.slice(0,2)','No daily two-tone generation regression');
 forbid(generation,'OPENAI_API_KEY','Background content generator must not use OpenAI');
 
 need(savedWorker,'generateCriticRepair','Saved uses writer-critic-repair path');
