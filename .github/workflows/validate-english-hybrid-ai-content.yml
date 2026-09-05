@@ -5,10 +5,12 @@ on:
     branches: [main]
     paths:
       - 'supabase/functions/_shared/english-hybrid-ai.ts'
+      - 'supabase/functions/_shared/english-antigravity-luna.ts'
       - 'supabase/functions/english-content-task-bridge/**'
       - 'supabase/functions/english-saved-enrichment-worker/**'
       - 'supabase/managed-migrations/2026090523*.sql'
       - 'supabase/managed-migrations/20260906025000_english_content_task_failure_release.sql'
+      - 'supabase/managed-migrations/20260906031000_english_antigravity_luna_stage1_flags.sql'
       - 'web-v2/app/english/saved/page.tsx'
       - '.github/scripts/validate-english-hybrid-ai-content.cjs'
       - '.github/scripts/validate-english-content-task-recovery.cjs'
@@ -28,7 +30,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Validate hybrid AI source contracts
+      - name: Validate Antigravity/Luna Stage 1 source contracts
         run: node .github/scripts/validate-english-hybrid-ai-content.cjs
       - name: Validate content task failure recovery
         run: node .github/scripts/validate-english-content-task-recovery.cjs
@@ -41,6 +43,14 @@ jobs:
           printf '%s\n' "$CHANGED"
           if printf '%s\n' "$CHANGED" | grep -E '(^|/)(maths|gk)(/|$)|web-v2/(app|components|lib)/.*(maths|gk)' ; then
             echo 'Maths/GK boundary violation' >&2
+            exit 1
+          fi
+          if git diff --name-only origin/main...HEAD | grep -Fx 'supabase/functions/english-content-task-bridge/generation.ts'; then
+            echo 'Hindu generation must remain untouched in Stage 1' >&2
+            exit 1
+          fi
+          if git diff --name-only origin/main...HEAD | grep -Fx 'supabase/functions/_shared/english-hybrid-ai.ts'; then
+            echo 'Legacy Hindu hybrid helper must remain untouched in Stage 1' >&2
             exit 1
           fi
 
