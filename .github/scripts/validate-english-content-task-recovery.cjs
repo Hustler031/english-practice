@@ -12,6 +12,8 @@ need(migration,'english_release_content_task_claim','Service-only content task r
 need(migration,"auth.role() <> 'service_role'",'Release RPC rejects non-service callers');
 need(migration,"status in ('claimed','checked')",'Release only touches unfinished task claims');
 need(migration,"status='superseded'",'Failed claim becomes retryable immediately');
+need(migration,"updated_at < now()-interval '20 minutes'",'Rollout only recovers genuinely stale unfinished claims');
+need(migration,"lane in ('hindu','phrasal')",'Rollout recovery is limited to content lanes');
 need(migration,'grant execute on function public.english_release_content_task_claim(uuid,text,text) to service_role','Only service role receives execute');
 need(migration,'revoke all on function public.english_release_content_task_claim(uuid,text,text) from public,anon,authenticated','Learner roles cannot release claims');
 
