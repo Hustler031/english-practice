@@ -61,7 +61,7 @@ need(apply,'centralMapped','Central mapping verification retained');
 
 need(ai,'gemini-3.8-flash','Current grounded structured Gemini stable default');
 need(ai,'tools:[{googleSearch:{}}]','Gemini Google Search wire field');
-need(ai,'responseFormat:{text:{mimeType:"application/json",schema}}','Gemini structured-output wire field');
+need(ai,'responseMimeType:"application/json",responseJsonSchema:schema','Gemini generateContent structured-output wire field');
 forbid(ai,'temperature:0.35','Deprecated Gemini temperature setting');
 forbid(ai,'top_p:','Deprecated Gemini top_p setting');
 forbid(ai,'top_k:','Deprecated Gemini top_k setting');
