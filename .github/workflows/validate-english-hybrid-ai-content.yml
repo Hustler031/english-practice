@@ -1,0 +1,78 @@
+name: Validate English Hybrid AI Content
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/functions/_shared/english-hybrid-ai.ts'
+      - 'supabase/functions/english-content-task-bridge/**'
+      - 'supabase/functions/english-saved-enrichment-worker/**'
+      - 'supabase/managed-migrations/2026090523*.sql'
+      - 'web-v2/app/english/saved/page.tsx'
+      - '.github/scripts/validate-english-hybrid-ai-content.cjs'
+      - '.github/workflows/validate-english-hybrid-ai-content.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hybrid-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate hybrid AI source contracts
+        run: node .github/scripts/validate-english-hybrid-ai-content.cjs
+      - name: Enforce English-only diff boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          CHANGED="$(git diff --name-only origin/main...HEAD)"
+          printf '%s\n' "$CHANGED"
+          if printf '%s\n' "$CHANGED" | grep -E '(^|/)(maths|gk)(/|$)|web-v2/(app|components|lib)/.*(maths|gk)' ; then
+            echo 'Maths/GK boundary violation' >&2
+            exit 1
+          fi
+
+  web-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web-v2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web-v2/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+
+  english-regressions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run established English contracts
+        run: |
+          node .github/scripts/validate-english.cjs
+          node .github/scripts/validate-learning.cjs
+          node .github/scripts/validate-reliability.cjs
+          node .github/scripts/validate-daily-selection.cjs
+          node .github/scripts/validate-daily-finish.cjs
+          node .github/scripts/validate-module-sync.cjs
+          node .github/scripts/validate-smart-saved-phrasal.cjs
+          node .github/scripts/validate-saved-owner-cache.cjs
+          node .github/scripts/validate-phrasal-recall.cjs
+          node .github/scripts/validate-final-hardening.cjs
+          node .github/scripts/validate-boot-cleanup.cjs
