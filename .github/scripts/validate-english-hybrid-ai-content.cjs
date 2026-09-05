@@ -59,9 +59,10 @@ need(materializer,'Generated Phrasal variant duplicates an existing concept fing
 need(materializer,"alreadyComplete",'Retry-safe already-complete branch');
 need(apply,'centralMapped','Central mapping verification retained');
 
-need(ai,'gemini-3.8-flash','Current grounded structured Gemini stable default');
-need(ai,'tools:[{googleSearch:{}}]','Gemini Google Search wire field');
+need(ai,'gemini-3.6-flash','Current structured Gemini stable default');
+need(ai,'RETRYABLE_PROVIDER_STATUS','Transient provider retry policy');
 need(ai,'responseMimeType:"application/json",responseJsonSchema:schema','Gemini generateContent structured-output wire field');
+forbid(ai,'googleSearch','Shared background helper does not invoke Search grounding');
 forbid(ai,'temperature:0.35','Deprecated Gemini temperature setting');
 forbid(ai,'top_p:','Deprecated Gemini top_p setting');
 forbid(ai,'top_k:','Deprecated Gemini top_k setting');
@@ -97,13 +98,20 @@ forbid(phrasalGeneration,'Unsure','Old English recall-label regression removed f
 forbid(phrasalGeneration,'Forgot','Old English recall-label regression removed from active generator');
 forbid(phrasalGeneration,'OPENAI_API_KEY','Phrasal background generator must not use OpenAI');
 
-need(generation,'googleSearch:true','Hindu current-news research uses Search grounding');
-need(generation,'Never label a source The Hindu unless','Truthful The Hindu provenance prompt');
+need(generation,'TRUSTED_FEEDS','Hindu current-news research uses trusted feed evidence');
+need(generation,'https://www.thehindu.com/feeder/default.rss','The Hindu is attempted first when its feed is reachable');
+need(generation,'https://indianexpress.com/section/opinion/editorials/feed/','Official Indian Express editorial feed fallback');
+need(generation,'https://indianexpress.com/section/opinion/columns/feed/','Official Indian Express columns feed fallback');
+need(generation,'fetchTrustedEvidence','Trusted current-news evidence fetcher');
+need(generation,'candidateBackedByEvidence','Deterministic candidate/source evidence gate');
+need(generation,'Every target word/expression must literally occur in evidenceText','Gemini cannot invent target words outside supplied evidence');
+need(generation,'sourceName:evidence.sourceName','Stored publisher is canonicalized from trusted evidence');
+need(generation,'groundingKind:"trusted_rss_article"','Audits record feed/article grounding');
+forbid(generation,'googleSearch:true','Hindu no longer depends on Gemini Search quota');
 need(generation,'candidateType:{type:"string",enum:["vocabulary","discourse_marker"]}','Discourse-marker candidate lane');
 need(generation,'discourseOnly=false','General/focused Hindu research mode split');
 need(generation,'initialDiscourse.length<2','Focused discourse backfill begins below two useful markers');
 need(generation,'focusedDiscourseSchema','Focused connector search has its own bounded schema');
-need(generation,'Return ONLY genuinely useful discourse/transition/connective expressions','Focused connector research is explicit and quality-first');
 need(generation,'if(initialDiscourse.length+focusedDiscourse.length>=3)break','Daily connector enrichment caps at three');
 need(generation,'weeklyToneSlot','Tone uses weekly cadence rather than daily generation');
 need(generation,'![2,4,6].includes(d.getUTCDay())','Tone cadence is three fixed days per week');
