@@ -233,7 +233,7 @@ export async function runHinduGeneration(db:Db){
         if(accepted.length>=need)break;
       }
     }
-    if(accepted.length<need)throw new Error(`HINDU_RESEARCH_INSUFFICIENT: need ${need}, accepted ${accepted.length}`);
+    if(!accepted.length)throw new Error("HINDU_RESEARCH_EMPTY: no new history-safe current-news candidates were found");
 
     const initialDiscourse=accepted.filter(x=>x.candidateType==="discourse_marker");
     const focusedDiscourse:Json[]=[];
@@ -249,10 +249,20 @@ export async function runHinduGeneration(db:Db){
     for(const c of discoursePool){const n=normWord(String(c.word));if(!n||discourseSeen.has(n))continue;discourseSeen.add(n);discourse.push(c);if(discourse.length>=3)break}
     const discourseSet=new Set(discourse.map(x=>normWord(String(x.word))));
     const ordered=[...discourse,...accepted.filter(x=>!discourseSet.has(normWord(String(x.word))))].slice(0,need);
-    if(ordered.length!==need)throw new Error(`HINDU_FINAL_MIX_INVALID: expected ${need}, got ${ordered.length}`);
+    if(!ordered.length)throw new Error("HINDU_FINAL_MIX_EMPTY: no publishable current-news candidates remained");
 
-    // Bounded concurrency only; every final word/MCQ is a separate Gemini request and separate Groq review.
-    const items=await mapLimit(ordered,3,fullHinduItem);
+    // Each candidate is still one Gemini request + one independent Groq review. A rejected item fails closed individually rather than discarding approved peers.
+    const items:Json[]=[];const qualityFailures:string[]=[];
+    for(let offset=0;offset<ordered.length;offset+=3){
+      const group=ordered.slice(offset,offset+3);
+      const settled=await Promise.allSettled(group.map(fullHinduItem));
+      settled.forEach((result,index)=>{
+        if(result.status==="fulfilled")items.push(result.value);
+        else qualityFailures.push(`${String(group[index]?.word||"unknown")}: ${errorText(result.reason)}`);
+      });
+    }
+    if(!items.length)throw new Error(`HINDU_QUALITY_EMPTY: all ${ordered.length} researched candidates failed independent quality gates`);
+
     const {data:applied,error:applyError}=await db.rpc("english_hindu_task_apply",{p_run_id:runId,p_items:items});
     if(applyError)throw new Error(`HINDU_APPLY_FAILED: ${applyError.message}`);
     await audit(db,items.map(x=>({lane:"hindu",entityKey:x.word,generatorProvider:"gemini",generatorModel:String(x.generatorModel||GEMINI_BULK_MODEL),criticProvider:"groq",criticModel:String(x.criticModel||GROQ_MODEL),qualityScore:x.quality?.score,criticDecision:x.quality?.decision,repairCount:x.repairCount,publicationResult:"applied",metadata:{sourceName:x.sourceName,sourceUrl:x.sourceUrl,candidateType:x.candidateType,groundingKind:"trusted_rss_article",requestMode:"one_item_per_generation_request",bulkModel:GEMINI_BULK_MODEL,escalationModel:GEMINI_ESCALATION_MODEL,escalated:x.escalated===true}})));
@@ -270,7 +280,7 @@ export async function runHinduGeneration(db:Db){
         }
       }catch(e){toneResult={ok:false,skipped:true,reason:"optional_tone_failed",error:errorText(e)}}
     }
-    return {ok:true,lane:"hindu",runId,generated:items.length,discourseMarkers:ordered.filter(x=>x.candidateType==="discourse_marker").length,evidenceArticles:evidence.length,applied,tone:toneResult};
+    return {ok:true,lane:"hindu",runId,requested:need,researchAccepted:ordered.length,generated:items.length,qualityRejected:qualityFailures.length,completeTarget:items.length===need,discourseMarkers:ordered.filter(x=>x.candidateType==="discourse_marker").length,evidenceArticles:evidence.length,applied,tone:toneResult};
   }catch(e){
     await releaseClaim(db,runId,e);
     throw e;
