@@ -11,7 +11,8 @@ const hardening=read('supabase/managed-migrations/20260902154000_english_revisio
 const uiSupport=read('supabase/managed-migrations/20260902161000_english_learning_insights_ui_support.sql');
 const auditFix=read('supabase/managed-migrations/20260902162000_english_predeploy_question_ui_audit_fixes.sql');
 const migration=[base,integrity,quality,hardening,uiSupport,auditFix].join('\n');
-const worker=read('supabase/functions/english-context-worker/index.ts');
+const contextWorker=read('supabase/functions/english-context-worker/index.ts');
+const revisionWorker=read('supabase/functions/english-revision-worker/index.ts');
 const ui=read('web-v2/components/question-revision-actions.tsx');
 const runner=read('web-v2/components/quiz-runner.tsx');
 const overlay=read('web-v2/lib/question-revisions.ts');
@@ -54,15 +55,20 @@ forbid(migration,/delete\s+from\s+english\.attempts\b/i,'attempt preservation');
 forbid(migration,/update\s+english\.question_state\b/i,'mastery preservation');
 [
  ['transferGeneratePrompt','strong transfer generator'],['transferCriticPrompt','independent transfer critic'],
+ ['semanticNoveltyScore','semantic novelty gate'],
+ ['realisticTrapCount','real trap gate']
+].forEach(([needle,label])=>requireText(contextWorker,needle,label));
+[
  ['revisionGeneratePrompt','intent-aware revision generator'],['revisionCriticPrompt','independent revision critic'],
  ['qualityReviewPrompt','canonical-answer review critic'],['sscDifficultyFit','SSC difficulty fit gate'],
  ['distractorCloseness','distractor closeness gate'],['obviousElimination','obvious-elimination rejection'],
- ['semanticNoveltyScore','semantic novelty gate'],['realisticTrapCount','real trap gate'],
  ['bankReferences','bank reference path'],['bank_informed_ai','bank-informed generation source'],
  ['english_apply_question_revision_result','atomic revision result RPC'],['english_apply_question_quality_review_result','review result RPC'],
- ['english_log_worker_metrics','worker observability'],['if (transferClaimed > 0)','transfer lane priority']
-].forEach(([needle,label])=>requireText(worker,needle,label));
-forbid(worker,/function\s+bankRevisionDraft/i,'bank question must not replace the current question');
+ ['english_log_worker_metrics','worker observability'],['english_question_revision_claim_dedicated','dedicated revision claim']
+].forEach(([needle,label])=>requireText(revisionWorker,needle,label));
+forbid(revisionWorker,/function\s+bankRevisionDraft/i,'bank question must not replace the current question');
+forbid(contextWorker,/english_question_revision_claim\b/,'context worker must not claim revision jobs');
+forbid(contextWorker,/english_question_quality_review_claim/,'context worker must not claim quality-review jobs');
 [
  ['Options too obvious','feedback reason'],['Distractors are unrelated','feedback reason'],['Explanation is weak','feedback reason'],
  ['Correct answer looks doubtful','canonical review wording'],['Write your own note','custom feedback'],
@@ -102,7 +108,7 @@ for(const [name,text] of [['base migration',base],['integrity migration',integri
 }
 try{
  const ts=require(path.join(root,'web-v2/node_modules/typescript'));
- for(const [name,source,jsx] of [['worker',worker,false],['revision ui',ui,true],['overlay',overlay,false],['targeted page',targeted,true],['learning insights',insights,true],['learner ui',learnerUi,true],['learner labels',learnerLabels,false],['home',home,true],['practice',practice,true],['revision',revision,true],['daily',daily,true],['hindu',hindu,true],['frame',frame,true]]){
+ for(const [name,source,jsx] of [['context worker',contextWorker,false],['revision worker',revisionWorker,false],['revision ui',ui,true],['overlay',overlay,false],['targeted page',targeted,true],['learning insights',insights,true],['learner ui',learnerUi,true],['learner labels',learnerLabels,false],['home',home,true],['practice',practice,true],['revision',revision,true],['daily',daily,true],['hindu',hindu,true],['frame',frame,true]]){
   const out=ts.transpileModule(source,{reportDiagnostics:true,compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,jsx:jsx?ts.JsxEmit.ReactJSX:ts.JsxEmit.Preserve}});
   const bad=(out.diagnostics||[]).filter(d=>d.category===ts.DiagnosticCategory.Error);
   if(bad.length)throw new Error(`${name}: TypeScript parse error ${bad.map(d=>ts.flattenDiagnosticMessageText(d.messageText,' ')).join('; ')}`);
