@@ -11,6 +11,7 @@ declare
   owner_count integer;
   base jsonb;
   recent jsonb;
+  phrasal_evidence jsonb;
 begin
   if not english.ai_feature_enabled('chatgpt_sprint_v1') then
     raise exception 'Manual ChatGPT Sprint feature is disabled';
@@ -21,6 +22,7 @@ begin
 
   perform set_config('request.jwt.claim.sub',owner_id::text,true);
   base:=public.english_get_sprint_generation_context(p_mode);
+  phrasal_evidence:=public.english_get_phrasal_sense_evidence(null);
 
   with five as (
     select session_id,completed_at,
@@ -46,6 +48,7 @@ begin
     'manualChatgpt',true,
     'qualityThreshold',85,
     'recentSprintItems',coalesce(recent,'[]'::jsonb),
+    'phrasalSenseEvidence',coalesce(phrasal_evidence,'[]'::jsonb),
     'publicationContract','Use english_publish_chatgpt_sprint; current Sprint UI/lifecycle is reused.'
   );
 end $$;
