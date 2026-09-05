@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { createRemoteJWKSet, jwtVerify } from "npm:jose@5.9.6";
-import { runHinduGeneration, runPhrasalGeneration } from "./generation.ts";
+import { runHinduGeneration } from "./generation.ts";
+import { runPhrasalGeneration } from "./phrasal-generation.ts";
 
 const ISSUER = "https://token.actions.githubusercontent.com";
 const AUDIENCE = "english-content-automation";
