@@ -85,7 +85,11 @@ need(phrasalGeneration,'knownSenses','Phrasal generation receives known sense re
 need(phrasalGeneration,'senseGloss','Generated variant carries explicit sense evidence');
 need(phrasalGeneration,'selectedVariantCooled','Rotation evidence reaches generator context');
 need(phrasalGeneration,'recentConceptStems','Semantic repeat context reaches critic');
-need(phrasalGeneration,'A="Yaad tha", B="Confused", C="Bhool gaya", D=""','Generated recall preserves production contract');
+need(phrasalGeneration,'schema.properties.optionA = { type: "string", enum: ["Yaad tha"] }','Generated recall A label is hard-locked');
+need(phrasalGeneration,'schema.properties.optionB = { type: "string", enum: ["Confused"] }','Generated recall B label is hard-locked');
+need(phrasalGeneration,'schema.properties.optionC = { type: "string", enum: ["Bhool gaya"] }','Generated recall C label is hard-locked');
+need(phrasalGeneration,'schema.properties.optionD = { type: "string", enum: [""] }','Generated recall D remains blank');
+need(phrasalGeneration,'schema.properties.correctKey = { type: "string", enum: ["A"] }','Generated recall key is hard-locked to A');
 need(phrasalGeneration,'meaning/situation cue; target hidden','Reverse Recall direction remains meaning to phrasal');
 need(phrasalGeneration,'PHRASAL_RECALL_TARGET_LEAK','Target phrasal cannot leak onto recall front');
 forbid(phrasalGeneration,'I knew this','Old English recall-label regression removed from active generator');
