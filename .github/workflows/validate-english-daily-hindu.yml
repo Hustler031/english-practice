@@ -1,0 +1,39 @@
+name: Validate English Daily Hindu Boundary
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/managed-migrations/**english**.sql'
+      - '.github/scripts/validate-english-daily-hindu.sql'
+      - '.github/workflows/validate-english-daily-hindu.yml'
+  pull_request:
+    paths:
+      - 'supabase/managed-migrations/**english**.sql'
+      - '.github/scripts/validate-english-daily-hindu.sql'
+      - '.github/workflows/validate-english-daily-hindu.yml'
+  workflow_dispatch:
+
+jobs:
+  hindu-daily-boundary:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: english_hindu_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d english_hindu_ci"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Execute Hindu exposure-only Daily contracts
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d english_hindu_ci -v ON_ERROR_STOP=1 -f .github/scripts/validate-english-daily-hindu.sql
