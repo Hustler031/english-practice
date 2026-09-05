@@ -12,6 +12,11 @@ const TRUSTED_FEEDS=[
   {name:"Indian Express",url:"https://indianexpress.com/section/opinion/editorials/feed/",priority:1},
   {name:"Indian Express",url:"https://indianexpress.com/section/opinion/columns/feed/",priority:2},
   {name:"Indian Express",url:"https://indianexpress.com/section/explained/feed/",priority:3},
+  {name:"Indian Express",url:"https://indianexpress.com/section/long-reads/feed/",priority:4},
+  {name:"Indian Express",url:"https://indianexpress.com/section/india/feed/",priority:5},
+  {name:"Indian Express",url:"https://indianexpress.com/section/world/feed/",priority:6},
+  {name:"Indian Express",url:"https://indianexpress.com/section/business/economy/feed/",priority:7},
+  {name:"Indian Express",url:"https://indianexpress.com/section/governance/feed/",priority:8},
 ] as const;
 
 const normWord=(v:string)=>v.toLowerCase().replace(/[^a-z0-9]/g,"");
@@ -104,14 +109,19 @@ async function fetchTrustedEvidence(targetDate:string){
   const feedResults=await Promise.allSettled(TRUSTED_FEEDS.map(async feed=>parseFeed(await fetchText(feed.url,7000),feed,targetDate)));
   const merged=(feedResults.flatMap(r=>r.status==="fulfilled"?r.value:[]) as (Evidence&{priority:number})[])
     .sort((a,b)=>a.priority-b.priority||b.articleDate.localeCompare(a.articleDate));
-  const unique:typeof merged=[];const seen=new Set<string>();
-  for(const e of merged){const u=normUrl(e.sourceUrl);if(!u||seen.has(u))continue;seen.add(u);unique.push(e);if(unique.length>=28)break}
+  const unique:typeof merged=[];const seen=new Set<string>();const perFeed=new Map<string,number>();
+  for(const e of merged){
+    const u=normUrl(e.sourceUrl),used=perFeed.get(e.feedName)||0;
+    if(!u||seen.has(u)||used>=8)continue;
+    seen.add(u);perFeed.set(e.feedName,used+1);unique.push(e);
+    if(unique.length>=48)break;
+  }
   if(unique.length<6)throw new Error(`HINDU_FEED_UNAVAILABLE: only ${unique.length} recent trusted articles available`);
-  const enriched=await mapLimit(unique.slice(0,20),4,async e=>{
+  const enriched=await mapLimit(unique.slice(0,24),4,async e=>{
     try{const body=articleBody(await fetchText(e.sourceUrl,6500));return {...e,evidenceText:[e.evidenceText,body].filter(Boolean).join(" ").slice(0,5200)}}
     catch{return e}
   });
-  return [...enriched,...unique.slice(20)].map(({priority,...e})=>e);
+  return [...enriched,...unique.slice(24)].map(({priority,...e})=>e);
 }
 
 // Keep discovery schema deliberately flat. The final published learning items remain
@@ -212,7 +222,7 @@ export async function runHinduGeneration(db:Db){
     const accepted:Json[]=[];const excluded:string[]=[];const seen=new Set<string>();
     for(let round=0;round<3&&accepted.length<need;round++){
       const roundExcluded=[...excluded,...accepted.map(x=>String(x.word))];
-      const research=await researchHinduCandidates(targetDate,need-accepted.length,existing,roundExcluded,evidence,false,round*8);
+      const research=await researchHinduCandidates(targetDate,need-accepted.length,existing,roundExcluded,evidence,false,round*12);
       const candidates=research.candidates.filter((c:any)=>{const n=normWord(String(c.word));if(!n||seen.has(n))return false;seen.add(n);return true});
       if(!candidates.length)continue;
       const clean=await checkHinduCandidates(db,runId,candidates);
@@ -228,7 +238,7 @@ export async function runHinduGeneration(db:Db){
     const initialDiscourse=accepted.filter(x=>x.candidateType==="discourse_marker");
     const focusedDiscourse:Json[]=[];
     if(initialDiscourse.length<2){
-      const focused=await researchHinduCandidates(targetDate,3-initialDiscourse.length,[...existing,...accepted.map(x=>String(x.word))],[...excluded,...accepted.map(x=>String(x.word))],evidence,true,16);
+      const focused=await researchHinduCandidates(targetDate,3-initialDiscourse.length,[...existing,...accepted.map(x=>String(x.word))],[...excluded,...accepted.map(x=>String(x.word))],evidence,true,24);
       const candidates=focused.candidates.filter((c:any)=>{const n=normWord(String(c.word));if(!n||seen.has(n))return false;seen.add(n);return true});
       const clean=await checkHinduCandidates(db,runId,candidates);
       for(const c of clean){focusedDiscourse.push(c);if(initialDiscourse.length+focusedDiscourse.length>=3)break}
