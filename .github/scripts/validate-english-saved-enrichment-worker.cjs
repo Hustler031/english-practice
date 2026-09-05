@@ -6,6 +6,10 @@ const worker = fs.readFileSync(
   path.join(root, 'supabase/functions/english-saved-enrichment-worker/index.ts'),
   'utf8',
 );
+const helper = fs.readFileSync(
+  path.join(root, 'supabase/functions/_shared/english-hybrid-ai.ts'),
+  'utf8',
+);
 const workerFoundation = fs.readFileSync(
   path.join(root, 'supabase/managed-migrations/20260905075121_english_saved_enrichment_background_worker.sql'),
   'utf8',
@@ -47,12 +51,30 @@ function forbid(text, needle, label) {
 need(worker, 'english_saved_enrichment_worker_claim', 'worker claim RPC');
 need(worker, 'english_saved_enrichment_worker_apply', 'worker validated apply RPC');
 need(worker, 'english_saved_enrichment_worker_finish', 'worker verify/finish RPC');
-need(worker, 'generateCriticRepair', 'Gemini writer / Groq critic repair pipeline');
+need(worker, 'criticAndEscalate', 'Groq critic with specialist escalation');
 need(worker, 'QUALITY_REJECTED', 'worker quality gate');
 need(worker, 'AI_TIMEOUT', 'worker timeout classification');
 forbid(worker, '.from("saved_items")', 'worker direct saved_items write');
 forbid(worker, ".from('saved_items')", 'worker direct saved_items write');
 forbid(worker, 'OPENAI_API_KEY', 'worker OpenAI provider regression');
+
+// Quality-first request routing: one Saved item per generation request, no batching.
+need(helper, 'gemini-3.5-flash-lite', 'Flash-Lite bulk/default model');
+need(helper, 'gemini-3.6-flash', 'Flash specialist escalation model');
+need(worker, 'const first=await geminiJson<any>(instructions,input,enrichmentSchema,{model:GEMINI_BULK_MODEL})', 'one-item initial Gemini request');
+need(worker, 'items.map((item:any)=>enrichOne(item))', 'each claimed Saved item is processed independently');
+need(worker, 'current:first.data', 'Groq reviews the original Flash-Lite draft without a duplicate bulk generation');
+need(worker, 'model:GEMINI_ESCALATION_MODEL', 'only failed/resolvable Saved item escalates to specialist model');
+need(worker, 'requestMode:"one_item_per_generation_request"', 'Saved audit records one-item request mode');
+forbid(worker, 'enrichBatch', 'Saved generation batching');
+forbid(worker, 'chunks(items', 'Saved batching helper use');
+
+// Zero pending must exit before any provider invocation.
+const zeroGuard = 'if(!items.length)return reply({ok:true,claimed:0,processed:0,failed:0,initialGeminiRequests:0';
+need(worker, zeroGuard, 'zero-pending early exit');
+const zeroPos=worker.indexOf(zeroGuard);
+const firstProviderPos=worker.indexOf('items.map((item:any)=>enrichOne(item))');
+if(zeroPos<0||firstProviderPos<0||zeroPos>firstProviderPos)throw new Error('Zero-pending guard must precede Saved provider processing');
 
 need(workerFoundation, 'english.maintenance_saved_enrichment_batch', 'maintenance batch helper');
 need(workerFoundation, 'english.maintenance_apply_saved_enrichment', 'maintenance apply helper');
@@ -116,4 +138,4 @@ need(exactApplyMigration, 'v_promoted:=public.english_promote_saved_item(v_saved
 forbid(exactApplyMigration, "coalesce((select s.practice_question_id", 'blank-link-only promotion gate');
 need(exactApplyMigration, 'grant execute on function english.maintenance_apply_saved_enrichment(jsonb) to service_role', 'maintenance apply service-role boundary');
 
-console.log('English Saved enrichment Gemini/Groq worker + dormant OIDC fallback contract: PASS');
+console.log('English Saved enrichment one-item Gemini + Groq critic + specialist escalation contract: PASS');
