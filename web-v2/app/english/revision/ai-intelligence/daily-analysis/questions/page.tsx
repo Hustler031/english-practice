@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/learner-ui";
-import { DAILY_ANALYSIS_RANGES,categoryMeta,dailyAnalysisRowNote,isDailyAnalysisCategory,isDailyAnalysisRange,rangeLabel,stateLabel,type DailyAnalysisList,type DailyAnalysisRange } from "@/lib/daily-analysis";
+import { DAILY_ANALYSIS_RANGES,categoryMeta,dailyAnalysisNavigationKey,dailyAnalysisRowNote,isDailyAnalysisCategory,isDailyAnalysisRange,rangeLabel,stateLabel,type DailyAnalysisList,type DailyAnalysisRange } from "@/lib/daily-analysis";
 import { learnerErrorMessage,rpc } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
 
@@ -29,7 +29,11 @@ export default function DailyAnalysisQuestionsPage(){
   let alive=true;
   setLoading(true);setError("");
   rpc<DailyAnalysisList>("english_get_daily_analysis_questions_filtered",{p_category:category,p_range:range,p_limit:200})
-   .then(x=>alive&&setData(x))
+   .then(x=>{
+    if(!alive)return;
+    setData(x);
+    try{window.sessionStorage.setItem(dailyAnalysisNavigationKey(category,range),JSON.stringify((x.questions||[]).map(row=>row.questionId)))}catch{}
+   })
    .catch((e:any)=>alive&&setError(learnerErrorMessage(e,"Could not load these questions.")))
    .finally(()=>alive&&setLoading(false));
   return()=>{alive=false};
@@ -53,7 +57,7 @@ export default function DailyAnalysisQuestionsPage(){
    <RangeFilter value={range} onChange={changeRange}/>
   </div>
   {error&&<div className="error-box">{error}</div>}
-  {loading?<div className="loading-copy">Loading {rangeLabel(range).toLowerCase()} questions…</div>:data?.questions?.length?<section className="daily-analysis-question-list">{data.questions.map(row=><Link key={row.questionId} className="daily-analysis-question-row" href={`/english/revision/ai-intelligence/daily-analysis/review?category=${encodeURIComponent(category)}&questionId=${encodeURIComponent(row.questionId)}&range=${range}`}>
+  {loading?<div className="loading-copy">Loading {rangeLabel(range).toLowerCase()} questions…</div>:data?.questions?.length?<section className="daily-analysis-question-list">{data.questions.map(row=><Link key={row.questionId} className="daily-analysis-question-row" href={`/english/revision/ai-intelligence/daily-analysis/review?category=${encodeURIComponent(category)}&questionId=${encodeURIComponent(row.questionId)}&range=${range}&attemptRange=${range}`}>
     <span className="daily-analysis-question-main"><b>{row.displayName}</b><small>{row.topic} · {dailyAnalysisRowNote(row,range)}</small></span>
     <span className={`daily-analysis-state ${(row.periodWrong??row.wrongToday??0)>0?"has-wrong":""}`}>{(row.periodWrong??row.wrongToday??0)>0?`${row.periodWrong??row.wrongToday} wrong`:stateLabel(row.currentState)}</span><i>›</i>
    </Link>)}</section>:<div className="learner-empty">No {meta?.title?.toLowerCase()||"review"} questions in {rangeLabel(range).toLowerCase()}.</div>}
