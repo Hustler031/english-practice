@@ -226,12 +226,16 @@ Deno.serve(async (req) => {
       elapsedMs: Date.now() - started,
     });
   } catch (e) {
-    await db.rpc("english_saved_enrichment_worker_finish", {
-      p_token: token,
-      p_lease_id: leaseId,
-      p_saved_ids: [],
-      p_error: errorText(e).slice(0, 1200),
-    }).catch(() => undefined);
+    try {
+      await db.rpc("english_saved_enrichment_worker_finish", {
+        p_token: token,
+        p_lease_id: leaseId,
+        p_saved_ids: [],
+        p_error: errorText(e).slice(0, 1200),
+      });
+    } catch {
+      // The lease expires automatically; cleanup failure must not mask the primary error.
+    }
     return reply({ error: errorText(e), claimed: items.length, processed: 0, failed: items.length }, 500);
   }
 });
