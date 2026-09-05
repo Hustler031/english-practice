@@ -28,6 +28,7 @@ import "./english-intelligence-reliability.css";
 import "./targeted-intelligence-ui.css";
 import "./learning-insights-final-ui.css";
 import "./learning-insights-ai-only.css";
+import "./daily-analysis.css";
 import "./english-visual-harmony.css";
 import "./english-visual-harmony-inner.css";
 import "./english-learner-rebuild.css";
