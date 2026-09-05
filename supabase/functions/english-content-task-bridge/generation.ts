@@ -17,6 +17,7 @@ const TRUSTED_FEEDS=[
 const normWord=(v:string)=>v.toLowerCase().replace(/[^a-z0-9]/g,"");
 const normText=(v:string)=>v.toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
 const normUrl=(v:string)=>{try{const u=new URL(v);u.hash="";["utm_source","utm_medium","utm_campaign","utm_term","utm_content"].forEach(k=>u.searchParams.delete(k));return `${u.protocol}//${u.host}${u.pathname.replace(/\/$/,"")}${u.search}`}catch{return ""}};
+const errorText=(e:unknown)=>e instanceof Error?e.message:String(e||"Unknown Hindu generation error");
 const sha256=async(text:string)=>{
   const bytes=new TextEncoder().encode(text.trim().toLowerCase().replace(/\s+/g," "));
   const digest=await crypto.subtle.digest("SHA-256",bytes);
@@ -36,6 +37,14 @@ async function audit(db:Db,items:Json[]){
   if(!items.length)return;
   const {error}=await db.rpc("english_record_content_generation_audits",{p_items:items});
   if(error)throw new Error(`AUDIT_FAILED: ${error.message}`);
+}
+async function releaseClaim(db:Db,runId:string,reason:unknown){
+  if(!runId)return;
+  try{
+    await db.rpc("english_release_content_task_claim",{
+      p_run_id:runId,p_lane:"hindu",p_reason:errorText(reason).slice(0,800),
+    });
+  }catch{/* best-effort lease recovery; original error remains authoritative */}
 }
 
 function decodeEntities(v:string){
@@ -134,7 +143,6 @@ async function researchHinduCandidates(targetDate:string,need:number,existing:st
     ?`Choose SSC-useful discourse, transition or connective expressions ONLY from the supplied trusted current-news article evidence. The expression must literally occur in evidenceText for the exact sourceUrl you return. Do not browse, invent a source, or quote article prose. Return only meaningful contrast, concession, consequence, comparison, continuation, qualification, cause-effect, transition or authorial-relation markers; avoid routine filler. candidateType must be discourse_marker. Preserve the supplied source URL exactly and paraphrase the local context.`
     :`Choose moderate-to-hard SSC CGL vocabulary ONLY from the supplied trusted current-news article evidence. Every target word/expression must literally occur in evidenceText for the exact sourceUrl you return. Do not browse, invent a source, or quote article prose. Prefer high-yield editorial/explainer vocabulary over proper nouns, easy words and topic-specific jargon. Include 2-3 useful discourse/transition markers only when genuinely evidenced. Preserve the supplied source URL exactly and paraphrase the local context. Return more candidates than needed because deterministic history filtering happens after generation.`;
   const compactEvidence=evidence.map(({articleTitle,sourceName,sourceUrl,articleDate,evidenceText})=>({articleTitle,sourceName,sourceUrl,articleDate,evidenceText:evidenceText.slice(0,3600)}));
-  // Candidate discovery is one evidence-selection pass; final learning items below are generated one item per request.
   const out=await geminiJson<any>(instructions,{targetDate,requested,existingWords:existing,excludeWords:excluded,discourseOnly,evidence:compactEvidence},discourseOnly?focusedDiscourseSchema:candidateBatchSchema,{model:GEMINI_BULK_MODEL});
   const evidenceMap=new Map(evidence.map(e=>[normUrl(e.sourceUrl),e]));
   const candidates=(Array.isArray(out.data?.candidates)?out.data.candidates:[]).map((c:any)=>candidateBackedByEvidence(c,evidenceMap)).filter(Boolean) as Json[];
@@ -171,7 +179,6 @@ function weeklyToneSlot(targetDate:string):ToneKind|null{
 }
 async function buildToneItem(candidate:Json,toneKind:ToneKind){
   const instructions=`Create ONE SSC CGL reading-tone question using only a paraphrase of the supplied current-news context. Never quote the article. Use four plausible tone labels and exactly one correct answer. For counterfactual, ask how the tone would change if the same point were rewritten in an explicit style such as sarcastic, skeptical, cautionary or optimistic. Keep contextParaphrase under 700 characters.`;
-  // Tone is interpretive and rare, so it may start directly on the specialist model.
   const out=await generateCriticRepair<any>({instructions,input:{candidate,toneKind},schema:toneSchema,initialModel:GEMINI_ESCALATION_MODEL,criticContext:{lane:"tone",candidate,toneKind}});
   const fp=await sha256(`${candidate.sourceUrl}|${out.item.toneKind}|${out.item.question}|${out.item.contextParaphrase}`);
   return {...out.item,sourceDate:String(candidate.articleDate),sourceName:String(candidate.sourceName),sourceUrl:String(candidate.sourceUrl),fingerprint:fp,generatorProvider:"gemini",generatorModel:out.generatorModel,criticProvider:"groq",criticModel:out.criticModel,quality:out.quality,repairCount:out.repairCount,escalated:out.escalated};
@@ -182,61 +189,67 @@ export async function runHinduGeneration(db:Db){
     throw new Error("HYBRID_AI_DISABLED: Hindu Gemini/Groq flags are not enabled");
   const {data:claim,error:claimError}=await db.rpc("english_hindu_task_claim");
   if(claimError)throw new Error(`HINDU_CLAIM_FAILED: ${claimError.message}`);
-  if(claim?.busy||Number(claim?.count||0)===0)return claim||{ok:true,count:0};
+  if(claim?.busy)throw new Error(`HINDU_BUSY: ${String(claim?.runId||"active run")}`);
+  if(Number(claim?.count||0)===0)return claim||{ok:true,count:0};
   const targetDate=String(claim.date);
-  const runId=String(claim.runId);
-  const need=Math.min(20,Number(claim?.count||0));
-  const existing=(Array.isArray(claim?.existingWords)?claim.existingWords:[]).map((x:any)=>String(x?.word||x)).filter(Boolean);
-  const evidence=await fetchTrustedEvidence(targetDate);
-  const accepted:Json[]=[];const excluded:string[]=[];const seen=new Set<string>();
-  for(let round=0;round<2&&accepted.length<need;round++){
-    const research=await researchHinduCandidates(targetDate,need-accepted.length,existing,excluded,evidence,false);
-    const candidates=research.candidates.filter((c:any)=>{const n=normWord(String(c.word));if(!n||seen.has(n))return false;seen.add(n);return true});
-    if(!candidates.length)continue;
-    const clean=await checkHinduCandidates(db,runId,candidates);
-    const cleanSet=new Set(clean.map(c=>normWord(String(c.word))));
-    for(const c of candidates){
-      if(!cleanSet.has(normWord(String(c.word)))){excluded.push(String(c.word));continue}
-      accepted.push(c);
-      if(accepted.length>=need)break;
-    }
-  }
-  if(accepted.length<need)throw new Error(`HINDU_RESEARCH_INSUFFICIENT: need ${need}, accepted ${accepted.length}`);
+  const runId=String(claim.runId||"");
 
-  const initialDiscourse=accepted.filter(x=>x.candidateType==="discourse_marker");
-  const focusedDiscourse:Json[]=[];
-  if(initialDiscourse.length<2){
-    const focused=await researchHinduCandidates(targetDate,3-initialDiscourse.length,[...existing,...accepted.map(x=>String(x.word))],excluded,evidence,true);
-    const candidates=focused.candidates.filter((c:any)=>{const n=normWord(String(c.word));if(!n||seen.has(n))return false;seen.add(n);return true});
-    const clean=await checkHinduCandidates(db,runId,candidates);
-    for(const c of clean){focusedDiscourse.push(c);if(initialDiscourse.length+focusedDiscourse.length>=3)break}
-  }
-
-  const discoursePool=[...initialDiscourse,...focusedDiscourse];
-  const discourse:Json[]=[];const discourseSeen=new Set<string>();
-  for(const c of discoursePool){const n=normWord(String(c.word));if(!n||discourseSeen.has(n))continue;discourseSeen.add(n);discourse.push(c);if(discourse.length>=3)break}
-  const discourseSet=new Set(discourse.map(x=>normWord(String(x.word))));
-  const ordered=[...discourse,...accepted.filter(x=>!discourseSet.has(normWord(String(x.word))))].slice(0,need);
-  if(ordered.length!==need)throw new Error(`HINDU_FINAL_MIX_INVALID: expected ${need}, got ${ordered.length}`);
-
-  // Bounded concurrency only; every final word/MCQ is a separate Gemini request and separate Groq review.
-  const items=await mapLimit(ordered,3,fullHinduItem);
-  const {data:applied,error:applyError}=await db.rpc("english_hindu_task_apply",{p_run_id:runId,p_items:items});
-  if(applyError)throw new Error(`HINDU_APPLY_FAILED: ${applyError.message}`);
-  await audit(db,items.map(x=>({lane:"hindu",entityKey:x.word,generatorProvider:"gemini",generatorModel:String(x.generatorModel||GEMINI_BULK_MODEL),criticProvider:"groq",criticModel:String(x.criticModel||GROQ_MODEL),qualityScore:x.quality?.score,criticDecision:x.quality?.decision,repairCount:x.repairCount,publicationResult:"applied",metadata:{sourceName:x.sourceName,sourceUrl:x.sourceUrl,candidateType:x.candidateType,groundingKind:"trusted_rss_article",requestMode:"one_item_per_generation_request",bulkModel:GEMINI_BULK_MODEL,escalationModel:GEMINI_ESCALATION_MODEL,escalated:x.escalated===true}})));
-
-  let toneResult:any={ok:true,skipped:true,reason:"weekly_cadence"};
-  const toneKind=weeklyToneSlot(targetDate);
-  if(toneKind&&ordered.length>=1){
-    try{
-      if(await featureEnabled(db,"hindu_tone_v1")){
-        const toneItem=await buildToneItem(ordered[0],toneKind);
-        const {data,error}=await db.rpc("english_apply_editorial_tone_items",{p_items:[toneItem]});
-        if(error)throw new Error(`HINDU_TONE_APPLY_FAILED: ${error.message}`);
-        toneResult={ok:true,skipped:false,toneKind,result:data};
-        await audit(db,[{lane:"tone",entityKey:toneItem.fingerprint,generatorProvider:"gemini",generatorModel:String(toneItem.generatorModel||GEMINI_ESCALATION_MODEL),criticProvider:"groq",criticModel:String(toneItem.criticModel||GROQ_MODEL),qualityScore:toneItem.quality?.score,criticDecision:toneItem.quality?.decision,repairCount:toneItem.repairCount,publicationResult:"applied",metadata:{sourceName:toneItem.sourceName,sourceUrl:toneItem.sourceUrl,toneKind:toneItem.toneKind,cadence:"Tue-Thu-Sat",groundingKind:"trusted_rss_article",requestMode:"one_item_per_generation_request",specialistDirect:true}}]);
+  try{
+    const need=Math.min(20,Number(claim?.count||0));
+    const existing=(Array.isArray(claim?.existingWords)?claim.existingWords:[]).map((x:any)=>String(x?.word||x)).filter(Boolean);
+    const evidence=await fetchTrustedEvidence(targetDate);
+    const accepted:Json[]=[];const excluded:string[]=[];const seen=new Set<string>();
+    for(let round=0;round<2&&accepted.length<need;round++){
+      const research=await researchHinduCandidates(targetDate,need-accepted.length,existing,excluded,evidence,false);
+      const candidates=research.candidates.filter((c:any)=>{const n=normWord(String(c.word));if(!n||seen.has(n))return false;seen.add(n);return true});
+      if(!candidates.length)continue;
+      const clean=await checkHinduCandidates(db,runId,candidates);
+      const cleanSet=new Set(clean.map(c=>normWord(String(c.word))));
+      for(const c of candidates){
+        if(!cleanSet.has(normWord(String(c.word)))){excluded.push(String(c.word));continue}
+        accepted.push(c);
+        if(accepted.length>=need)break;
       }
-    }catch(e){toneResult={ok:false,skipped:true,reason:"optional_tone_failed",error:e instanceof Error?e.message:String(e)}}
+    }
+    if(accepted.length<need)throw new Error(`HINDU_RESEARCH_INSUFFICIENT: need ${need}, accepted ${accepted.length}`);
+
+    const initialDiscourse=accepted.filter(x=>x.candidateType==="discourse_marker");
+    const focusedDiscourse:Json[]=[];
+    if(initialDiscourse.length<2){
+      const focused=await researchHinduCandidates(targetDate,3-initialDiscourse.length,[...existing,...accepted.map(x=>String(x.word))],excluded,evidence,true);
+      const candidates=focused.candidates.filter((c:any)=>{const n=normWord(String(c.word));if(!n||seen.has(n))return false;seen.add(n);return true});
+      const clean=await checkHinduCandidates(db,runId,candidates);
+      for(const c of clean){focusedDiscourse.push(c);if(initialDiscourse.length+focusedDiscourse.length>=3)break}
+    }
+
+    const discoursePool=[...initialDiscourse,...focusedDiscourse];
+    const discourse:Json[]=[];const discourseSeen=new Set<string>();
+    for(const c of discoursePool){const n=normWord(String(c.word));if(!n||discourseSeen.has(n))continue;discourseSeen.add(n);discourse.push(c);if(discourse.length>=3)break}
+    const discourseSet=new Set(discourse.map(x=>normWord(String(x.word))));
+    const ordered=[...discourse,...accepted.filter(x=>!discourseSet.has(normWord(String(x.word))))].slice(0,need);
+    if(ordered.length!==need)throw new Error(`HINDU_FINAL_MIX_INVALID: expected ${need}, got ${ordered.length}`);
+
+    const items=await mapLimit(ordered,3,fullHinduItem);
+    const {data:applied,error:applyError}=await db.rpc("english_hindu_task_apply",{p_run_id:runId,p_items:items});
+    if(applyError)throw new Error(`HINDU_APPLY_FAILED: ${applyError.message}`);
+    await audit(db,items.map(x=>({lane:"hindu",entityKey:x.word,generatorProvider:"gemini",generatorModel:String(x.generatorModel||GEMINI_BULK_MODEL),criticProvider:"groq",criticModel:String(x.criticModel||GROQ_MODEL),qualityScore:x.quality?.score,criticDecision:x.quality?.decision,repairCount:x.repairCount,publicationResult:"applied",metadata:{sourceName:x.sourceName,sourceUrl:x.sourceUrl,candidateType:x.candidateType,groundingKind:"trusted_rss_article",requestMode:"one_item_per_generation_request",bulkModel:GEMINI_BULK_MODEL,escalationModel:GEMINI_ESCALATION_MODEL,escalated:x.escalated===true}})));
+
+    let toneResult:any={ok:true,skipped:true,reason:"weekly_cadence"};
+    const toneKind=weeklyToneSlot(targetDate);
+    if(toneKind&&ordered.length>=1){
+      try{
+        if(await featureEnabled(db,"hindu_tone_v1")){
+          const toneItem=await buildToneItem(ordered[0],toneKind);
+          const {data,error}=await db.rpc("english_apply_editorial_tone_items",{p_items:[toneItem]});
+          if(error)throw new Error(`HINDU_TONE_APPLY_FAILED: ${error.message}`);
+          toneResult={ok:true,skipped:false,toneKind,result:data};
+          await audit(db,[{lane:"tone",entityKey:toneItem.fingerprint,generatorProvider:"gemini",generatorModel:String(toneItem.generatorModel||GEMINI_ESCALATION_MODEL),criticProvider:"groq",criticModel:String(toneItem.criticModel||GROQ_MODEL),qualityScore:toneItem.quality?.score,criticDecision:toneItem.quality?.decision,repairCount:toneItem.repairCount,publicationResult:"applied",metadata:{sourceName:toneItem.sourceName,sourceUrl:toneItem.sourceUrl,toneKind:toneItem.toneKind,cadence:"Tue-Thu-Sat",groundingKind:"trusted_rss_article",requestMode:"one_item_per_generation_request",specialistDirect:true}}]);
+        }
+      }catch(e){toneResult={ok:false,skipped:true,reason:"optional_tone_failed",error:errorText(e)}}
+    }
+    return {ok:true,lane:"hindu",runId,generated:items.length,discourseMarkers:ordered.filter(x=>x.candidateType==="discourse_marker").length,evidenceArticles:evidence.length,applied,tone:toneResult};
+  }catch(e){
+    await releaseClaim(db,runId,e);
+    throw e;
   }
-  return {ok:true,lane:"hindu",runId:claim.runId,generated:items.length,discourseMarkers:ordered.filter(x=>x.candidateType==="discourse_marker").length,evidenceArticles:evidence.length,applied,tone:toneResult};
 }
