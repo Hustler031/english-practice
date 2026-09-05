@@ -1,5 +1,5 @@
 // Server-only English content generation helper. Never import from browser code.
-export const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-2.5-flash";
+export const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-3.6-flash";
 export const GROQ_MODEL = Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-120b";
 const AI_TIMEOUT_MS = 28_000;
 
@@ -49,9 +49,8 @@ export async function geminiJson<T>(instructions:string,input:unknown,schema:unk
       body:JSON.stringify({
         systemInstruction:{parts:[{text:instructions}]},
         contents:[{role:"user",parts:[{text:JSON.stringify(input)}]}],
-        ...(opts.googleSearch?{tools:[{google_search:{}}]}:{}),
+        ...(opts.googleSearch?{tools:[{googleSearch:{}}]}:{}),
         generationConfig:{
-          temperature:0.35,
           responseFormat:{text:{mimeType:"application/json",schema}},
         },
       }),
