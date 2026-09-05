@@ -3,8 +3,8 @@ import { createRemoteJWKSet, jwtVerify } from "npm:jose@5.9.6";
 
 const ISSUER = "https://token.actions.githubusercontent.com";
 const AUDIENCE = "english-saved-enrichment";
-const REPOSITORY = "Hustler031/english-practice";
-const QUEUE_REF = "refs/heads/automation/saved-enrichment";
+const REPOSITORY = "Hustler031/telegram-media-bot";
+const QUEUE_REF = "refs/heads/automation/english-saved-enrichment";
 const JWKS = createRemoteJWKSet(new URL(`${ISSUER}/.well-known/jwks`));
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
