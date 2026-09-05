@@ -19,21 +19,19 @@ type RevisableQuestion = {
   revisionVersion?: number;
 };
 
-type AppliedRevision = {
+export type AppliedRevision = {
   questionId: string;
   version: number;
   payload: RevisionPayload;
 };
 
-export async function applyActiveQuestionRevisions<T extends RevisableQuestion>(rows: T[]): Promise<T[]> {
-  if (!rows.length) return rows;
-  const ids = [...new Set(rows.map(row => String(row.id || "").trim()).filter(Boolean))].slice(0, 120);
-  if (!ids.length) return rows;
-  const result = await rpc<{ revisions?: AppliedRevision[] }>("english_get_applied_question_revisions", {
-    p_question_ids: ids,
-    p_cache_buster: Date.now(),
-  });
-  const revisions = Array.isArray(result?.revisions) ? result.revisions : [];
+export async function fetchActiveQuestionRevisions(): Promise<AppliedRevision[]> {
+  const result = await rpc<{ revisions?: AppliedRevision[] }>("english_get_active_question_revisions");
+  return Array.isArray(result?.revisions) ? result.revisions : [];
+}
+
+export function applyQuestionRevisionList<T extends RevisableQuestion>(rows: T[], revisions: AppliedRevision[]): T[] {
+  if (!rows.length || !revisions.length) return rows;
   const byQuestion = new Map(revisions.map(row => [String(row.questionId), row]));
   return rows.map(row => {
     const revision = byQuestion.get(String(row.id));
@@ -55,4 +53,16 @@ export async function applyActiveQuestionRevisions<T extends RevisableQuestion>(
       revisionVersion: Number(revision.version || 0) || undefined,
     } as T;
   });
+}
+
+export async function applyActiveQuestionRevisions<T extends RevisableQuestion>(rows: T[]): Promise<T[]> {
+  if (!rows.length) return rows;
+  const ids = [...new Set(rows.map(row => String(row.id || "").trim()).filter(Boolean))].slice(0, 120);
+  if (!ids.length) return rows;
+  const result = await rpc<{ revisions?: AppliedRevision[] }>("english_get_applied_question_revisions", {
+    p_question_ids: ids,
+    p_cache_buster: Date.now(),
+  });
+  const revisions = Array.isArray(result?.revisions) ? result.revisions : [];
+  return applyQuestionRevisionList(rows,revisions);
 }
