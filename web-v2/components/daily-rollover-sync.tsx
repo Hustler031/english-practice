@@ -6,6 +6,11 @@ import { localProductionSafetyMode, supabaseBrowser } from "@/lib/supabase";
 
 const MIN_SYNC_GAP_MS = 60_000;
 const OPEN_APP_HEARTBEAT_MS = 5 * 60_000;
+const DAILY_RESUME_CACHE_KEY = "ep:v2:rpc-cache:english_resume_daily:{}";
+
+function evictDailyResumeCache() {
+  try { window.localStorage.removeItem(DAILY_RESUME_CACHE_KEY); } catch { /* best effort */ }
+}
 
 export default function DailyRolloverSync() {
   const lastSyncAt = useRef(0);
@@ -13,6 +18,11 @@ export default function DailyRolloverSync() {
 
   useEffect(() => {
     let active = true;
+
+    // A Daily resume response is day-sensitive and also owns rollover. Keeping a
+    // previous-day response in the generic 12-hour cache can make the new day
+    // appear missing, so evict it before any child Daily route reads it.
+    evictDailyResumeCache();
 
     const sync = async () => {
       if (!active || localProductionSafetyMode()) return;
@@ -23,12 +33,12 @@ export default function DailyRolloverSync() {
         const { data: auth } = await supabaseBrowser().auth.getSession();
         if (!auth.session || !active) return;
 
-        // english_resume_daily is deliberately called live rather than through the
-        // cache-first rpc helper. It owns the idempotent previous-day-complete ->
-        // current-day rollover contract and must not be hidden by a stale cache.
+        // Call the idempotent rollover owner live rather than through the
+        // cache-first helper. Local Safe is explicitly excluded above.
         const { error: dailyError } = await supabaseBrowser().rpc("english_resume_daily");
         if (dailyError || !active) return;
         lastSyncAt.current = Date.now();
+        evictDailyResumeCache();
 
         // Refresh the Home card after a successful rollover without making the
         // read model itself mutating. This preserves Local Safe's read-only rule.
@@ -48,11 +58,17 @@ export default function DailyRolloverSync() {
 
     void sync();
     const onWake = () => {
-      if (document.visibilityState === "visible") void sync();
+      if (document.visibilityState === "visible") {
+        evictDailyResumeCache();
+        void sync();
+      }
     };
     window.addEventListener("focus", onWake);
     document.addEventListener("visibilitychange", onWake);
-    const heartbeat = window.setInterval(() => void sync(), OPEN_APP_HEARTBEAT_MS);
+    const heartbeat = window.setInterval(() => {
+      evictDailyResumeCache();
+      void sync();
+    }, OPEN_APP_HEARTBEAT_MS);
 
     return () => {
       active = false;
