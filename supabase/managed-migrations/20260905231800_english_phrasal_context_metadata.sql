@@ -96,15 +96,10 @@ begin
 
     pre_rollout:=activation is not null and first_attempt is not null and first_attempt<activation;
     mature:=first_attempt is not null and attempt_count>=3 and first_attempt<=now()-interval '7 days';
-    -- A contextual item is an ordinary four-option MCQ. Do not substitute it into a
-    -- recall self-assessment or confusion-specific legacy slot; this preserves old card semantics.
-    context_eligible:=(pre_rollout or mature) and legacy_family='recognition';
+    context_eligible:=pre_rollout or mature;
     if context_eligible then eligible_rank:=eligible_rank+1; end if;
 
-    requested:=case
-      when context_eligible and eligible_rank<=8 then 'context_fill'
-      else legacy_family
-    end;
+    requested:=case when context_eligible and eligible_rank<=8 then 'context_fill' else legacy_family end;
 
     select s.sense_key into sense
     from english.phrasal_concept_senses s
@@ -118,12 +113,8 @@ begin
     from (select * from english.phrasal_question_variants where concept_id=cid order by created_at desc limit 8) v;
 
     out:=out||jsonb_build_array(x||jsonb_build_object(
-      'senseKey',sense,
-      'requestedQuestionFamily',requested,
-      'legacyFamily',legacy_family,
-      'historicalExposureBeforeRollout',pre_rollout,
-      'contextMaturityEligible',mature,
-      'contextEligible',context_eligible,
+      'senseKey',sense,'requestedQuestionFamily',requested,'legacyFamily',legacy_family,
+      'historicalExposureBeforeRollout',pre_rollout,'contextMaturityEligible',mature,'contextEligible',context_eligible,
       'recentVariantFingerprints',coalesce(recent,'[]'::jsonb),
       'contextBootstrapRank',case when context_eligible then eligible_rank else null end
     ));
@@ -139,25 +130,17 @@ language plpgsql security definer
 set search_path='pg_catalog','public','english','auth'
 as $$
 declare
-  v_owner uuid;
-  v_owner_count integer;
+  v_owner uuid; v_owner_count integer;
   v_count integer:=greatest(1,least(20,coalesce(p_count,20)));
-  v_items jsonb;
-  v_day date:=(now() at time zone 'Asia/Kolkata')::date;
-  v_source_id text;
+  v_items jsonb; v_day date:=(now() at time zone 'Asia/Kolkata')::date; v_source_id text;
 begin
-  select count(*),max(u.id::text)::uuid into v_owner_count,v_owner
-  from auth.users u where u.deleted_at is null;
+  select count(*),max(u.id::text)::uuid into v_owner_count,v_owner from auth.users u where u.deleted_at is null;
   if v_owner_count<>1 then raise exception 'Phrasal maintenance requires exactly one active auth owner'; end if;
   perform set_config('request.jwt.claim.sub',v_owner::text,true);
   v_items:=case when english.ai_feature_enabled('phrasal_context_fill_v1')
     then public.english_get_phrasal_hybrid_maintenance_batch('smart',v_count)
     else public.english_get_phrasal_maintenance_batch('smart',v_count) end;
   v_source_id:='PHRASAL_DAILY_'||to_char(v_day,'YYYYMMDD');
-  return jsonb_build_object(
-    'ok',true,'date',v_day,'sourceId',v_source_id,'sourceFile','Phrasal Daily '||to_char(v_day,'YYYY-MM-DD'),
-    'count',jsonb_array_length(coalesce(v_items,'[]'::jsonb)),
-    'existingToday',(select count(*) from english.questions q where q.active and q.source_id=v_source_id),
-    'items',coalesce(v_items,'[]'::jsonb)
-  );
+  return jsonb_build_object('ok',true,'date',v_day,'sourceId',v_source_id,'sourceFile','Phrasal Daily '||to_char(v_day,'YYYY-MM-DD'),
+    'count',jsonb_array_length(coalesce(v_items,'[]'::jsonb)),'existingToday',(select count(*) from english.questions q where q.active and q.source_id=v_source_id),'items',coalesce(v_items,'[]'::jsonb));
 end $$;
