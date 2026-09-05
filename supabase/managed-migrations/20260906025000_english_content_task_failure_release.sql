@@ -1,5 +1,19 @@
 begin;
 
+-- One-time deployment recovery for abandoned provider-failure claims. A genuinely
+-- active content run is far shorter than this threshold; newer claims are left alone.
+update english.chatgpt_content_task_runs
+set status='superseded',
+    result=jsonb_build_object(
+      'released',true,
+      'reason','stale unfinished content task recovered during failure-release rollout',
+      'releasedAt',now()
+    ),
+    updated_at=now()
+where lane in ('hindu','phrasal')
+  and status in ('claimed','checked')
+  and updated_at < now()-interval '20 minutes';
+
 create or replace function public.english_release_content_task_claim(
   p_run_id uuid,
   p_lane text,
