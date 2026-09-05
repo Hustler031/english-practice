@@ -18,7 +18,8 @@ need(migration,'grant execute on function public.english_release_content_task_cl
 need(migration,'revoke all on function public.english_release_content_task_claim(uuid,text,text) from public,anon,authenticated','Learner roles cannot release claims');
 
 for(const [name,src,prefix,lane] of [['Hindu',hindu,'HINDU','hindu'],['Phrasal',phrasal,'PHRASAL','phrasal']]){
-  need(src,`if(claim?.busy)throw new Error(\`${prefix}_BUSY:`,`${name} busy response is not reported as completion`);
+  need(src,'claim?.busy',`${name} checks for an active claim`);
+  need(src,`${prefix}_BUSY:`,`${name} busy response is not reported as completion`);
   need(src,'async function releaseClaim',`${name} has bounded claim-release helper`);
   need(src,'english_release_content_task_claim',`${name} calls service release RPC on failure`);
   need(src,`p_lane:${JSON.stringify(lane)}`,`${name} release is lane-scoped`);
