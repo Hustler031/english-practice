@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/learner-ui";
+import type { DailyAnalysisSummary } from "@/lib/daily-analysis";
 import type { Updates } from "@/lib/learning-ai-updates";
 import { learnerErrorMessage, rpc } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
@@ -14,6 +15,7 @@ export default function LearningInsightsPage(){
  const ready=useAuthGuard();
  const [updates,setUpdates]=useState<Updates|null>(null);
  const [workerHealth,setWorkerHealth]=useState<WorkerHealth|null>(null);
+ const [dailyAnalysis,setDailyAnalysis]=useState<DailyAnalysisSummary|null>(null);
  const [error,setError]=useState("");
  const [loading,setLoading]=useState(true);
 
@@ -26,6 +28,7 @@ export default function LearningInsightsPage(){
   ]).then(([u,w])=>{if(!alive)return;setUpdates(u);setWorkerHealth(w)})
     .catch((e:any)=>alive&&setError(learnerErrorMessage(e,"Could not load Learning Insights.")))
     .finally(()=>alive&&setLoading(false));
+  rpc<DailyAnalysisSummary>("english_get_daily_analysis_summary").then(x=>alive&&setDailyAnalysis(x)).catch(()=>{});
   return()=>{alive=false};
  },[ready]);
 
@@ -51,6 +54,11 @@ export default function LearningInsightsPage(){
    </section>
 
    {workerHealth&&<details className="insights-how-details learner-section ai-health-details"><summary><span><b>Background AI health</b><small>Technical status only.</small></span></summary><div className="insights-how-copy"><p><b>Understanding:</b> {healthText(workerHealth.workers.semantic)} · <b>Learning:</b> {healthText(workerHealth.workers.learning)} · <b>Question quality:</b> {healthText(workerHealth.workers.quality)}</p><p><b>Queued:</b> {workerHealth.queued} · <b>Processing:</b> {workerHealth.processing} · <b>Retrying:</b> {workerHealth.retrying} · <b>Failed (7d):</b> {workerHealth.failed7d}</p>{workerHealth.oldestPendingAt&&<p>Oldest pending: {timeAgo(workerHealth.oldestPendingAt)}</p>}</div></details>}
+
+   <Link className="ai-daily-analysis-launch" href="/english/revision/ai-intelligence/daily-analysis">
+    <span><b>Daily Analysis</b><small>Inspect today’s weak and due questions</small></span>
+    <strong>{dailyAnalysis?.relevantCount??"…"}</strong><i>›</i>
+   </Link>
   </>}
  </main>;
 }
