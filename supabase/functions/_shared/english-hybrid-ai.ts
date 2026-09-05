@@ -1,6 +1,5 @@
 // Server-only English content generation helper. Never import from browser code.
-export const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-3.8-flash";
-export const GEMINI_GROUNDED_MODEL = Deno.env.get("GEMINI_GROUNDED_MODEL") || "gemini-2.5-flash";
+export const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-3.6-flash";
 export const GROQ_MODEL = Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-120b";
 const AI_TIMEOUT_MS = 28_000;
 
