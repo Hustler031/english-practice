@@ -10,6 +10,32 @@
 .ai-update-section .learner-row{border-radius:14px;background:color-mix(in srgb,var(--card-2) 64%,transparent)}
 .ai-health-details{margin-top:16px;opacity:.92}
 
+.ai-hub-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:11px 0 15px}
+.ai-hub-card{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;min-height:82px;padding:12px 13px;border:1px solid var(--line);border-radius:17px;background:color-mix(in srgb,var(--card-2) 65%,transparent);color:var(--text);text-decoration:none}
+.ai-hub-card.static{grid-template-columns:minmax(0,1fr) auto}
+.ai-hub-card b{display:block;font-size:11.5px;line-height:1.2}
+.ai-hub-card small{display:block;margin-top:4px;color:var(--muted);font-size:8.7px;line-height:1.25}
+.ai-hub-card strong{display:grid;min-width:31px;height:31px;padding:0 7px;place-items:center;border:1px solid color-mix(in srgb,var(--line) 76%,transparent);border-radius:11px;background:color-mix(in srgb,var(--card) 70%,transparent);font-size:11.5px}
+.ai-hub-card i{color:var(--muted);font-size:18px;font-style:normal}
+.ai-hub-card.tone-good{border-color:color-mix(in srgb,var(--ok) 32%,var(--line));background:color-mix(in srgb,var(--ok) 5%,var(--card-2))}
+.ai-hub-card.tone-soon{border-color:color-mix(in srgb,#7aa2ff 32%,var(--line));background:color-mix(in srgb,#7aa2ff 5%,var(--card-2))}
+.ai-hub-card.tone-later{border-color:color-mix(in srgb,var(--warn) 26%,var(--line));background:color-mix(in srgb,var(--warn) 4%,var(--card-2))}
+.ai-hub-card.tone-fix{border-color:color-mix(in srgb,var(--bad) 30%,var(--line));background:color-mix(in srgb,var(--bad) 5%,var(--card-2))}
+.ai-hub-card.tone-neutral{background:color-mix(in srgb,var(--card-2) 58%,transparent)}
+
+.ai-insight-list-page{padding-bottom:110px}
+.ai-focused-list{display:grid;gap:8px;margin-top:10px}
+.ai-focused-item{border:1px solid var(--line);border-radius:15px;background:color-mix(in srgb,var(--card-2) 62%,transparent);overflow:hidden}
+.ai-focused-item>summary{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:9px;align-items:center;padding:12px 13px;cursor:pointer;list-style:none}
+.ai-focused-item>summary::-webkit-details-marker{display:none}
+.ai-focused-item>summary b{display:block;font-size:10.8px}
+.ai-focused-item>summary small{display:block;margin-top:3px;color:var(--muted);font-size:8.6px;line-height:1.35}
+.ai-focused-item>summary em{color:var(--muted);font-size:7.8px;font-style:normal;font-weight:800;white-space:nowrap}
+.ai-focused-item>summary i{color:var(--muted);font-size:17px;font-style:normal;transition:transform .15s ease}
+.ai-focused-item[open]>summary{border-bottom:1px solid var(--line)}
+.ai-focused-item[open]>summary i{transform:rotate(90deg)}
+.ai-focused-body{padding:4px 10px 11px}
+
 .ai-insight-detail-page{padding-bottom:110px}
 .ai-insight-detail-page .learner-page-header{margin-bottom:8px}
 .ai-insight-detail-card{margin-top:8px;padding:13px 14px;border:1px solid var(--line);border-radius:16px;background:color-mix(in srgb,var(--card-2) 66%,transparent)}
@@ -34,8 +60,14 @@
 .ai-quality-note{margin-top:9px!important;padding-top:9px;border-top:1px solid color-mix(in srgb,var(--line) 70%,transparent);color:var(--muted)!important;font-size:9.2px!important}
 
 @media(max-width:560px){
+ .ai-hub-grid{grid-template-columns:1fr 1fr;gap:8px}
+ .ai-hub-card{grid-template-columns:minmax(0,1fr) auto;min-height:72px;padding:10px 11px}
+ .ai-hub-card i{display:none}
+ .ai-hub-card b{font-size:10.4px}.ai-hub-card small{font-size:8px}.ai-hub-card strong{min-width:29px;height:29px;font-size:10.5px}
  .ai-insight-summary-grid{grid-template-columns:1fr 1fr}
  .ai-insight-summary-grid .learner-overview-card{padding:10px;min-height:72px}
+ .ai-focused-item>summary{grid-template-columns:minmax(0,1fr) auto;padding:11px 12px}
+ .ai-focused-item>summary em{grid-column:1;font-size:7.6px}.ai-focused-item>summary i{grid-column:2;grid-row:1/3}
  .ai-option-line{grid-template-columns:23px minmax(0,1fr);gap:7px}
  .ai-option-line>em{grid-column:2;justify-self:start;margin-top:2px}
 }
