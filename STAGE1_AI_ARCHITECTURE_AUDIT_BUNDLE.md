@@ -50,7 +50,8 @@ timeout/transient failure as a quality rejection.
 - `npm ci`, TypeScript, and production build: PASS.
 - English contracts: PASS, including Daily selection, fresh-session/cooldown, Hindu boundary, My Saved, Phrasal, Targeted, revision, and worker ownership contracts.
 - GK and Maths boundary contracts: PASS.
-- PostgreSQL-dependent migration execution remains delegated to GitHub Actions (the local runtime has no `psql`).
+- PostgreSQL-dependent migration execution: PASS in GitHub Actions `Validate English V2 Web` run #411.
+- GitHub Actions `Validate GK V2` run #275: PASS.
 
 ## Deliberately untouched
 
