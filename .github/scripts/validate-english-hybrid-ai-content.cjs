@@ -59,15 +59,22 @@ need(materializer,'Generated Phrasal variant duplicates an existing concept fing
 need(materializer,"alreadyComplete",'Retry-safe already-complete branch');
 need(apply,'centralMapped','Central mapping verification retained');
 
-need(ai,'gemini-3.6-flash','Current structured Gemini stable default');
+// Tiered provider ownership.
+need(ai,'GEMINI_BULK_MODEL','Explicit bulk model constant');
+need(ai,'gemini-3.5-flash-lite','Flash-Lite is the default content model');
+need(ai,'GEMINI_ESCALATION_MODEL','Explicit escalation model constant');
+need(ai,'gemini-3.6-flash','Flash 3.6 is the specialist escalation model');
 need(ai,'RETRYABLE_PROVIDER_STATUS','Transient provider retry policy');
-need(ai,'responseMimeType:"application/json",responseJsonSchema:schema','Gemini generateContent structured-output wire field');
+need(ai,'responseMimeType:"application/json",responseJsonSchema:schema','Gemini structured-output wire field');
 forbid(ai,'googleSearch','Shared background helper does not invoke Search grounding');
 forbid(ai,'temperature:0.35','Deprecated Gemini temperature setting');
 forbid(ai,'top_p:','Deprecated Gemini top_p setting');
 forbid(ai,'top_k:','Deprecated Gemini top_k setting');
 need(ai,'openai/gpt-oss-120b','Groq independent critic model');
-need(ai,'repairs<2','Repair cap is two');
+need(ai,'criticAndEscalate','Independent critic then specialist escalation helper');
+need(ai,'model:GEMINI_ESCALATION_MODEL','Only specialist repair uses 3.6');
+need(ai,'repairs<repairCap','Repair loop remains bounded');
+need(ai,'Math.min(2','Maximum two repair cycles');
 need(ai,'q.score>=85','Runtime quality threshold');
 need(ai,'requiredOptionsValid','Runtime family-aware option gate');
 need(ai,"A='Yaad tha', B='Confused', C='Bhool gaya', D=''",'Groq uses production Reverse Recall contract');
@@ -76,6 +83,8 @@ forbid(ai,'OPENAI_API_KEY','Background shared helper must not use OpenAI');
 need(bridge,'runPhrasalGeneration','Bridge owns automated Phrasal generation action');
 need(bridge,'./phrasal-generation.ts','Bridge routes Phrasal through audited safe generator');
 need(bridge,'runHinduGeneration','Bridge owns automated Hindu generation action');
+
+// Phrasal stays one generated item per Gemini request; legacy bank cards use zero Gemini.
 need(phrasalGeneration,'english_ai_content_feature_enabled','Phrasal runtime feature read through public service RPC');
 need(phrasalGeneration,'english_record_content_generation_audits','Phrasal runtime AI audit RPC');
 need(phrasalGeneration,'expectedContextCount','Context mix follows actual Central eligibility');
@@ -86,6 +95,11 @@ need(phrasalGeneration,'knownSenses','Phrasal generation receives known sense re
 need(phrasalGeneration,'senseGloss','Generated variant carries explicit sense evidence');
 need(phrasalGeneration,'selectedVariantCooled','Rotation evidence reaches generator context');
 need(phrasalGeneration,'recentConceptStems','Semantic repeat context reaches critic');
+need(phrasalGeneration,'initialModel: GEMINI_BULK_MODEL','Each generated Phrasal slot starts on Flash-Lite');
+need(phrasalGeneration,'requestMode: "one_item_per_generation_request"','Phrasal audit locks one-item request mode');
+need(phrasalGeneration,'generatorModel: generated.generatorModel','Phrasal retains actual final generator model');
+need(phrasalGeneration,'generatorModel: String(x.generatorModel || GEMINI_BULK_MODEL)','Phrasal audit records actual generator model');
+forbid(phrasalGeneration,'batchSchema','No Phrasal generation batching schema');
 need(phrasalGeneration,'schema.properties.optionA = { type: "string", enum: ["Yaad tha"] }','Generated recall A label is hard-locked');
 need(phrasalGeneration,'schema.properties.optionB = { type: "string", enum: ["Confused"] }','Generated recall B label is hard-locked');
 need(phrasalGeneration,'schema.properties.optionC = { type: "string", enum: ["Bhool gaya"] }','Generated recall C label is hard-locked');
@@ -98,6 +112,7 @@ forbid(phrasalGeneration,'Unsure','Old English recall-label regression removed f
 forbid(phrasalGeneration,'Forgot','Old English recall-label regression removed from active generator');
 forbid(phrasalGeneration,'OPENAI_API_KEY','Phrasal background generator must not use OpenAI');
 
+// Hindu keeps deterministic trusted evidence and one final learning item per Gemini request.
 need(generation,'TRUSTED_FEEDS','Hindu current-news research uses trusted feed evidence');
 need(generation,'https://www.thehindu.com/feeder/default.rss','The Hindu is attempted first when its feed is reachable');
 need(generation,'https://indianexpress.com/section/opinion/editorials/feed/','Official Indian Express editorial feed fallback');
@@ -113,18 +128,33 @@ need(generation,'discourseOnly=false','General/focused Hindu research mode split
 need(generation,'initialDiscourse.length<2','Focused discourse backfill begins below two useful markers');
 need(generation,'focusedDiscourseSchema','Focused connector search has its own bounded schema');
 need(generation,'if(initialDiscourse.length+focusedDiscourse.length>=3)break','Daily connector enrichment caps at three');
+need(generation,'Create ONE moderate-to-hard SSC CGL vocabulary MCQ','Hindu final generation is explicitly one item');
+need(generation,'initialModel:GEMINI_BULK_MODEL','Each normal Hindu item starts on Flash-Lite');
+need(generation,'requestMode:"one_item_per_generation_request"','Hindu audit locks one-item request mode');
+need(generation,'generatorModel:out.generatorModel','Hindu retains actual final generator model');
+need(generation,'generatorModel:String(x.generatorModel||GEMINI_BULK_MODEL)','Hindu audit records actual generator model');
+forbid(generation,'hinduItemBatchSchema','No Hindu final-item batching schema');
 need(generation,'weeklyToneSlot','Tone uses weekly cadence rather than daily generation');
 need(generation,'![2,4,6].includes(d.getUTCDay())','Tone cadence is three fixed days per week');
-need(generation,'const toneItem=await buildToneItem(ordered[0],toneKind)','At most one tone item is generated on a cadence day');
+need(generation,'initialModel:GEMINI_ESCALATION_MODEL','Rare interpretive tone may start on specialist 3.6');
 need(generation,'optional_tone_failed','Optional tone failure cannot invalidate Hindu vocabulary publication');
 forbid(generation,'ordered.slice(0,2)','No daily two-tone generation regression');
 forbid(generation,'OPENAI_API_KEY','Background Hindu content generator must not use OpenAI');
 
-need(savedWorker,'generateCriticRepair','Saved uses writer-critic-repair path');
+// Saved stays one learner item per Gemini request; zero pending means zero AI requests.
+need(savedWorker,'criticAndEscalate','Saved uses item-wise Groq critic and specialist escalation');
 need(savedWorker,'genuinelyAmbiguous','Saved independent ambiguity gate');
 need(savedWorker,'english_saved_enrichment_worker_apply','Saved existing apply contract retained');
 need(savedWorker,'english_record_content_generation_audits','Saved audits through service RPC');
 need(savedWorker,'AI_TIMEOUT','Saved timeout compatibility retained');
+need(savedWorker,'const first=await geminiJson<any>(instructions,input,enrichmentSchema,{model:GEMINI_BULK_MODEL})','Saved initial generation is one item/request on Flash-Lite');
+need(savedWorker,'items.map((item:any)=>enrichOne(item))','Saved items are generated independently');
+need(savedWorker,'current:first.data','Saved Groq reviews initial draft without duplicate generation');
+need(savedWorker,'model:GEMINI_ESCALATION_MODEL','Only failed/resolvable Saved item escalates to 3.6');
+need(savedWorker,'initialGeminiRequests:0','Zero-pending response records zero Gemini requests');
+need(savedWorker,'requestMode:"one_item_per_generation_request"','Saved audit locks one-item request mode');
+forbid(savedWorker,'enrichBatch','No Saved generation batching');
+forbid(savedWorker,'chunks(items','No Saved item batching');
 forbid(savedWorker,'OPENAI_API_KEY','Saved background worker no longer uses OpenAI');
 need(savedScheduler,"jobname='english-saved-enrichment'",'Saved hybrid scheduler owns the existing hourly job name');
 need(savedScheduler,"'7 * * * *'",'Saved hybrid scheduler remains hourly');
@@ -146,4 +176,4 @@ need(sprint,'english_get_sprint_generation_context','Manual publication reuses e
 need(sprintHistory,'p_days:5','Sprint Reports preserve current 5-day completed window');
 need(migrations,'from hist_all where rn<=5','Exam readiness keeps latest five completed Sprint records');
 
-console.log('\n✅ Hybrid AI content source contracts passed.');
+console.log('\n✅ Hybrid AI tier routing + one-item quality contracts passed.');
