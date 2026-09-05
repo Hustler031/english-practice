@@ -107,11 +107,6 @@ export default function DailyAnalysisReviewPage(){
     <span><b>{periodWrong} / {periodAttempts}</b><small>wrong / attempts · {rangeLabel(categoryRange)}</small></span>
     <span><b>{a.totalWrong} / {a.totalAttempts}</b><small>wrong / attempts · lifetime</small></span>
    </section>
-   <nav className="daily-review-nav" aria-label="Daily Analysis question navigation">
-    <button type="button" disabled={!previousId} onClick={()=>goToQuestion(previousId)}>← Previous</button>
-    <span>{navIndex>=0?`${navIndex+1} / ${navIds.length}`:"Review"}</span>
-    <button type="button" disabled={!nextId} onClick={()=>goToQuestion(nextId)}>Next →</button>
-   </nav>
    <section className="daily-review-card">
     <div className="daily-review-meta"><span>{q.topic||a.topic}</span>{a.dailyReason&&<span>{a.dailyReason}</span>}{q.revisionApplied&&<span>AI revision in use</span>}</div>
     <h2>{q.question}</h2>
@@ -135,6 +130,10 @@ export default function DailyAnalysisReviewPage(){
     {attemptBusy?<div className="daily-attempt-filter-loading">Updating attempts…</div>:data.recentAttempts?.length?<div className="daily-review-attempt-list">{data.recentAttempts.map((x,i)=><div className="daily-review-attempt" key={`${x.attemptedAt}-${i}`}><span><b>{x.selected||"—"}</b><small>{formatAttemptTime(x.attemptedAt)}{x.module?` · ${moduleLabel(x.module)}`:""}</small></span><em className={x.correct?"ok":"bad"}>{x.correct?"Correct":"Wrong"}</em></div>)}</div>:<div className="daily-attempt-empty">No attempts in {rangeLabel(attemptRange).toLowerCase()}.</div>}
    </section>
   </>:!error?<div className="learner-empty">Question unavailable.</div>:null}
+  {q&&a&&<nav className="quiz-nav daily-review-quiz-nav" aria-label="Daily Analysis question navigation">
+   <button className="btn ghost" type="button" disabled={!previousId} onClick={()=>goToQuestion(previousId)}>← Previous</button>
+   <button className="btn primary" type="button" disabled={!nextId} onClick={()=>goToQuestion(nextId)}>Next →</button>
+  </nav>}
  </main>;
 }
 
