@@ -69,6 +69,7 @@ declare
   attempt_count integer;
   pre_rollout boolean;
   mature boolean;
+  context_eligible boolean;
   activation timestamptz;
   requested text;
   legacy_family text;
@@ -84,6 +85,8 @@ begin
 
   for x in select value from jsonb_array_elements(base) loop
     cid:=coalesce(nullif(x->>'phrasalConceptId',''),nullif(x->>'conceptId',''));
+    legacy_family:=coalesce(nullif(x->>'missingFamily',''),nullif(x->>'phrasalQuestionFamily',''),'recognition');
+    if legacy_family not in ('recognition','recall','confusion') then legacy_family:='recognition'; end if;
 
     select min(a.attempted_at),count(a.*)::int
     into first_attempt,attempt_count
@@ -93,14 +96,15 @@ begin
 
     pre_rollout:=activation is not null and first_attempt is not null and first_attempt<activation;
     mature:=first_attempt is not null and attempt_count>=3 and first_attempt<=now()-interval '7 days';
-    if pre_rollout or mature then eligible_rank:=eligible_rank+1; end if;
+    -- A contextual item is an ordinary four-option MCQ. Do not substitute it into a
+    -- recall self-assessment or confusion-specific legacy slot; this preserves old card semantics.
+    context_eligible:=(pre_rollout or mature) and legacy_family='recognition';
+    if context_eligible then eligible_rank:=eligible_rank+1; end if;
 
     requested:=case
-      when (pre_rollout or mature) and eligible_rank<=8 then 'context_fill'
-      else coalesce(nullif(x->>'missingFamily',''),nullif(x->>'phrasalQuestionFamily',''),'recognition')
+      when context_eligible and eligible_rank<=8 then 'context_fill'
+      else legacy_family
     end;
-    legacy_family:=coalesce(nullif(x->>'missingFamily',''),nullif(x->>'phrasalQuestionFamily',''),'recognition');
-    if legacy_family not in ('recognition','recall','confusion') then legacy_family:='recognition'; end if;
 
     select s.sense_key into sense
     from english.phrasal_concept_senses s
@@ -119,8 +123,9 @@ begin
       'legacyFamily',legacy_family,
       'historicalExposureBeforeRollout',pre_rollout,
       'contextMaturityEligible',mature,
+      'contextEligible',context_eligible,
       'recentVariantFingerprints',coalesce(recent,'[]'::jsonb),
-      'contextBootstrapRank',case when pre_rollout then eligible_rank else null end
+      'contextBootstrapRank',case when context_eligible then eligible_rank else null end
     ));
   end loop;
   return out;
