@@ -1,0 +1,39 @@
+name: Validate English Phrasal Atomic Daily
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/managed-migrations/**phrasal**.sql'
+      - '.github/scripts/validate-english-phrasal-atomic.sql'
+      - '.github/workflows/validate-english-phrasal-atomic.yml'
+  pull_request:
+    paths:
+      - 'supabase/managed-migrations/**phrasal**.sql'
+      - '.github/scripts/validate-english-phrasal-atomic.sql'
+      - '.github/workflows/validate-english-phrasal-atomic.yml'
+  workflow_dispatch:
+
+jobs:
+  phrasal-atomic:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: english_phrasal_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d english_phrasal_ci"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Execute Phrasal exact-20 atomic publication contracts
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d english_phrasal_ci -v ON_ERROR_STOP=1 -f .github/scripts/validate-english-phrasal-atomic.sql
