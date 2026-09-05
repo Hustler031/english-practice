@@ -1,83 +1,135 @@
 "use client";
+
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { LearnerRow, OverviewCard, PageHeader } from "@/components/learner-ui";
-import { confusionLabel, learnerGroup, learnerName } from "@/lib/learner-label";
 import { learnerErrorMessage, rpc } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
 
-type Activity={id:number;type:string;title:string;detail?:string;questionId?:string;at:string};
-type Signals={today_activity?:{count:number;items:Activity[]}};
-type Focus={questionId:string;name:string;skillFamily?:string;nextReview?:string};
-type Confusion={confusionId:string;primaryName:string;relatedName:string;primaryQuestionId?:string;relatedQuestionId?:string};
-type Hub={summary:{dueNow:number;confusions:number};confusions:Confusion[];needLearning:Focus[];transferChecks:Focus[];retentionChecks:Focus[];recovered:{name:string}[]};
-type Label={questionId:string;displayName:string;topic?:string;conceptName?:string};
-type Row={key:string;title:string;detail:string;status?:string;group:string;href?:string;tone:"fix"|"soon"|"good"|"later"};
-type Section="today"|"fix"|"soon"|"good"|"later";
-type ConceptKind="weak"|"retention_risk"|"secure"|"exam_ready"|"unseen"|"high_yield_unseen"|"needs_validation";
-type ConceptSummary={
- concepts:number;active_questions:number;mapped_questions:number;unmapped_questions:number;mapping_pct:number;
- seen:number;weak_only:number;weak:number;retention_risk:number;secure:number;exam_ready:number;unseen:number;covered:number;
- coverage_pct:number;exam_ready_pct:number;high_yield_unseen:number;needs_validation:number;confusions:number;reconciles:boolean;
-};
-type ConceptItem={concept_id:string;domain?:string;skill_family?:string;name:string;exam_relevance?:string;priority_score?:number;coverage_state:string;confidence_score:number;attempts:number;wrong:number;next_review?:string;question_id?:string};
+type Tone="fix"|"soon"|"good"|"later"|"neutral";
 type WorkerState={healthy:boolean;lastRun?:string;status?:string};
 type WorkerHealth={workers:{semantic:WorkerState;learning:WorkerState;quality:WorkerState};queued:number;processing:number;retrying:number;failed7d:number;oldestPendingAt?:string};
-const due=(d?:string)=>!d||new Date(d).getTime()<=Date.now();
-const href=(id:string,title:string)=>`/english/targeted?question=${encodeURIComponent(id)}&title=${encodeURIComponent(title)}`;
-const conceptMeta:Record<ConceptKind,[string,string]>={
- weak:["Weak concepts","Repeated evidence currently needs repair."],
- retention_risk:["Retention risk","Previously learned concepts that need spaced proof."],
- secure:["Secure concepts","Concepts supported by multiple good signals."],
- exam_ready:["Exam-ready concepts","Concepts with strong transfer and delayed-recall evidence."],
- unseen:["Unseen concepts","Active concepts without learner evidence yet."],
- high_yield_unseen:["High-yield unseen","High-relevance concepts still waiting for first evidence."],
- needs_validation:["Needs validation","Seen concepts that still need stronger independent evidence."],
+type ContextUpdate={
+ kind:"context";noteId:string;questionId:string;displayName:string;topic?:string;learnerNote:string;status:string;
+ understood?:string;diagnosisType?:string;action?:string;urgency?:string;relatedTerms?:string[];requiresTransfer?:boolean;
+ changedTargeted?:boolean;createdConfusion?:boolean;createdAt:string;processedAt?:string;
 };
+type RevisionPayload={question?:string;optionA?:string;optionB?:string;optionC?:string;optionD?:string;correctKey?:string;explanation?:string};
+type RevisionUpdate={
+ kind:"revision";proposalId:string;questionId:string;displayName:string;topic?:string;version:number;feedbackReason?:string;
+ feedbackNote?:string;status:string;original?:RevisionPayload;revised?:RevisionPayload;qualityNote?:string;active?:boolean;
+ errorCode?:string;createdAt:string;readyAt?:string;decidedAt?:string;
+};
+type UpdateSummary={contextTotal:number;contextDone:number;contextPending:number;contextFailed:number;revisionTotal:number;revisionReady:number;revisionWorking:number;revisionApplied:number;revisionFailed:number};
+type Updates={ok:boolean;summary:UpdateSummary;contextUpdates:ContextUpdate[];revisionUpdates:RevisionUpdate[]};
+type Detail={kind:"context";item:ContextUpdate}|{kind:"revision";item:RevisionUpdate};
 
 export default function LearningInsightsPage(){
  const ready=useAuthGuard();
- const [hub,setHub]=useState<Hub|null>(null),[signals,setSignals]=useState<Signals|null>(null),[labels,setLabels]=useState<Record<string,Label>>({});
- const [concepts,setConcepts]=useState<ConceptSummary|null>(null),[workerHealth,setWorkerHealth]=useState<WorkerHealth|null>(null);
- const [section,setSection]=useState<Section|null>(null),[conceptKind,setConceptKind]=useState<ConceptKind|null>(null),[conceptItems,setConceptItems]=useState<ConceptItem[]>([]),[conceptLoading,setConceptLoading]=useState(false);
- const [error,setError]=useState(""),[loading,setLoading]=useState(true);
- useEffect(()=>{if(!ready)return;let alive=true;Promise.all([
-   rpc<Hub>("english_get_targeted_mastery"),rpc<Signals>("english_get_learning_signal_summary"),
-   rpc<ConceptSummary>("english_get_concept_intelligence_summary"),rpc<WorkerHealth>("english_get_ai_worker_health")
- ]).then(async([h,s,c,w])=>{if(!alive)return;setHub(h);setSignals(s);setConcepts(c);setWorkerHealth(w);const ids=[...h.needLearning,...h.transferChecks,...h.retentionChecks].map(x=>x.questionId).concat(...h.confusions.map(x=>[x.primaryQuestionId,x.relatedQuestionId].filter(Boolean) as string[]),...(s.today_activity?.items||[]).map(x=>x.questionId||"")).filter(Boolean);if(ids.length)try{const out=await rpc<{items:Label[]}>("english_get_question_labels",{p_question_ids:[...new Set(ids)].slice(0,120)});if(alive)setLabels(Object.fromEntries((out.items||[]).map(x=>[x.questionId,x])))}catch{}}).catch((e:any)=>alive&&setError(learnerErrorMessage(e,"Could not load Learning Insights."))).finally(()=>alive&&setLoading(false));return()=>{alive=false}},[ready]);
- const rows=useMemo(()=>{if(!hub)return {fix:[] as Row[],soon:[] as Row[],good:[] as Row[],later:[] as Row[],today:[] as Row[]};const named=(f:Focus)=>learnerName(labels[f.questionId],f.name),focus=(items:Focus[],kind:Exclude<Section,"today">,detail:string,status?:string):Row[]=>items.map(f=>({key:`${kind}-${f.questionId}`,title:named(f),detail,status,group:learnerGroup(labels[f.questionId]?.topic||f.skillFamily),href:href(f.questionId,named(f)),tone:kind}));const conf:Row[]=hub.confusions.map(c=>({key:`c-${c.confusionId}`,title:confusionLabel(c.primaryName,c.relatedName),detail:"You flagged this confusion",status:"Ready now",group:"Confusions",href:`/english/targeted?confusion=${encodeURIComponent(c.confusionId)}`,tone:"fix" as const}));return {fix:[...conf,...focus(hub.transferChecks.filter(x=>due(x.nextReview)),"fix","Fresh understanding check","Ready now"),...focus(hub.retentionChecks.filter(x=>due(x.nextReview)),"fix","Spaced recall is ready","Ready now"),...focus(hub.needLearning.filter(x=>due(x.nextReview)),"fix","Focused repair from recent evidence","Ready now")],soon:focus(hub.transferChecks.filter(x=>x.nextReview&&!due(x.nextReview)),"soon","Fresh understanding check coming up"),good:hub.recovered.map((x,i)=>({key:`good-${i}-${x.name}`,title:learnerName(undefined,x.name),detail:"Recent evidence is better than before",group:"Improving",tone:"good" as const})),later:focus(hub.retentionChecks.filter(x=>x.nextReview&&!due(x.nextReview)),"later","Fresh proof completed"),today:(signals?.today_activity?.items||[]).map(x=>({key:`today-${x.id}`,title:learnerName(labels[x.questionId||""],cleanTitle(x.title)),detail:activityText(x),status:time(x.at),group:"Today",href:x.questionId?href(x.questionId,learnerName(labels[x.questionId],x.title)):undefined,tone:"soon" as const}))}},[hub,signals,labels]);
- async function openConcepts(kind:ConceptKind){setConceptKind(kind);setConceptLoading(true);setConceptItems([]);try{setConceptItems(await rpc<ConceptItem[]>("english_get_concept_intelligence_detail",{p_kind:kind}))}catch(e:any){setError(learnerErrorMessage(e,"Could not load concept details."))}finally{setConceptLoading(false)}}
+ const [updates,setUpdates]=useState<Updates|null>(null);
+ const [workerHealth,setWorkerHealth]=useState<WorkerHealth|null>(null);
+ const [detail,setDetail]=useState<Detail|null>(null);
+ const [error,setError]=useState("");
+ const [loading,setLoading]=useState(true);
+
+ useEffect(()=>{
+  if(!ready)return;
+  let alive=true;
+  Promise.all([
+   rpc<Updates>("english_get_learning_ai_updates",{p_limit:40}),
+   rpc<WorkerHealth>("english_get_ai_worker_health")
+  ]).then(([u,w])=>{if(!alive)return;setUpdates(u);setWorkerHealth(w)})
+    .catch((e:any)=>alive&&setError(learnerErrorMessage(e,"Could not load Learning Insights.")))
+    .finally(()=>alive&&setLoading(false));
+  return()=>{alive=false};
+ },[ready]);
+
  if(!ready)return null;
- if(conceptKind)return <ConceptCategory kind={conceptKind} items={conceptItems} loading={conceptLoading} onBack={()=>setConceptKind(null)}/>;
- if(section)return <Category section={section} rows={rows[section]} onBack={()=>setSection(null)}/>;
- return <main className="top-level-parity learner-rebuild-page">
-   <PageHeader back={<Link href="/english/revision" className="back-link">← Revision</Link>} eyebrow="Your study plan" title="Learning Insights" subtitle="See what needs attention and why."/>
-   {error&&<div className="error-box">{error}</div>}
-   {loading?<div className="loading-copy">Refreshing your learning plan…</div>:<>
-     {concepts&&<section className="learner-section"><div className="learner-section-head"><div><h2>Concept coverage</h2><p>{concepts.covered.toLocaleString()} of {concepts.concepts.toLocaleString()} active concepts seen · {concepts.coverage_pct}% coverage</p></div></div><div className="learner-overview-stack">
-       <OverviewCard tone="neutral" title="Total Concepts" subtitle={`${concepts.mapped_questions.toLocaleString()}/${concepts.active_questions.toLocaleString()} active questions mapped (${concepts.mapping_pct}%).`} count={concepts.concepts}/>
-       <OverviewCard tone="fix" title="Weak" subtitle="Repeated evidence currently needs repair." count={concepts.weak_only} onClick={()=>void openConcepts("weak")}/>
-       <OverviewCard tone="soon" title="Retention Risk" subtitle="Learned before, but spaced recall needs proof." count={concepts.retention_risk} onClick={()=>void openConcepts("retention_risk")}/>
-       <OverviewCard tone="good" title="Secure" subtitle="Multiple signals support current understanding." count={concepts.secure} onClick={()=>void openConcepts("secure")}/>
-       <OverviewCard tone="good" title="Exam Ready" subtitle="Transfer plus delayed recall evidence is strong." count={concepts.exam_ready} onClick={()=>void openConcepts("exam_ready")}/>
-       <OverviewCard tone="later" title="High-yield Unseen" subtitle="Important concepts still waiting for first evidence." count={concepts.high_yield_unseen} onClick={()=>void openConcepts("high_yield_unseen")}/>
-     </div>{!concepts.reconciles&&<div className="error-box">Concept-state totals do not reconcile. Learning evidence needs review.</div>}</section>}
-     <section className="learner-section"><div className="learner-section-head"><div><h2>Learning plan</h2><p>What needs action now, soon, and later.</p></div></div><div className="learner-overview-stack">
-       <OverviewCard tone="neutral" title="Today" subtitle="See what changed in your learning plan." count={signals?.today_activity?.count??0} onClick={()=>setSection("today")}/>
-       <OverviewCard tone="fix" title="Fix Now" subtitle="Mistakes, confusion and uncertain answers." count={rows.fix.length} onClick={()=>setSection("fix")}/>
-       <OverviewCard tone="soon" title="Check Soon" subtitle="Fresh checks that will strengthen recall." count={rows.soon.length} onClick={()=>setSection("soon")}/>
-       <OverviewCard tone="good" title="Improving" subtitle="Concepts with stronger recent evidence." count={rows.good.length} onClick={()=>setSection("good")}/>
-       <OverviewCard tone="later" title="Scheduled for Later" subtitle="Spaced recall waiting for the right time." count={rows.later.length} onClick={()=>setSection("later")}/>
-     </div></section>
-     {workerHealth&&<details className="insights-how-details learner-section"><summary><span><b>Background AI health</b><small>Operational status only — this does not affect your mastery score.</small></span></summary><div className="insights-how-copy"><p><b>Semantic:</b> {healthText(workerHealth.workers.semantic)} · <b>Learning:</b> {healthText(workerHealth.workers.learning)} · <b>Quality:</b> {healthText(workerHealth.workers.quality)}</p><p><b>Queued:</b> {workerHealth.queued} · <b>Processing:</b> {workerHealth.processing} · <b>Retrying:</b> {workerHealth.retrying} · <b>Failed (7d):</b> {workerHealth.failed7d}</p>{workerHealth.oldestPendingAt&&<p>Oldest pending: {timeAgo(workerHealth.oldestPendingAt)}</p>}</div></details>}
-     <details className="insights-how-details learner-section"><summary><span><b>How your learning plan works</b><small>Why something appears now, soon, or later.</small></span></summary><div className="insights-how-copy"><p><b>Weak</b> requires repeated negative evidence; a single mistake does not define the whole concept.</p><p><b>Retention Risk</b> means earlier understanding needs spaced confirmation.</p><p><b>Fix Now</b> prioritises mistakes, uncertainty and confusions. AI changes priority while core Daily capacity remains deterministic.</p></div></details>
-   </>}
+ if(detail?.kind==="context")return <ContextDetail item={detail.item} onBack={()=>setDetail(null)}/>;
+ if(detail?.kind==="revision")return <RevisionDetail item={detail.item} onBack={()=>setDetail(null)}/>;
+
+ const summary=updates?.summary;
+ const working=(summary?.contextPending||0)+(summary?.revisionWorking||0);
+ const attention=(summary?.contextFailed||0)+(summary?.revisionFailed||0);
+ const improved=(summary?.revisionReady||0)+(summary?.revisionApplied||0);
+
+ return <main className="top-level-parity learner-rebuild-page learner-insights-page ai-only-insights-page">
+  <PageHeader back={<Link href="/english/revision" className="back-link">← Revision</Link>} eyebrow="AI learning activity" title="Learning Insights" subtitle="See what AI understood and exactly what it changed."/>
+  {error&&<div className="error-box">{error}</div>}
+  {loading?<div className="loading-copy">Loading AI updates…</div>:<>
+   <section className="learner-section ai-insight-summary-section">
+    <div className="learner-overview-stack ai-insight-summary-grid">
+     <OverviewCard tone="good" title="Context analysed" subtitle="Your notes AI has interpreted." count={summary?.contextDone||0}/>
+     <OverviewCard tone="soon" title="Question improvements" subtitle="Revisions ready or already used." count={improved}/>
+     <OverviewCard tone="later" title="AI working" subtitle="Analysis or revisions still in progress." count={working}/>
+     <OverviewCard tone={attention?"fix":"neutral"} title="Needs attention" subtitle="Updates that did not pass processing or quality checks." count={attention}/>
+    </div>
+   </section>
+
+   <section className="learner-section ai-update-section">
+    <div className="learner-section-head"><div><h2>What AI understood</h2><p>Actual interpretation of the context you gave while studying.</p></div></div>
+    {updates?.contextUpdates?.length?<div className="learner-row-list">{updates.contextUpdates.map(item=><LearnerRow key={item.noteId} title={item.displayName} subtitle={contextSummary(item)} status={`${contextStatus(item.status)} · ${timeAgo(item.createdAt)}`} tone={contextTone(item.status)} onClick={()=>setDetail({kind:"context",item})}/>)}</div>:<div className="learner-empty">No AI context analysis yet.</div>}
+   </section>
+
+   <section className="learner-section ai-update-section">
+    <div className="learner-section-head"><div><h2>Question improvements</h2><p>See the original version, revised version, and the exact options AI changed.</p></div></div>
+    {updates?.revisionUpdates?.length?<div className="learner-row-list">{updates.revisionUpdates.map(item=><LearnerRow key={item.proposalId} title={item.displayName} subtitle={revisionSummary(item)} status={`${revisionStatus(item.status)} · ${timeAgo(item.createdAt)}`} tone={revisionTone(item.status)} onClick={()=>setDetail({kind:"revision",item})}/>)}</div>:<div className="learner-empty">No question improvement requests yet.</div>}
+   </section>
+
+   {workerHealth&&<details className="insights-how-details learner-section ai-health-details"><summary><span><b>Background AI health</b><small>Technical status only. It does not change your mastery score.</small></span></summary><div className="insights-how-copy"><p><b>Understanding:</b> {healthText(workerHealth.workers.semantic)} · <b>Learning:</b> {healthText(workerHealth.workers.learning)} · <b>Question quality:</b> {healthText(workerHealth.workers.quality)}</p><p><b>Queued:</b> {workerHealth.queued} · <b>Processing:</b> {workerHealth.processing} · <b>Retrying:</b> {workerHealth.retrying} · <b>Failed (7d):</b> {workerHealth.failed7d}</p>{workerHealth.oldestPendingAt&&<p>Oldest pending: {timeAgo(workerHealth.oldestPendingAt)}</p>}</div></details>}
+  </>}
  </main>;
 }
-function Category({section,rows,onBack}:{section:Section;rows:Row[];onBack:()=>void}){const meta:Record<Section,[string,string]>={today:["Today","What changed in your learning plan."],fix:["Fix Now","Items that can improve your score now."],soon:["Check Soon","Fresh checks coming up."],good:["Improving","Recent evidence is better than before."],later:["Scheduled for Later","Checks waiting for the right recall time."]};const [title,subtitle]=meta[section],groups=rows.reduce<Record<string,Row[]>>((all,row)=>{(all[row.group]??=[]).push(row);return all},{});return <main className="top-level-parity learner-rebuild-page"><button className="learner-back" type="button" onClick={onBack}>← Learning Insights</button><PageHeader title={title} subtitle={subtitle}/>{rows.length?Object.entries(groups).map(([group,items])=><section className="learner-section" key={group}><div className="learner-section-head"><div><h2>{group}</h2><p>{items.length} item{items.length===1?"":"s"}</p></div></div><div className="learner-row-list">{items.map(row=><LearnerRow key={row.key} title={row.title} subtitle={row.detail} status={row.status} tone={row.tone} onClick={row.href?()=>location.assign(row.href!):undefined}/>)}</div></section>):<div className="learner-empty">Nothing is here right now.</div>}</main>}
-function ConceptCategory({kind,items,loading,onBack}:{kind:ConceptKind;items:ConceptItem[];loading:boolean;onBack:()=>void}){const [title,subtitle]=conceptMeta[kind];return <main className="top-level-parity learner-rebuild-page"><button className="learner-back" type="button" onClick={onBack}>← Learning Insights</button><PageHeader title={title} subtitle={subtitle}/>{loading?<div className="loading-copy">Loading concept evidence…</div>:items.length?<section className="learner-section"><div className="learner-row-list">{items.slice(0,250).map(item=><LearnerRow key={item.concept_id} title={item.name} subtitle={`${item.skill_family||item.domain||"English"} · ${item.attempts} attempt${item.attempts===1?"":"s"}${item.wrong?` · ${item.wrong} wrong`:""}`} status={`${Math.round(Number(item.confidence_score)||0)}% evidence`} tone={kind==="weak"?"fix":kind==="retention_risk"||kind==="needs_validation"?"soon":kind==="secure"||kind==="exam_ready"?"good":"later"} onClick={item.question_id?()=>location.assign(href(item.question_id!,item.name)):undefined}/>)}</div>{items.length>250&&<div className="learner-empty">Showing the highest-priority 250 of {items.length.toLocaleString()} concepts.</div>}</section>:<div className="learner-empty">Nothing is here right now.</div>}</main>}
-function cleanTitle(value:string){return String(value||"Learning update").replace(/background analysis|targeted|route event|semantic processing/gi,"").replace(/\s+→\s+/g," ").trim()||"Learning update"}
-function activityText(x:Activity){if(x.type.includes("guess"))return"You marked this as guessed. A fresh understanding check was added.";if(x.type.includes("confusion"))return"You flagged a confusion for focused practice.";return String(x.detail||"Your learning plan was updated.").replace(/background analysis|targeted|route event|semantic processing/gi,"learning plan")}
-function time(value:string){const d=new Date(value);return Number.isFinite(d.getTime())?d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}):undefined}
-function timeAgo(value:string){const t=new Date(value).getTime();if(!Number.isFinite(t))return"unknown";const mins=Math.max(0,Math.round((Date.now()-t)/60000));return mins<2?"just now":mins<60?`${mins} min ago`:`${Math.round(mins/60)} hr ago`}
+
+function ContextDetail({item,onBack}:{item:ContextUpdate;onBack:()=>void}){
+ const changes=contextChanges(item);
+ return <main className="top-level-parity learner-rebuild-page learner-insights-page ai-insight-detail-page">
+  <button className="learner-back" type="button" onClick={onBack}>← Learning Insights</button>
+  <PageHeader eyebrow={item.topic||"English"} title={item.displayName} subtitle={`${contextStatus(item.status)} · ${timeAgo(item.createdAt)}`}/>
+  <section className="ai-insight-detail-card"><span className="ai-detail-kicker">What you told AI</span><p>{item.learnerNote||"No written note was saved."}</p></section>
+  <section className="ai-insight-detail-card emphasis"><span className="ai-detail-kicker">What AI understood</span><p>{item.understood||contextFallback(item.status)}</p></section>
+  <section className="ai-insight-detail-card"><span className="ai-detail-kicker">What changed</span>{changes.length?<ul>{changes.map((x,i)=><li key={`${i}-${x}`}>{x}</li>)}</ul>:<p>{item.status==="done"?"AI did not change your study plan from this note.":"No change has been applied yet."}</p>}</section>
+ </main>;
+}
+
+function RevisionDetail({item,onBack}:{item:RevisionUpdate;onBack:()=>void}){
+ const changed=changedOptionKeys(item.original,item.revised);
+ return <main className="top-level-parity learner-rebuild-page learner-insights-page ai-insight-detail-page">
+  <button className="learner-back" type="button" onClick={onBack}>← Learning Insights</button>
+  <PageHeader eyebrow={item.topic||"English"} title={item.displayName} subtitle={`${revisionStatus(item.status)} · ${feedbackLabel(item.feedbackReason)}`}/>
+  <section className="ai-insight-detail-card"><span className="ai-detail-kicker">Your feedback</span><p>{item.feedbackNote||feedbackLabel(item.feedbackReason)}</p></section>
+  {item.revised?<div className="ai-revision-compare">
+   <RevisionVersion title="Original version" payload={item.original}/>
+   <RevisionVersion title="AI revision" payload={item.revised} compare={item.original}/>
+   <section className="ai-insight-detail-card change-summary"><span className="ai-detail-kicker">What changed</span><p>{revisionChangeText(item.original,item.revised,changed)}</p>{item.qualityNote&&<p className="ai-quality-note"><b>Quality check:</b> {item.qualityNote}</p>}</section>
+  </div>:<section className="ai-insight-detail-card emphasis"><span className="ai-detail-kicker">AI revision</span><p>{revisionFallback(item.status)}</p></section>}
+ </main>;
+}
+
+function RevisionVersion({title,payload,compare}:{title:string;payload?:RevisionPayload;compare?:RevisionPayload}){
+ if(!payload)return <section className="ai-insight-detail-card"><span className="ai-detail-kicker">{title}</span><p>Version unavailable.</p></section>;
+ const questionChanged=!!compare&&clean(compare.question)!==clean(payload.question);
+ return <section className="ai-insight-detail-card ai-revision-version"><span className="ai-detail-kicker">{title}</span><p className={questionChanged?"ai-field-changed":""}>{payload.question||"Question text unavailable."}</p><div className="ai-option-compare">{(["A","B","C","D"] as const).map(key=>{const text=option(payload,key),was=compare?option(compare,key):"";const changed=!!compare&&clean(was)!==clean(text);return <div className={`ai-option-line ${changed?"changed":""}`} key={key}><b>{key}</b><span>{text||"—"}</span>{changed&&<em>changed</em>}</div>})}</div>{payload.explanation&&<details className="ai-explanation-detail"><summary>Explanation</summary><p>{payload.explanation}</p></details>}</section>;
+}
+
+function option(payload:RevisionPayload|undefined,key:"A"|"B"|"C"|"D"){if(!payload)return"";return key==="A"?payload.optionA||"":key==="B"?payload.optionB||"":key==="C"?payload.optionC||"":payload.optionD||""}
+function clean(v?:string){return String(v||"").trim()}
+function changedOptionKeys(a?:RevisionPayload,b?:RevisionPayload){if(!a||!b)return[] as string[];return (["A","B","C","D"] as const).filter(k=>clean(option(a,k))!==clean(option(b,k)))}
+function revisionChangeText(a:RevisionPayload|undefined,b:RevisionPayload|undefined,changed:string[]){if(!a||!b)return"The revised version is ready.";const parts:string[]=[];if(clean(a.question)!==clean(b.question))parts.push("question wording");if(changed.length)parts.push(`option${changed.length===1?"":"s"} ${changed.join(", ")}`);if(clean(a.explanation)!==clean(b.explanation))parts.push("explanation");return parts.length?`AI changed ${joinNatural(parts)}.`:"AI kept the question, options and explanation unchanged after review."}
+function joinNatural(parts:string[]){if(parts.length<2)return parts[0]||"";if(parts.length===2)return`${parts[0]} and ${parts[1]}`;return`${parts.slice(0,-1).join(", ")}, and ${parts.at(-1)}`}
+
+function contextSummary(item:ContextUpdate){if(item.understood)return clip(item.understood,150);if(item.status==="processing")return"AI is analysing what this note means for your learning.";if(item.status==="queued"||item.status==="pending")return"Waiting for AI analysis.";if(item.status==="failed")return"The analysis did not complete successfully.";return"AI analysis completed."}
+function contextChanges(item:ContextUpdate){const out:string[]=[];if(item.createdConfusion)out.push("Created a confusion pair for focused practice.");if(item.changedTargeted)out.push("Added or updated focused work in Targeted Mastery.");if(item.requiresTransfer)out.push("Added a fresh understanding check so the idea is tested in a new form.");if(item.relatedTerms?.length)out.push(`Connected this with: ${item.relatedTerms.join(", ")}.`);return out}
+function contextFallback(status:string){if(status==="processing")return"AI is still analysing this note.";if(status==="queued"||status==="pending")return"This note is waiting for AI analysis.";if(status==="failed")return"AI could not finish this analysis. The note remains saved.";return"AI finished processing this note, but no separate interpretation was stored."}
+function contextStatus(status:string){return status==="done"?"Analysed":status==="processing"?"Analysing":status==="queued"?"Queued":status==="failed"?"Needs attention":"Waiting"}
+function contextTone(status:string):Tone{return status==="done"?"good":status==="failed"?"fix":status==="processing"||status==="queued"?"soon":"later"}
+
+function feedbackLabel(reason?:string){const x=String(reason||"").toLowerCase();if(x==="options_too_obvious")return"Options were too obvious";if(x==="distractors_unrelated")return"Distractors were unrelated";if(x==="explanation_weak")return"Explanation was weak";if(x==="answer_doubtful")return"Correct answer looked doubtful";if(x==="custom")return"Custom improvement request";return x?x.replaceAll("_"," "):"Question improvement"}
+function revisionSummary(item:RevisionUpdate){if(item.revised){const changed=changedOptionKeys(item.original,item.revised);if(changed.length)return`AI changed option${changed.length===1?"":"s"} ${changed.join(", ")} after your feedback.`;if(clean(item.original?.question)!==clean(item.revised.question))return"AI rewrote the question while preserving the intended skill.";return"AI prepared a revised version and quality-checked it."}if(item.status==="failed")return"AI rejected the draft because it did not pass the quality gate.";if(item.status==="processing"||item.status==="queued")return"AI is working on a safer, stronger version.";return feedbackLabel(item.feedbackReason)}
+function revisionStatus(status:string){return status==="ready"?"Ready to review":status==="applied"?"In use":status==="kept"?"Original kept":status==="processing"?"Improving":status==="queued"?"Queued":status==="failed"?"No safe revision":status==="superseded"?"Updated again":"Recorded"}
+function revisionTone(status:string):Tone{return status==="applied"?"good":status==="ready"||status==="processing"||status==="queued"?"soon":status==="failed"?"fix":status==="kept"?"neutral":"later"}
+function revisionFallback(status:string){if(status==="failed")return"AI did not show a rejected draft. It failed the quality gate, so your current question remains unchanged.";if(status==="processing"||status==="queued")return"AI is still working on this request. No revision has been applied yet.";if(status==="superseded")return"A newer improvement request replaced this one.";return"No revised version is available for this request."}
+
+function clip(value:string,max:number){const s=String(value||"").trim();return s.length<=max?s:`${s.slice(0,max-1).trimEnd()}…`}
+function timeAgo(value:string){const t=new Date(value).getTime();if(!Number.isFinite(t))return"unknown";const mins=Math.max(0,Math.round((Date.now()-t)/60000));return mins<2?"just now":mins<60?`${mins} min ago`:mins<1440?`${Math.round(mins/60)} hr ago`:`${Math.round(mins/1440)} d ago`}
 function healthText(x:WorkerState){return x?.healthy?"Healthy":x?.status?`Needs attention (${x.status})`:"No recent scheduler run"}
