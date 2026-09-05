@@ -76,6 +76,7 @@ declare
   sense text;
   recent jsonb;
   recent_stems jsonb;
+  reference_variant jsonb;
 begin
   if uid is null then raise exception 'Authentication required'; end if;
   base:=public.english_get_phrasal_maintenance_batch(p_mode,p_count);
@@ -99,7 +100,6 @@ begin
     mature:=first_attempt is not null and attempt_count>=3 and first_attempt<=now()-interval '7 days';
     context_eligible:=pre_rollout or mature;
     if context_eligible then eligible_rank:=eligible_rank+1; end if;
-
     requested:=case when context_eligible and eligible_rank<=8 then 'context_fill' else legacy_family end;
 
     select s.sense_key into sense
@@ -126,10 +126,20 @@ begin
       limit 8
     ) r;
 
+    select english.question_payload(uid,q.question_id) into reference_variant
+    from english.questions q
+    where q.active and english.question_visible_to_user(uid,q.question_id)
+      and coalesce(nullif(btrim(q.concept_id),''),'PVQ_'||q.question_id)=cid
+    order by
+      case when english.phrasal_question_family(q)=legacy_family then 0 else 1 end,
+      q.question_id
+    limit 1;
+
     out:=out||jsonb_build_array(x||jsonb_build_object(
       'senseKey',sense,'requestedQuestionFamily',requested,'legacyFamily',legacy_family,
       'historicalExposureBeforeRollout',pre_rollout,'contextMaturityEligible',mature,'contextEligible',context_eligible,
       'recentVariantFingerprints',coalesce(recent,'[]'::jsonb),'recentConceptStems',coalesce(recent_stems,'[]'::jsonb),
+      'referenceVariant',coalesce(reference_variant,'{}'::jsonb),
       'contextBootstrapRank',case when context_eligible then eligible_rank else null end
     ));
   end loop;
