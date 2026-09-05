@@ -75,6 +75,7 @@ declare
   legacy_family text;
   sense text;
   recent jsonb;
+  recent_stems jsonb;
 begin
   if uid is null then raise exception 'Authentication required'; end if;
   base:=public.english_get_phrasal_maintenance_batch(p_mode,p_count);
@@ -112,10 +113,23 @@ begin
     into recent
     from (select * from english.phrasal_question_variants where concept_id=cid order by created_at desc limit 8) v;
 
+    select coalesce(jsonb_agg(r.question order by r.last_attempt desc nulls last,r.question),'[]'::jsonb)
+    into recent_stems
+    from (
+      select q.question,max(a.attempted_at) last_attempt
+      from english.questions q
+      left join english.attempts a on a.question_id=q.question_id and a.user_id=uid
+      where q.active and coalesce(nullif(btrim(q.concept_id),''),'PVQ_'||q.question_id)=cid
+        and btrim(coalesce(q.question,''))<>''
+      group by q.question
+      order by max(a.attempted_at) desc nulls last,q.question
+      limit 8
+    ) r;
+
     out:=out||jsonb_build_array(x||jsonb_build_object(
       'senseKey',sense,'requestedQuestionFamily',requested,'legacyFamily',legacy_family,
       'historicalExposureBeforeRollout',pre_rollout,'contextMaturityEligible',mature,'contextEligible',context_eligible,
-      'recentVariantFingerprints',coalesce(recent,'[]'::jsonb),
+      'recentVariantFingerprints',coalesce(recent,'[]'::jsonb),'recentConceptStems',coalesce(recent_stems,'[]'::jsonb),
       'contextBootstrapRank',case when context_eligible then eligible_rank else null end
     ));
   end loop;
