@@ -32,6 +32,14 @@ $$;
 revoke all on function english.ai_feature_enabled(text) from public, anon;
 grant execute on function english.ai_feature_enabled(text) to authenticated, service_role;
 
+create or replace function public.english_ai_content_feature_enabled(p_flag text)
+returns boolean
+language sql stable security definer
+set search_path='pg_catalog','public','english'
+as $$ select english.ai_feature_enabled(p_flag) $$;
+revoke all on function public.english_ai_content_feature_enabled(text) from public, anon, authenticated;
+grant execute on function public.english_ai_content_feature_enabled(text) to service_role;
+
 create or replace function public.english_set_ai_content_feature(p_flag text,p_enabled boolean)
 returns jsonb
 language plpgsql security definer
