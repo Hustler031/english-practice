@@ -1,0 +1,41 @@
+/* Learning Insights is an AI outcome log, not a concept/debug dashboard. */
+.ai-only-insights-page{padding-bottom:110px}
+.ai-insight-summary-section{margin-top:8px}
+.ai-insight-summary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.ai-insight-summary-grid .learner-overview-card{min-height:76px}
+.ai-update-section{margin-top:13px}
+.ai-update-section .learner-section-head{margin-bottom:7px}
+.ai-update-section .learner-section-head h2{font-size:13px}
+.ai-update-section .learner-section-head p{max-width:520px;font-size:9px;line-height:1.42}
+.ai-update-section .learner-row{border-radius:14px;background:color-mix(in srgb,var(--card-2) 64%,transparent)}
+.ai-health-details{margin-top:16px;opacity:.92}
+
+.ai-insight-detail-page{padding-bottom:110px}
+.ai-insight-detail-page .learner-page-header{margin-bottom:8px}
+.ai-insight-detail-card{margin-top:8px;padding:13px 14px;border:1px solid var(--line);border-radius:16px;background:color-mix(in srgb,var(--card-2) 66%,transparent)}
+.ai-insight-detail-card.emphasis{border-color:color-mix(in srgb,var(--primary) 30%,var(--line));background:linear-gradient(145deg,color-mix(in srgb,var(--primary) 7%,var(--card-2)),var(--card))}
+.ai-detail-kicker{display:block;margin-bottom:6px;color:color-mix(in srgb,var(--primary) 62%,var(--text));font-size:8px;font-weight:950;letter-spacing:.09em;text-transform:uppercase}
+.ai-insight-detail-card p{margin:0;color:var(--text);font-size:10.4px;line-height:1.55}
+.ai-insight-detail-card ul{display:grid;gap:7px;margin:0;padding-left:18px;color:var(--text);font-size:10px;line-height:1.48}
+.ai-insight-detail-card li::marker{color:var(--primary)}
+.ai-revision-compare{display:grid;gap:1px}
+.ai-revision-version>p{font-size:11px;font-weight:800}
+.ai-field-changed{padding:8px 9px;border:1px solid color-mix(in srgb,var(--primary) 28%,var(--line));border-radius:11px;background:color-mix(in srgb,var(--primary) 6%,transparent)}
+.ai-option-compare{display:grid;gap:6px;margin-top:10px}
+.ai-option-line{display:grid;grid-template-columns:24px minmax(0,1fr) auto;gap:8px;align-items:start;padding:8px 9px;border:1px solid color-mix(in srgb,var(--line) 76%,transparent);border-radius:11px;background:color-mix(in srgb,var(--card) 70%,transparent)}
+.ai-option-line>b{display:grid;width:22px;height:22px;place-items:center;border-radius:7px;background:color-mix(in srgb,var(--line) 55%,transparent);font-size:9px}
+.ai-option-line>span{padding-top:2px;font-size:9.7px;line-height:1.4}
+.ai-option-line>em{align-self:center;padding:3px 6px;border-radius:999px;background:color-mix(in srgb,var(--primary) 12%,transparent);color:color-mix(in srgb,var(--primary) 64%,var(--text));font-size:7px;font-style:normal;font-weight:950;letter-spacing:.04em;text-transform:uppercase}
+.ai-option-line.changed{border-color:color-mix(in srgb,var(--primary) 34%,var(--line));background:color-mix(in srgb,var(--primary) 6%,var(--card))}
+.ai-explanation-detail{margin-top:10px;border-top:1px solid color-mix(in srgb,var(--line) 70%,transparent);padding-top:8px}
+.ai-explanation-detail>summary{cursor:pointer;color:var(--muted);font-size:8.5px;font-weight:900}
+.ai-explanation-detail>p{margin-top:7px;color:var(--muted);font-size:9.3px;line-height:1.5}
+.change-summary{border-color:color-mix(in srgb,var(--ok) 24%,var(--line));background:color-mix(in srgb,var(--ok) 4%,var(--card-2))}
+.ai-quality-note{margin-top:9px!important;padding-top:9px;border-top:1px solid color-mix(in srgb,var(--line) 70%,transparent);color:var(--muted)!important;font-size:9.2px!important}
+
+@media(max-width:560px){
+ .ai-insight-summary-grid{grid-template-columns:1fr 1fr}
+ .ai-insight-summary-grid .learner-overview-card{padding:10px;min-height:72px}
+ .ai-option-line{grid-template-columns:23px minmax(0,1fr);gap:7px}
+ .ai-option-line>em{grid-column:2;justify-self:start;margin-top:2px}
+}
