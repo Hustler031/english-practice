@@ -8,8 +8,10 @@ on:
       - 'supabase/functions/english-content-task-bridge/**'
       - 'supabase/functions/english-saved-enrichment-worker/**'
       - 'supabase/managed-migrations/2026090523*.sql'
+      - 'supabase/managed-migrations/20260906025000_english_content_task_failure_release.sql'
       - 'web-v2/app/english/saved/page.tsx'
       - '.github/scripts/validate-english-hybrid-ai-content.cjs'
+      - '.github/scripts/validate-english-content-task-recovery.cjs'
       - '.github/workflows/validate-english-hybrid-ai-content.yml'
   workflow_dispatch:
 
@@ -28,6 +30,8 @@ jobs:
           node-version: '22'
       - name: Validate hybrid AI source contracts
         run: node .github/scripts/validate-english-hybrid-ai-content.cjs
+      - name: Validate content task failure recovery
+        run: node .github/scripts/validate-english-content-task-recovery.cjs
       - name: Enforce English-only diff boundary
         shell: bash
         run: |
