@@ -10,7 +10,8 @@ const quality=read('supabase/managed-migrations/20260902153000_english_question_
 const hardening=read('supabase/managed-migrations/20260902154000_english_revision_transfer_quality_hardening.sql');
 const uiSupport=read('supabase/managed-migrations/20260902161000_english_learning_insights_ui_support.sql');
 const auditFix=read('supabase/managed-migrations/20260902162000_english_predeploy_question_ui_audit_fixes.sql');
-const migration=[base,integrity,quality,hardening,uiSupport,auditFix].join('\n');
+const aiInsights=read('supabase/managed-migrations/20260905183500_english_learning_ai_updates.sql');
+const migration=[base,integrity,quality,hardening,uiSupport,auditFix,aiInsights].join('\n');
 const contextWorker=read('supabase/functions/english-context-worker/index.ts');
 const revisionWorker=read('supabase/functions/english-revision-worker/index.ts');
 const ui=read('web-v2/components/question-revision-actions.tsx');
@@ -25,6 +26,7 @@ const daily=read('web-v2/app/english/daily/page.tsx');
 const hindu=read('web-v2/app/english/hindu/page.tsx');
 const frame=read('web-v2/components/english-frame.tsx');
 const finalCss=read('web-v2/app/learning-insights-final-ui.css');
+const aiInsightsCss=read('web-v2/app/learning-insights-ai-only.css');
 const learnerUi=read('web-v2/components/learner-ui.tsx');
 const learnerLabels=read('web-v2/lib/learner-label.ts');
 const learnerCss=read('web-v2/app/english-learner-rebuild.css');
@@ -48,7 +50,9 @@ function forbid(text,re,label){if(re.test(text))throw new Error(`${label}: forbi
  ['text_token_jaccard','near-duplicate guard'],['generated transfer failed SSC quality gate','generated-transfer quality gate'],
  ['english_get_question_labels','learner-facing question-label RPC'],['english_get_targeted_question','exact targeted-question RPC'],
  ['english_get_targeted_due_session','Targeted due-only learner session'],['observed_difficulty','bank candidate difficulty evidence'],
- ["in ('hard','difficult','advanced')",'hard bank suitability gate'],['confusableTerms','explicit related-practice anchor terms']
+ ["in ('hard','difficult','advanced')",'hard bank suitability gate'],['confusableTerms','explicit related-practice anchor terms'],
+ ['english_get_learning_ai_updates','AI-only Learning Insights RPC'],['learner_context_notes','context evidence feed'],
+ ['question_revision_proposals','revision outcome feed'],["status in ('ready','applied','kept')",'only quality-approved revision payloads are learner-visible']
 ].forEach(([needle,label])=>requireText(migration,needle,label));
 forbid(migration,/update\s+english\.questions\b/i,'canonical question immutability');
 forbid(migration,/delete\s+from\s+english\.attempts\b/i,'attempt preservation');
@@ -88,24 +92,29 @@ requireText(overlay,'p_cache_buster: Date.now()','live applied-revision read');
  [practice,'Daily Practice','Practice Daily'],[practice,'Targeted Mastery','Practice Targeted'],[practice,'Fast Track','Practice Fast Track'],[practice,'New Practice','Practice New'],[practice,'Topic Practice','Practice Topic'],[practice,'Exam Sprint','Practice Exam Sprint'],
  [revision,'Due Now','Revision due'],[revision,'Difficult &amp; Incorrect','Revision difficult/incorrect'],[revision,'Starred','Revision starred'],[revision,'My Saved','Revision saved'],[revision,'Browse by Topic','Revision topic'],[revision,'Learning Insights','Revision insights'],
  [targeted,'Fix Now','Targeted Fix Now'],[targeted,'Your Confusions','Targeted confusions'],[targeted,'Waiting for Later','Targeted waiting'],[targeted,'OverviewCard','Targeted progressive-disclosure overview'],[targeted,'LearnerRow','Targeted learner rows'],[targeted,'english_get_question_labels','Targeted display labels'],[targeted,'english_get_targeted_question','Targeted exact question'],[targeted,'english_get_targeted_due_session','Targeted Fix Now uses due-only session'],[targeted,'"due_now"','Targeted due-only UI kind'],
- [insights,'Learning Insights','Learning Insights title'],[insights,'Today','Today overview'],[insights,'See what changed in your learning plan.','Today learner copy'],[insights,'Fix Now','Insights Fix Now'],[insights,'Check Soon','Insights Check Soon'],[insights,'Improving','Insights Improving'],[insights,'Scheduled for Later','Insights scheduled'],[insights,'How your learning plan works','Learning-plan explainer'],[insights,'learnerName','Today uses learner-facing names'],[insights,'OverviewCard','Insights progressive-disclosure overview'],[insights,'LearnerRow','Insights learner rows'],
+ [insights,'Learning Insights','Learning Insights title'],[insights,'english_get_learning_ai_updates','Insights reads actual AI outcomes'],[insights,'What AI understood','context interpretation surface'],[insights,'Question improvements','revision outcome surface'],[insights,'What you told AI','context detail'],[insights,'What changed','change detail'],[insights,'Original version','revision before/after'],[insights,'AI revision','revision before/after'],[insights,'Background AI health','collapsed operational health'],[insights,'OverviewCard','AI overview cards'],[insights,'LearnerRow','AI update rows'],
  [daily,'QuestionRevisionActions','Daily Improve Question action'],[daily,'english_get_applied_question_revisions','Daily applied revision overlay'],[daily,'I Guessed','Daily confidence signal'],[daily,'Add Context','Daily context signal'],
  [hindu,'QuestionRevisionActions','Hindu Improve Question action'],[hindu,'english_get_applied_question_revisions','Hindu applied revision overlay'],[hindu,'english_record_guess','Hindu confidence signal'],[hindu,'english_save_context_note','Hindu context signal'],
  [frame,'targeted|fast-track|exam','Practice nav routing'],[frame,'pathname.startsWith("/english/revision/")','Revision nav routing'],
  [learnerUi,'learner-overview-card','shared overview-card primitive'],[learnerUi,'learner-row','shared learner-row primitive'],[learnerLabels,'confusionLabel','learner confusion label resolver'],[learnerLabels,'cleanLearnerName','generic-label guard'],[learnerCss,'.learner-overview-card','new learner overview styling'],[learnerCss,'.learner-row','new learner row styling'],[learnerCss,'.practice-primary-card','Practice learner-card harmony'],[learnerCss,'.revision-primary-row','Revision learner-row harmony'],
- [finalCss,'.next-best-action-card','legacy next-action styling remains harmless'],[finalCss,'grid-template-columns:repeat(3','three question actions layout']
+ [finalCss,'.next-best-action-card','legacy next-action styling remains harmless'],[finalCss,'grid-template-columns:repeat(3','three question actions layout'],
+ [aiInsightsCss,'.ai-insight-detail-card','AI Insights detail styling'],[aiInsightsCss,'.ai-option-line.changed','changed-option styling']
 ].forEach(([text,needle,label])=>requireText(text,needle,label));
 forbid(home,/Next Best Action/,'Home stays clean: no Next Best Action card');
 forbid(home,/next-best-action-card/,'Home stays clean: no next-action card markup');
 forbid(home,/targeted\?\.retentionChecks\?/,'Home must not recommend future retention merely because it exists');
-forbid(insights,/\{item\.questionId\}/,'no question IDs on Today surface');
+forbid(insights,/Concept coverage/i,'Insights must not expose concept dashboard');
+forbid(insights,/Total Concepts/i,'Insights must not expose total-concepts dashboard');
+forbid(insights,/Check Soon/i,'Insights must not duplicate Targeted scheduling');
+forbid(insights,/Scheduled for Later/i,'Insights must not duplicate Targeted scheduling');
+forbid(insights,/\{item\.questionId\}/,'no raw question IDs on Insights surface');
 forbid(targeted,/Question IDs are visible/i,'no developer audit copy in Targeted');
 forbid(targeted,/Open\s*›/i,'no redundant Targeted Open affordance');
 forbid(targeted,/Practice\s*›/i,'no redundant Targeted Practice affordance');
 forbid(insights,/Open\s*›/i,'no redundant Insights Open affordance');
 forbid(insights,/Practice\s*›/i,'no redundant Insights Practice affordance');
 
-for(const [name,text] of [['base migration',base],['integrity migration',integrity],['quality migration',quality],['hardening migration',hardening],['UI support migration',uiSupport],['audit fix migration',auditFix]]){
+for(const [name,text] of [['base migration',base],['integrity migration',integrity],['quality migration',quality],['hardening migration',hardening],['UI support migration',uiSupport],['audit fix migration',auditFix],['AI Insights migration',aiInsights]]){
  const dollars=(text.match(/\$\$/g)||[]).length;if(dollars%2)throw new Error(`${name}: unbalanced $$ function delimiters`);
 }
 try{
