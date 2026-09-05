@@ -7,7 +7,7 @@ const worker = fs.readFileSync(
   'utf8',
 );
 const migration = fs.readFileSync(
-  path.join(root, 'supabase/managed-migrations/20260905133000_english_saved_enrichment_background_worker.sql'),
+  path.join(root, 'supabase/managed-migrations/20260905075121_english_saved_enrichment_background_worker.sql'),
   'utf8',
 );
 
