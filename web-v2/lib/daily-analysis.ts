@@ -71,6 +71,7 @@ export function categoryMeta(key:string){return DAILY_ANALYSIS_CATEGORIES.find(x
 export function isDailyAnalysisCategory(key:string):key is DailyAnalysisCategory{return !!categoryMeta(key)}
 export function isDailyAnalysisRange(key:string):key is DailyAnalysisRange{return DAILY_ANALYSIS_RANGES.some(x=>x.key===key)}
 export function rangeLabel(key:DailyAnalysisRange){return DAILY_ANALYSIS_RANGES.find(x=>x.key===key)?.label||"Today"}
+export function dailyAnalysisNavigationKey(category:string,range:DailyAnalysisRange){return `english-daily-analysis-nav:${category}:${range}`}
 
 export function dailyAnalysisRowNote(row:DailyAnalysisRow,range:DailyAnalysisRange="today"){
   const attempts=row.periodAttempts??row.attemptsToday??0;
