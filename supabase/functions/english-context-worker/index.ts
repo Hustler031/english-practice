@@ -1,7 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+// Scheduler-only endpoint. Do not advertise browser-origin access; pg_net/server calls
+// do not need CORS and still authenticate with the private worker token.
 const cors = {
-  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "content-type, x-english-context-token",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -129,13 +130,11 @@ const transferCriticSchema = {
   },
 };
 
-
 const diagnosisPrompt = `You are the background learning-diagnosis specialist for an SSC CGL English learner. Interpret ONLY the learner's short Add Context note using the supplied question/concept/evidence. Do not chat with the learner and do not produce teaching prose. Classify conservatively. confusion_pair means two explicitly or strongly implied items are being mixed; lexical_interference is a vocabulary/phrase neighbour collision; retention_problem means the learner understands but repeatedly forgets; rule_gap is a grammar/usage rule gap; transfer_problem means understanding exists but application to fresh examples is uncertain; no_action means the note does not justify a learning intervention. relatedTerms must contain only concrete confusable words/phrases/rules useful for bank lookup. Use requiresTransfer=true only when a fresh discrimination/application item is genuinely useful; the database will still search the existing bank first. Never downgrade correctness or invent a weakness merely because a note exists.`;
 
 const transferGeneratePrompt = `Create ONE fresh SSC CGL Tier-1 English transfer/discrimination MCQ for the supplied atomic concept. This learner is already exam-prepared, so a technically valid but obvious question is a failure. Target upper-moderate to hard SSC difficulty, not CAT/GRE obscurity. The wrong options must be close, grammatically parallel where applicable, and genuinely tempting to a prepared SSC learner. At least two distractors should encode real confusions/traps, not random alternatives. Do not allow elimination by basic grammar, length, tone, or an obviously unrelated meaning. Test the SAME concept through a meaningfully different context, not a paraphrase of the source. If explicitRelatedPractice=true, deliberately use the supplied confusableTerms and/or infer a compact, exam-useful confusable cluster around the anchor word/concept; the final choices should discriminate among those related terms. Return relatedTerms containing the actual useful cluster used. Use exactly one defensible answer. explanation must explain why the answer works and why the close distractors fail. Do not claim PYQ provenance.`;
 
 const transferCriticPrompt = `You are the independent final SSC CGL question critic. Edit the draft yourself before judging it. Reject easy-but-valid questions. The final item must require actual recall/discrimination rather than superficial elimination; have exactly one defensible answer; three close, realistic distractors; at least two real SSC-style traps; no grammar/length giveaway; no ambiguity; no artificial or obscure difficulty; and a fresh context that is not a light paraphrase of any supplied source/bank item. sscDifficultyFit is true only for upper-moderate/hard SSC CGL Tier-1 realism. distractorCloseness must reflect how competitive the wrong options really are, not mere topical similarity. semanticNoveltyScore must be low if the stem/context simply restates prior practice. Set obviousElimination=false only if no option is cheaply removable. For explicit related practice, preserve a coherent confusable-word cluster and include the actual cluster in relatedTerms. qualityScore >=0.85 is reserved for a serve-ready item.`;
-
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });

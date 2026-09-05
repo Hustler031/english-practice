@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+// Scheduler-only endpoint. Server-to-server callers do not need browser CORS.
 const cors = {
-  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "content-type, x-english-semantic-token",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };

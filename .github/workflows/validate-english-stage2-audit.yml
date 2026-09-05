@@ -1,0 +1,74 @@
+name: Validate English Stage 2 Audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/managed-migrations/20260905110000_english_daily_targeted_overlay_budget.sql'
+      - 'supabase/managed-migrations/20260905111000_english_worker_health_queue_semantics.sql'
+      - 'supabase/managed-migrations/20260905112000_english_revision_stale_retry_classification.sql'
+      - '.github/scripts/validate-english-stage2-targeted-overlay.sql'
+      - '.github/scripts/validate-english-stage2-worker-health.sql'
+      - '.github/scripts/validate-english-stage2-revision-stale-retry.sql'
+      - '.github/workflows/validate-english-stage2-audit.yml'
+  pull_request:
+    paths:
+      - 'supabase/managed-migrations/20260905110000_english_daily_targeted_overlay_budget.sql'
+      - 'supabase/managed-migrations/20260905111000_english_worker_health_queue_semantics.sql'
+      - 'supabase/managed-migrations/20260905112000_english_revision_stale_retry_classification.sql'
+      - '.github/scripts/validate-english-stage2-targeted-overlay.sql'
+      - '.github/scripts/validate-english-stage2-worker-health.sql'
+      - '.github/scripts/validate-english-stage2-revision-stale-retry.sql'
+      - '.github/workflows/validate-english-stage2-audit.yml'
+
+jobs:
+  audit-remediation:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: english_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d english_ci"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Validate Targeted overlay budget
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f .github/scripts/validate-english-stage2-targeted-overlay.sql
+      - name: Reset database for Worker Health
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          select pg_terminate_backend(pid) from pg_stat_activity where datname='english_ci' and pid<>pg_backend_pid();
+          drop database english_ci;
+          create database english_ci;
+          SQL
+      - name: Validate Worker Health queue semantics
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f .github/scripts/validate-english-stage2-worker-health.sql
+      - name: Reset database for Revision lifecycle
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          select pg_terminate_backend(pid) from pg_stat_activity where datname='english_ci' and pid<>pg_backend_pid();
+          drop database english_ci;
+          create database english_ci;
+          SQL
+      - name: Validate Revision stale retry classification
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d english_ci -v ON_ERROR_STOP=1 -f .github/scripts/validate-english-stage2-revision-stale-retry.sql
