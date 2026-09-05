@@ -5,6 +5,11 @@ import { GEMINI_MODEL, GROQ_MODEL, geminiJson, groqJson, generateCriticRepair } 
 const cors={"Access-Control-Allow-Headers":"content-type, x-english-context-token","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const reply=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json"}});
 const errorText=(e:unknown)=>e instanceof Error?e.message:String(e||"Unknown saved enrichment worker error");
+const classifyError=(e:unknown)=>{
+  const text=errorText(e);
+  if(/(?:GEMINI|GROQ|AI)_TIMEOUT|AbortError|timed?\s*out/i.test(text))return `AI_TIMEOUT: ${text}`;
+  return text;
+};
 
 const enrichmentSchema={
   type:"object",additionalProperties:false,
@@ -81,7 +86,7 @@ Deno.serve(async req=>{
 
   const settled=await Promise.allSettled(items.map((item:any)=>enrichOne(item)));
   const completed:any[]=[],failures:string[]=[];
-  settled.forEach((r,i)=>r.status==="fulfilled"?completed.push(r.value):failures.push(`${String(items[i]?.savedId||"unknown")}: ${errorText(r.reason)}`));
+  settled.forEach((r,i)=>r.status==="fulfilled"?completed.push(r.value):failures.push(`${String(items[i]?.savedId||"unknown")}: ${classifyError(r.reason)}`));
   try{
     if(completed.length){
       const {error}=await db.rpc("english_saved_enrichment_worker_apply",{p_token:token,p_lease_id:leaseId,p_items:completed});
@@ -97,7 +102,8 @@ Deno.serve(async req=>{
     for(const row of verifyItems)if(String(row?.gptStatus||"").toLowerCase()==="ready"&&row?.questionReady!==true)throw new Error(`VERIFY_FAILED: Ready item ${String(row?.savedId||"unknown")} is not question-ready`);
     return reply({ok:true,generator:"gemini",generatorModel:GEMINI_MODEL,critic:"groq",criticModel:GROQ_MODEL,claimed:items.length,processed:completed.length,failed:failures.length,verified:verifyItems.length,elapsedMs:Date.now()-started});
   }catch(e){
-    try{await db.rpc("english_saved_enrichment_worker_finish",{p_token:token,p_lease_id:leaseId,p_saved_ids:[],p_error:errorText(e).slice(0,1200)})}catch{}
-    return reply({error:errorText(e),claimed:items.length,processed:0,failed:items.length},500);
+    const classified=classifyError(e);
+    try{await db.rpc("english_saved_enrichment_worker_finish",{p_token:token,p_lease_id:leaseId,p_saved_ids:[],p_error:classified.slice(0,1200)})}catch{}
+    return reply({error:classified,claimed:items.length,processed:0,failed:items.length},500);
   }
 });
