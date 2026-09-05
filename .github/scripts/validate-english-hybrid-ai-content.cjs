@@ -48,7 +48,12 @@ need(materializer,"'Forgot'",'Legacy recall C label preserved');
 need(materializer,"alreadyComplete",'Retry-safe already-complete branch');
 need(apply,'centralMapped','Central mapping verification retained');
 
-need(ai,'gemini-3.6-flash','Grounded structured Gemini stable default');
+need(ai,'gemini-3.8-flash','Current grounded structured Gemini stable default');
+need(ai,'tools:[{googleSearch:{}}]','Gemini Google Search wire field');
+need(ai,'responseFormat:{text:{mimeType:"application/json",schema}}','Gemini structured-output wire field');
+forbid(ai,'temperature:0.35','Deprecated Gemini temperature setting');
+forbid(ai,'top_p:','Deprecated Gemini top_p setting');
+forbid(ai,'top_k:','Deprecated Gemini top_k setting');
 need(ai,'openai/gpt-oss-120b','Groq independent critic model');
 need(ai,'repairs<2','Repair cap is two');
 need(ai,'q.score>=85','Runtime quality threshold');
