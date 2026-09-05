@@ -1,0 +1,27 @@
+name: Validate English Migration Reconciliation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/managed-migrations/**'
+      - '.github/scripts/validate-english-migration-reconciliation.cjs'
+      - '.github/scripts/validate-english-ai-architecture.cjs'
+      - '.github/workflows/validate-english-migration-reconciliation.yml'
+  pull_request:
+    paths:
+      - 'supabase/managed-migrations/**'
+      - '.github/scripts/validate-english-migration-reconciliation.cjs'
+      - '.github/scripts/validate-english-ai-architecture.cjs'
+      - '.github/workflows/validate-english-migration-reconciliation.yml'
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate Sep 1-4 English live-to-Git ledger
+        run: node .github/scripts/validate-english-migration-reconciliation.cjs

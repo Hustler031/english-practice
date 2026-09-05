@@ -1,0 +1,38 @@
+name: Validate English Stage 2 DB Hardening
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/managed-migrations/20260905113000_english_helper_search_path_and_fk_indexes.sql'
+      - '.github/scripts/validate-english-stage2-db-hardening.sql'
+      - '.github/workflows/validate-english-stage2-db-hardening.yml'
+  pull_request:
+    paths:
+      - 'supabase/managed-migrations/20260905113000_english_helper_search_path_and_fk_indexes.sql'
+      - '.github/scripts/validate-english-stage2-db-hardening.sql'
+      - '.github/workflows/validate-english-stage2-db-hardening.yml'
+
+jobs:
+  db-hardening:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: english_hardening_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d english_hardening_ci"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate helper search paths and FK indexes
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d english_hardening_ci -v ON_ERROR_STOP=1 -f .github/scripts/validate-english-stage2-db-hardening.sql

@@ -5,6 +5,7 @@ import { learnerErrorMessage, rpc } from "@/lib/supabase";
 import type { RevisionPayload } from "@/lib/question-revisions";
 
 type RevisionStatus = "queued" | "processing" | "ready" | "applied" | "kept" | "failed" | "superseded";
+type ErrorCode = "AI_TIMEOUT"|"RATE_LIMIT"|"PROVIDER_5XX"|"NETWORK_TRANSIENT"|"MALFORMED_OUTPUT"|"QUALITY_REJECTED"|"STALE_INPUT"|"AUTH_CONFIG"|"RETRIES_EXHAUSTED";
 type Proposal = {
   proposalId: string;
   questionId: string;
@@ -14,7 +15,9 @@ type Proposal = {
   feedbackNote?: string;
   proposed?: RevisionPayload;
   generationSource?: "bank_informed_ai" | "ai_last_resort";
+  errorCode?: ErrorCode;
   lastError?: string;
+  retryAt?: string;
 };
 type QualityReview = {
   reviewId: string;
@@ -22,6 +25,8 @@ type QualityReview = {
   verdict?: "valid" | "issue_suspected";
   rationale?: string;
   confidence?: number;
+  retryAt?: string;
+  serviceFailed?: boolean;
 };
 type RevisionState = { ok?: boolean; activeVersion?: number; proposal?: Proposal | null; qualityReview?: QualityReview | null };
 
@@ -38,6 +43,18 @@ function looksLikeRelatedPractice(note:string){
  const value=note.trim().toLowerCase();
  return /^(related practice|related question|new related question|another related question)\b/.test(value)
   || (/\b(related|confus\w*|mix\w*)\b/.test(value)&&/\b(question|practice)\b/.test(value));
+}
+
+function proposalStatusMessage(proposal: Proposal){
+  const code=proposal.errorCode||(proposal.lastError||"").match(/\b(AI_TIMEOUT|RATE_LIMIT|PROVIDER_5XX|NETWORK_TRANSIENT|MALFORMED_OUTPUT|QUALITY_REJECTED|STALE_INPUT|AUTH_CONFIG|RETRIES_EXHAUSTED)\b/)?.[1] as ErrorCode|undefined;
+  if(proposal.status==="queued") return proposal.retryAt||code?"Improvement retry is scheduled. You can continue studying normally.":"Improvement queued. Keep studying — the proposal is being checked in the background.";
+  if(proposal.status==="processing") return "Improvement is being checked in the background.";
+  if(proposal.status==="superseded"||code==="STALE_INPUT") return "This request was replaced by a newer question version, so no old result was applied.";
+  if(proposal.status!=="failed") return null;
+  if(code==="QUALITY_REJECTED") return "The proposed improvement did not meet the quality checks. You can send fresh feedback.";
+  if(code==="RETRIES_EXHAUSTED") return "The improvement service could not finish after safe retries. Your original question is unchanged; please try again later.";
+  if(code==="AUTH_CONFIG") return "The improvement service is temporarily unavailable. Your original question is unchanged.";
+  return "The improvement service could not finish. Your original question is unchanged; please try again later.";
 }
 
 export default function QuestionRevisionActions({ questionId }: { questionId: string }) {
@@ -107,20 +124,23 @@ export default function QuestionRevisionActions({ questionId }: { questionId: st
   }
 
   const proposal=state?.proposal;
+  const proposalMessage=proposal?proposalStatusMessage(proposal):null;
   const review=state?.qualityReview;
   const repairOnly=reason==="options_too_obvious"||reason==="distractors_unrelated";
   return <div className="question-revision-actions">
     <button className="btn ghost" type="button" onClick={()=>setOpen(v=>!v)}>Too Easy / Improve Question</button>
 
-    {proposal?.status==="queued"||proposal?.status==="processing"?<div className="context-saved">Improvement queued. Keep studying — the proposal is being checked in the background.</div>:null}
+    {(proposal?.status==="queued"||proposal?.status==="processing")&&proposalMessage?<div className="context-saved">{proposalMessage}</div>:null}
     {proposal?.status==="ready"&&proposal.proposed?<div className="context-saved revision-ready-inline"><b>Revision proposal ready</b><button className="btn ghost" type="button" onClick={()=>setPreview(true)}>Preview</button></div>:null}
     {proposal?.status==="applied"?<div className="context-saved">Revised version active for future practice.</div>:null}
     {proposal?.status==="kept"?<div className="context-saved">Current version kept.</div>:null}
-    {proposal?.status==="failed"?<div className="error-box">This proposal did not pass the quality checks. You can submit fresh feedback.</div>:null}
+    {proposal?.status==="superseded"&&proposalMessage?<div className="context-saved">{proposalMessage}</div>:null}
+    {proposal?.status==="failed"&&proposalMessage?<div className="error-box">{proposalMessage}</div>:null}
 
-    {review?.status==="queued"||review?.status==="processing"?<div className="context-saved">Correct-answer review queued. Nothing will be changed automatically.</div>:null}
+    {review?.status==="queued"||review?.status==="processing"?<div className="context-saved">{review.retryAt?"Answer review retry is scheduled. Nothing will be changed automatically.":"Correct-answer review queued. Nothing will be changed automatically."}</div>:null}
     {review?.status==="reviewed"&&review.verdict==="valid"?<div className="context-saved">Answer review: the current key looks valid.</div>:null}
     {review?.status==="reviewed"&&review.verdict==="issue_suspected"?<div className="error-box">Answer review found a possible content issue. The canonical question is still unchanged.</div>:null}
+    {review?.status==="failed"||review?.serviceFailed?<div className="error-box">The answer-review service could not finish after safe retries. The canonical question is unchanged.</div>:null}
 
     {message&&<div className="context-saved">{message}</div>}
     {error&&<div className="error-box">{error}</div>}
