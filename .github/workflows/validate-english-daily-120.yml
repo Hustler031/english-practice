@@ -5,12 +5,18 @@ on:
     branches: [main]
     paths:
       - 'supabase/managed-migrations/**english**.sql'
+      - 'web-v2/components/daily-rollover-sync.tsx'
+      - 'web-v2/app/english/layout.tsx'
       - '.github/scripts/validate-english-daily-120.sql'
+      - '.github/scripts/validate-english-daily-rollover-client.cjs'
       - '.github/workflows/validate-english-daily-120.yml'
   pull_request:
     paths:
       - 'supabase/managed-migrations/**english**.sql'
+      - 'web-v2/components/daily-rollover-sync.tsx'
+      - 'web-v2/app/english/layout.tsx'
       - '.github/scripts/validate-english-daily-120.sql'
+      - '.github/scripts/validate-english-daily-rollover-client.cjs'
       - '.github/workflows/validate-english-daily-120.yml'
   workflow_dispatch:
 
@@ -37,3 +43,5 @@ jobs:
         env:
           PGPASSWORD: postgres
         run: psql -h 127.0.0.1 -U postgres -d english_daily_ci -v ON_ERROR_STOP=1 -f .github/scripts/validate-english-daily-120.sql
+      - name: Validate client Daily rollover/cache contract
+        run: node .github/scripts/validate-english-daily-rollover-client.cjs
