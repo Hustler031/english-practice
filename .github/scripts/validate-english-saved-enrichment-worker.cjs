@@ -22,6 +22,10 @@ const recoveryMigration = fs.readFileSync(
   path.join(root, 'supabase/managed-migrations/20260905090000_english_saved_ready_incomplete_recovery.sql'),
   'utf8',
 );
+const exactPromotionMigration = fs.readFileSync(
+  path.join(root, 'supabase/managed-migrations/20260905173500_english_saved_enrichment_exact_promotion.sql'),
+  'utf8',
+);
 
 function need(text, needle, label) {
   if (!text.includes(needle)) throw new Error(`Missing ${label}: ${needle}`);
@@ -76,5 +80,20 @@ need(recoveryMigration, "upper(btrim(coalesce(s.correct_option,''))) not in ('A'
 need(recoveryMigration, "btrim(coalesce(s.explanation,''))=''", 'missing explanation recovery');
 need(recoveryMigration, "when lower(btrim(coalesce(s.gpt_status,'')))='ready' then 0", 'malformed Ready recovery priority');
 need(recoveryMigration, 'grant execute on function english.maintenance_saved_enrichment_batch(integer) to service_role', 'service-role maintenance boundary');
+
+// My Saved practice must use the exact validated enrichment, not merely any same-word question.
+need(exactPromotionMigration, 'english.ensure_saved_enrichment_exact_question', 'exact enrichment helper');
+need(exactPromotionMigration, "btrim(coalesce(q.question,''))=v_question", 'exact question comparison');
+need(exactPromotionMigration, "btrim(coalesce(q.option_d,''))=v_d", 'exact option comparison');
+need(exactPromotionMigration, "upper(btrim(coalesce(q.correct,'')))=v_correct", 'exact answer-key comparison');
+need(exactPromotionMigration, "btrim(coalesce(q.explanation,''))=v_expl", 'exact explanation comparison');
+need(exactPromotionMigration, "v_qid:='MYWORD_EXACT_'||v_digest", 'immutable exact variant identity');
+need(exactPromotionMigration, 's.saved_id,', 'saved identity in content hash');
+need(exactPromotionMigration, "'saved_generated',s.saved_id,p_user_id", 'owner-scoped saved provenance');
+need(exactPromotionMigration, 'from english.saved_concept_mappings scm', 'saved concept mapping preservation');
+need(exactPromotionMigration, "'saved_exact_enrichment','mapped','variant'", 'exact variant concept relation');
+need(exactPromotionMigration, 'perform english.ensure_saved_enrichment_exact_question(r.user_id,r.saved_id)', 'legacy mismatch repair');
+need(exactPromotionMigration, "raise exception 'Ready enrichment is incomplete'", 'no incomplete Ready promotion');
+forbid(exactPromotionMigration, 'array_agg(x order by random())', 'random fallback distractor generation');
 
 console.log('English Saved enrichment private ChatGPT bridge contract: PASS');
