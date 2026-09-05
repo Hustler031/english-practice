@@ -21,7 +21,7 @@ export default function DailyAnalysisPage(){
   {loading?<div className="loading-copy">Loading today’s analysis…</div>:<>
    <div className="daily-analysis-mini-summary"><span><b>{data?.attemptedToday||0}</b><small>attempted in Daily</small></span><span><b>{data?.wrongToday||0}</b><small>wrong today</small></span><span><b>{data?.relevantCount||0}</b><small>review items</small></span></div>
    <section className="daily-analysis-category-list" aria-label="Daily analysis categories">
-    {DAILY_ANALYSIS_CATEGORIES.map(item=><Link key={item.key} className={`daily-analysis-category-row category-${item.key}`} href={`/english/revision/ai-intelligence/daily-analysis/${item.key}`}>
+    {DAILY_ANALYSIS_CATEGORIES.map(item=><Link key={item.key} className={`daily-analysis-category-row category-${item.key}`} href={`/english/revision/ai-intelligence/daily-analysis/questions?category=${encodeURIComponent(item.key)}`}>
       <span><b>{item.title}</b><small>{item.subtitle}</small></span><strong>{data?.categories?.[item.key]??0}</strong><i>›</i>
     </Link>)}
    </section>
