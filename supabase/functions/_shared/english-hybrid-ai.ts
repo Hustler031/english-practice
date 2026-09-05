@@ -6,7 +6,7 @@ const AI_TIMEOUT_MS = 28_000;
 export type HardGates = {
   exactlyOneCorrect:boolean; correctKeyMatches:boolean; linguisticallyValid:boolean;
   conceptPreserved:boolean; sensePreserved:boolean; learnerRequestPreserved:boolean;
-  noFactualError:boolean; noLexicalGrammarError:boolean; fourNonblankOptions:boolean;
+  noFactualError:boolean; noLexicalGrammarError:boolean; requiredOptionsValid:boolean;
   explanationMatchesQuestion:boolean; explanationMatchesAnswer:boolean; noStaleExplanation:boolean;
   noAmbiguity:boolean; noSecondCorrectOption:boolean; intentSpecificTaskValid:boolean;
   questionFamilyValid:boolean; plausibleDistractors:boolean; distractorsNotObvious:boolean;
@@ -16,7 +16,7 @@ export type Quality = {score:number;decision:"PASS"|"PASS_WITH_MINOR_ISSUES"|"RE
 const gateProperties:Record<keyof HardGates,unknown>={
   exactlyOneCorrect:{type:"boolean"},correctKeyMatches:{type:"boolean"},linguisticallyValid:{type:"boolean"},
   conceptPreserved:{type:"boolean"},sensePreserved:{type:"boolean"},learnerRequestPreserved:{type:"boolean"},
-  noFactualError:{type:"boolean"},noLexicalGrammarError:{type:"boolean"},fourNonblankOptions:{type:"boolean"},
+  noFactualError:{type:"boolean"},noLexicalGrammarError:{type:"boolean"},requiredOptionsValid:{type:"boolean"},
   explanationMatchesQuestion:{type:"boolean"},explanationMatchesAnswer:{type:"boolean"},noStaleExplanation:{type:"boolean"},
   noAmbiguity:{type:"boolean"},noSecondCorrectOption:{type:"boolean"},intentSpecificTaskValid:{type:"boolean"},
   questionFamilyValid:{type:"boolean"},plausibleDistractors:{type:"boolean"},distractorsNotObvious:{type:"boolean"},
@@ -50,9 +50,7 @@ export async function geminiJson<T>(instructions:string,input:unknown,schema:unk
         systemInstruction:{parts:[{text:instructions}]},
         contents:[{role:"user",parts:[{text:JSON.stringify(input)}]}],
         ...(opts.googleSearch?{tools:[{googleSearch:{}}]}:{}),
-        generationConfig:{
-          responseFormat:{text:{mimeType:"application/json",schema}},
-        },
+        generationConfig:{responseFormat:{text:{mimeType:"application/json",schema}}},
       }),
     });
     const payload=await res.json().catch(()=>null);
@@ -93,11 +91,10 @@ export async function groqJson<T>(instructions:string,input:unknown,schema:unkno
 }
 
 export function hardGatesPass(q:Quality){
-  return q.score>=85 && (q.decision==="PASS"||q.decision==="PASS_WITH_MINOR_ISSUES")
-    && Object.values(q.hardGates||{}).every(Boolean);
+  return q.score>=85 && (q.decision==="PASS"||q.decision==="PASS_WITH_MINOR_ISSUES") && Object.values(q.hardGates||{}).every(Boolean);
 }
 
-const criticInstructions=`You are an independent SSC CGL English content critic. The content was written by another model. Do not defer to its claims. Verify the actual stem, four options, answer and explanation. Score honestly; average material is not automatically 95. PASS or PASS_WITH_MINOR_ISSUES is allowed only at score >=85 and only if every hard gate is true. REVISE for repairable defects; REJECT for unsafe, incoherent, factually unreliable, wrong-family or fundamentally ambiguous content. Distractors must be close enough that an SSC learner must know the concept, but exactly one answer must remain defensible. For explicit spelling intent verify it is really a spelling task. For a multi-word request verify the requested cluster is actually tested. For context-fill Phrasal items verify the intended sense and natural sentence context. Never expose chain-of-thought; issues and repairInstruction must be concise verdicts.`;
+const criticInstructions=`You are an independent SSC CGL English content critic. The content was written by another model. Do not defer to its claims. Verify the actual stem, options, answer and explanation. Score honestly; average material is not automatically 95. PASS or PASS_WITH_MINOR_ISSUES is allowed only at score >=85 and only if every hard gate is true. REVISE for repairable defects; REJECT for unsafe, incoherent, factually unreliable, wrong-family or fundamentally ambiguous content. For normal MCQs requiredOptionsValid means four nonblank, distinct options. For the legacy Phrasal recall family only, requiredOptionsValid means exactly A='I knew this', B='Unsure', C='Forgot', correctKey='A'; option D may be blank. Distractors in MCQs must be close enough that an SSC learner must know the concept, but exactly one answer must remain defensible. For explicit spelling intent verify it is really a spelling task. For a multi-word request verify the requested cluster is actually tested. For context-fill Phrasal items verify the intended sense, natural sentence context, and that it is not semantically equivalent to any recent stem supplied in context. Never expose chain-of-thought; issues and repairInstruction must be concise verdicts.`;
 
 export async function critic(item:unknown,context:unknown):Promise<{quality:Quality;model:string}> {
   const out=await groqJson<Quality>(criticInstructions,{item,context},qualitySchema);
