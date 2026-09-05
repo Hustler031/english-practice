@@ -26,6 +26,10 @@ const exactPromotionMigration = fs.readFileSync(
   path.join(root, 'supabase/managed-migrations/20260905173500_english_saved_enrichment_exact_promotion.sql'),
   'utf8',
 );
+const exactApplyMigration = fs.readFileSync(
+  path.join(root, 'supabase/managed-migrations/20260905174200_english_saved_enrichment_exact_apply.sql'),
+  'utf8',
+);
 
 function need(text, needle, label) {
   if (!text.includes(needle)) throw new Error(`Missing ${label}: ${needle}`);
@@ -95,5 +99,11 @@ need(exactPromotionMigration, "'saved_exact_enrichment','mapped','variant'", 'ex
 need(exactPromotionMigration, 'perform english.ensure_saved_enrichment_exact_question(r.user_id,r.saved_id)', 'legacy mismatch repair');
 need(exactPromotionMigration, "raise exception 'Ready enrichment is incomplete'", 'no incomplete Ready promotion');
 forbid(exactPromotionMigration, 'array_agg(x order by random())', 'random fallback distractor generation');
+
+// Re-enrichment of an already linked item must also relink to the exact Ready variant.
+need(exactApplyMigration, "if lower(v_status)='ready' then", 'Ready re-promotion');
+need(exactApplyMigration, 'v_promoted:=public.english_promote_saved_item(v_saved_id)', 'exact promotion after enrichment');
+forbid(exactApplyMigration, "coalesce((select s.practice_question_id", 'blank-link-only promotion gate');
+need(exactApplyMigration, 'grant execute on function english.maintenance_apply_saved_enrichment(jsonb) to service_role', 'maintenance apply service-role boundary');
 
 console.log('English Saved enrichment private ChatGPT bridge contract: PASS');
