@@ -18,6 +18,10 @@ const bridgeMigration = fs.readFileSync(
   path.join(root, 'supabase/managed-migrations/20260905081500_english_saved_enrichment_chatgpt_bridge.sql'),
   'utf8',
 );
+const recoveryMigration = fs.readFileSync(
+  path.join(root, 'supabase/managed-migrations/20260905090000_english_saved_ready_incomplete_recovery.sql'),
+  'utf8',
+);
 
 function need(text, needle, label) {
   if (!text.includes(needle)) throw new Error(`Missing ${label}: ${needle}`);
@@ -63,5 +67,14 @@ forbid(bridge, 'refs/heads/automation/saved-enrichment', 'public queue ref pin')
 forbid(bridge, 'OPENAI_API_KEY', 'OpenAI API use in zero-cost bridge');
 forbid(bridge, 'api.openai.com', 'OpenAI network use in zero-cost bridge');
 forbid(bridge, 'Access-Control-Allow-Origin', 'browser-origin exposure');
+
+// A legacy row cannot remain terminal Ready when core learning fields are incomplete.
+need(recoveryMigration, "lower(btrim(coalesce(s.gpt_status,'')))='ready'", 'legacy Ready re-enrichment eligibility');
+need(recoveryMigration, "btrim(coalesce(s.meaning,''))=''", 'missing meaning recovery');
+need(recoveryMigration, "btrim(coalesce(s.option_d,''))=''", 'missing option recovery');
+need(recoveryMigration, "upper(btrim(coalesce(s.correct_option,''))) not in ('A','B','C','D')", 'invalid key recovery');
+need(recoveryMigration, "btrim(coalesce(s.explanation,''))=''", 'missing explanation recovery');
+need(recoveryMigration, "when lower(btrim(coalesce(s.gpt_status,'')))='ready' then 0", 'malformed Ready recovery priority');
+need(recoveryMigration, 'grant execute on function english.maintenance_saved_enrichment_batch(integer) to service_role', 'service-role maintenance boundary');
 
 console.log('English Saved enrichment private ChatGPT bridge contract: PASS');
