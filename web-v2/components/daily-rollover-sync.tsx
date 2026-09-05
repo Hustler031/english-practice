@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { localProductionSafetyMode, supabaseBrowser } from "@/lib/supabase";
 
@@ -12,62 +12,92 @@ function evictDailyResumeCache() {
   try { window.localStorage.removeItem(DAILY_RESUME_CACHE_KEY); } catch { /* best effort */ }
 }
 
-export default function DailyRolloverSync() {
+export default function DailyRolloverSync({ children }: Readonly<{ children: ReactNode }>) {
+  const [bootReady, setBootReady] = useState(false);
   const lastSyncAt = useRef(0);
-  const inFlight = useRef<Promise<void> | null>(null);
+  const lastBatchDate = useRef("");
+  const inFlight = useRef<Promise<string> | null>(null);
 
   useEffect(() => {
     let active = true;
 
-    // A Daily resume response is day-sensitive and also owns rollover. Keeping a
-    // previous-day response in the generic 12-hour cache can make the new day
-    // appear missing, so evict it before any child Daily route reads it.
+    // english_resume_daily is day-sensitive and also owns the idempotent rollover.
+    // Never let yesterday's generic 12-hour cache decide whether today's queue exists.
     evictDailyResumeCache();
 
-    const sync = async () => {
-      if (!active || localProductionSafetyMode()) return;
-      if (inFlight.current) return inFlight.current;
-      if (Date.now() - lastSyncAt.current < MIN_SYNC_GAP_MS) return;
+    const sync = async (initial = false): Promise<string> => {
+      if (!active) return "";
+      if (localProductionSafetyMode()) {
+        if (initial) setBootReady(true);
+        return "";
+      }
+      if (inFlight.current) {
+        const batchDate = await inFlight.current;
+        if (initial && active) setBootReady(true);
+        return batchDate;
+      }
+      if (!initial && Date.now() - lastSyncAt.current < MIN_SYNC_GAP_MS) return lastBatchDate.current;
 
       const work = (async () => {
         const { data: auth } = await supabaseBrowser().auth.getSession();
-        if (!auth.session || !active) return;
+        if (!auth.session || !active) return "";
 
-        // Call the idempotent rollover owner live rather than through the
-        // cache-first helper. Local Safe is explicitly excluded above.
-        const { error: dailyError } = await supabaseBrowser().rpc("english_resume_daily");
-        if (dailyError || !active) return;
+        // Direct Supabase RPC is intentional: the cache-first helper must not be
+        // allowed to return a previous-day resume payload before rollover runs.
+        const { data: daily, error: dailyError } = await supabaseBrowser().rpc("english_resume_daily");
+        if (dailyError || !active) return "";
         lastSyncAt.current = Date.now();
         evictDailyResumeCache();
 
-        // Refresh the Home card after a successful rollover without making the
-        // read model itself mutating. This preserves Local Safe's read-only rule.
+        const batchDate = String((daily as any)?.batch_date || (daily as any)?.today || "");
+        const previousBatchDate = lastBatchDate.current;
+        if (batchDate) lastBatchDate.current = batchDate;
+
+        // Home is intentionally read-only. Refresh its card only after the live
+        // rollover owner has completed, preserving the Local Safe mutation boundary.
         const { data: home, error: homeError } = await supabaseBrowser().rpc("english_get_home_snapshot");
         if (!homeError && home && active) {
           window.dispatchEvent(new CustomEvent("ep:v2-rpc-fresh", {
             detail: { name: "english_get_home_snapshot", args: {}, data: home },
           }));
         }
+
+        // If the app stayed open across midnight on the Daily route, refresh only
+        // after a real batch-date change. ensure_daily itself refuses to advance an
+        // unfinished previous day, so this cannot discard unfinished Daily work.
+        if (!initial && previousBatchDate && batchDate && batchDate !== previousBatchDate
+            && window.location.pathname === "/english/daily") {
+          window.location.reload();
+        }
+        return batchDate;
       })().finally(() => {
         inFlight.current = null;
       });
 
       inFlight.current = work;
-      return work;
+      const batchDate = await work;
+      if (initial && active) setBootReady(true);
+      return batchDate;
     };
 
-    void sync();
+    // Children are held until this first live check completes. That guarantees a
+    // Daily page cannot run its own cache-first effect before stale resume data is
+    // evicted and the current IST-day rollover has been attempted.
+    void sync(true).catch(() => {
+      if (active) setBootReady(true);
+    });
+
     const onWake = () => {
       if (document.visibilityState === "visible") {
         evictDailyResumeCache();
-        void sync();
+        void sync(false);
       }
     };
     window.addEventListener("focus", onWake);
     document.addEventListener("visibilitychange", onWake);
     const heartbeat = window.setInterval(() => {
       evictDailyResumeCache();
-      void sync();
+      void sync(false);
     }, OPEN_APP_HEARTBEAT_MS);
 
     return () => {
@@ -78,5 +108,5 @@ export default function DailyRolloverSync() {
     };
   }, []);
 
-  return null;
+  return bootReady ? <>{children}</> : null;
 }
