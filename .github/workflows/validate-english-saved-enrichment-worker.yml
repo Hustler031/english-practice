@@ -2,14 +2,13 @@ name: Validate English Saved Enrichment Worker
 
 on:
   push:
-    branches: [main, english-saved-enrichment-worker-fix-20260905, fix-saved-enrichment-chatgpt-bridge-20260905]
+    branches: [main, english-saved-enrichment-worker-fix-20260905, fix-saved-enrichment-chatgpt-bridge-20260905, fix-saved-enrichment-private-transport-20260905]
     paths:
       - 'supabase/functions/english-saved-enrichment-worker/**'
       - 'supabase/functions/english-saved-enrichment-bridge/**'
       - 'supabase/managed-migrations/**english_saved_enrichment**.sql'
       - '.github/scripts/validate-english-saved-enrichment-worker.cjs'
       - '.github/workflows/validate-english-saved-enrichment-worker.yml'
-      - '.github/workflows/saved-enrichment-chatgpt-bridge.yml'
   pull_request:
     paths:
       - 'supabase/functions/english-saved-enrichment-worker/**'
@@ -17,7 +16,6 @@ on:
       - 'supabase/managed-migrations/**english_saved_enrichment**.sql'
       - '.github/scripts/validate-english-saved-enrichment-worker.cjs'
       - '.github/workflows/validate-english-saved-enrichment-worker.yml'
-      - '.github/workflows/saved-enrichment-chatgpt-bridge.yml'
   workflow_dispatch:
 
 jobs:
