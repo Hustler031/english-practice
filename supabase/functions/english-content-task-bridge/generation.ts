@@ -250,13 +250,15 @@ export async function runHinduGeneration(db:Db){
 
   let toneResult:any={ok:true,skipped:true,reason:"weekly_cadence"};
   const toneKind=weeklyToneSlot(targetDate);
-  if(await featureEnabled(db,"hindu_tone_v1")&&toneKind&&ordered.length>=1){
+  if(toneKind&&ordered.length>=1){
     try{
-      const toneItem=await buildToneItem(ordered[0],toneKind);
-      const {data,error}=await db.rpc("english_apply_editorial_tone_items",{p_items:[toneItem]});
-      if(error)throw new Error(`HINDU_TONE_APPLY_FAILED: ${error.message}`);
-      toneResult={ok:true,skipped:false,toneKind,result:data};
-      await audit(db,[{lane:"tone",entityKey:toneItem.fingerprint,generatorProvider:"gemini",generatorModel:GEMINI_MODEL,criticProvider:"groq",criticModel:GROQ_MODEL,qualityScore:toneItem.quality?.score,criticDecision:toneItem.quality?.decision,repairCount:toneItem.repairCount,publicationResult:"applied",metadata:{sourceName:toneItem.sourceName,sourceUrl:toneItem.sourceUrl,toneKind:toneItem.toneKind,cadence:"Tue-Thu-Sat"}}]);
+      if(await featureEnabled(db,"hindu_tone_v1")){
+        const toneItem=await buildToneItem(ordered[0],toneKind);
+        const {data,error}=await db.rpc("english_apply_editorial_tone_items",{p_items:[toneItem]});
+        if(error)throw new Error(`HINDU_TONE_APPLY_FAILED: ${error.message}`);
+        toneResult={ok:true,skipped:false,toneKind,result:data};
+        await audit(db,[{lane:"tone",entityKey:toneItem.fingerprint,generatorProvider:"gemini",generatorModel:GEMINI_MODEL,criticProvider:"groq",criticModel:GROQ_MODEL,qualityScore:toneItem.quality?.score,criticDecision:toneItem.quality?.decision,repairCount:toneItem.repairCount,publicationResult:"applied",metadata:{sourceName:toneItem.sourceName,sourceUrl:toneItem.sourceUrl,toneKind:toneItem.toneKind,cadence:"Tue-Thu-Sat"}}]);
+      }
     }catch(e){
       toneResult={ok:false,skipped:true,reason:"optional_tone_failed",error:e instanceof Error?e.message:String(e)};
     }
