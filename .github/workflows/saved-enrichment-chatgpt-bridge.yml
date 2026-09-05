@@ -1,0 +1,99 @@
+name: Saved Enrichment ChatGPT Bridge
+
+on:
+  push:
+    branches:
+      - automation/saved-enrichment
+    paths:
+      - '.automation/saved-enrichment/queue.json'
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  bridge:
+    if: ${{ !contains(github.event.head_commit.message, '[bridge-sync]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read queue state
+        id: queue
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE='.automation/saved-enrichment/queue.json'
+          test -f "$FILE"
+          STATE="$(jq -r '.state // ""' "$FILE")"
+          case "$STATE" in
+            request|enriched) ;;
+            *) echo "Unsupported queue state: $STATE" >&2; exit 1 ;;
+          esac
+          echo "state=$STATE" >> "$GITHUB_OUTPUT"
+
+      - name: Get GitHub OIDC token
+        id: oidc
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESPONSE="$(curl --fail-with-body -sS \
+            -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=english-saved-enrichment")"
+          TOKEN="$(printf '%s' "$RESPONSE" | jq -r '.value')"
+          test -n "$TOKEN" && test "$TOKEN" != "null"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Apply enriched batch
+        if: steps.queue.outputs.state == 'enriched'
+        env:
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE='.automation/saved-enrichment/queue.json'
+          jq '{action:"apply",runId:.runId,items:.items}' "$FILE" > /tmp/apply.json
+          curl --fail-with-body -sS \
+            -H "Authorization: Bearer ${OIDC_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            --data-binary @/tmp/apply.json \
+            'https://hytehindbmjdwcfptsic.supabase.co/functions/v1/english-saved-enrichment-bridge' \
+            | tee /tmp/apply-response.json
+          jq -e '.ok == true' /tmp/apply-response.json >/dev/null
+
+      - name: Claim next batch
+        env:
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body -sS \
+            -H "Authorization: Bearer ${OIDC_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            --data '{"action":"claim","limit":10}' \
+            'https://hytehindbmjdwcfptsic.supabase.co/functions/v1/english-saved-enrichment-bridge' \
+            > /tmp/claim.json
+
+          if jq -e '.busy == true' /tmp/claim.json >/dev/null; then
+            jq '{state:"busy",runId:.runId,expiresAt:.expiresAt,updatedAt:(now|todateiso8601)}' /tmp/claim.json > /tmp/next.json
+          elif [ "$(jq -r '.count // 0' /tmp/claim.json)" -gt 0 ]; then
+            jq '{state:"ready_for_enrichment",runId:.runId,expiresAt:.expiresAt,count:.count,items:.items,updatedAt:(now|todateiso8601)}' /tmp/claim.json > /tmp/next.json
+          else
+            jq -n '{state:"idle",count:0,updatedAt:(now|todateiso8601)}' > /tmp/next.json
+          fi
+
+      - name: Publish ephemeral queue snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          git checkout -B automation/saved-enrichment origin/main
+          mkdir -p .automation/saved-enrichment
+          cp /tmp/next.json .automation/saved-enrichment/queue.json
+          git add .automation/saved-enrichment/queue.json
+          git commit -m '[bridge-sync] refresh saved enrichment queue'
+          git push --force origin HEAD:automation/saved-enrichment
