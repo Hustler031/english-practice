@@ -20,7 +20,8 @@ const saved=read('web-v2/app/english/saved/page.tsx');
 const phrasal=read('web-v2/app/english/phrasal/page.tsx');
 const migration1=read('supabase/managed-migrations/20260830180000_english_quiz_session_freshness.sql');
 const migration2=read('supabase/managed-migrations/20260830181000_english_source_group_fresh_session.sql');
-const sql=migration1+'\n'+migration2;
+const migration3=read('supabase/managed-migrations/20260905133000_english_extra_practice_24h_cooldown.sql');
+const sql=migration1+'\n'+migration2+'\n'+migration3;
 
 // Central cache/session policy.
 [
@@ -28,7 +29,7 @@ const sql=migration1+'\n'+migration2;
   'english_get_new_practice_batch','english_get_topic_batch','english_get_source_batch',
   'english_get_source_group_batch','english_get_starred_batch','english_get_phrasal_batch',
   'english_get_today_extra_batch','english_get_bank_coverage_batch','english_get_demand_batch'
-].forEach(name=>need(supabase,`case \"${name}\"`,`${name} classified centrally`));
+].forEach(name=>need(supabase,`case "${name}"`,`${name} classified centrally`));
 need(supabase,'if (sessionReadPolicy(name, args)) return false;','fresh/session reads are excluded from generic cache');
 need(supabase,'english_start_fresh_session','fresh launches use one live backend gateway');
 need(supabase,'prepareFreshSession(maxMs = 1400)','new sessions give the answer outbox a bounded drain opportunity');
@@ -41,12 +42,12 @@ need(supabase,'learnerErrorMessage','database/network engine errors are normaliz
 need(supabase,'Local answer storage is unavailable','local outbox persistence failure remains actionable');
 
 // Fixed/repeat lanes remain outside the rotating gateway.
-reject(supabase,'case \"english_resume_daily\"','Daily is not treated as a fresh rotating session');
-reject(supabase,'case \"english_get_hindu_quiz\"','Hindu Today remains a fixed/repeat set');
-reject(supabase,'case \"english_get_phrasal_today\"','Phrasal Today remains fixed');
-reject(supabase,'case \"english_get_phrasal_history_batch\"','Phrasal History remains fixed/history');
-reject(supabase,'case \"english_get_saved_history_batch\"','My Saved History remains fixed/history');
-need(supabase,'mode === \"all\" ? null','Demand Practice All bypasses rotation for deterministic resume');
+reject(supabase,'case "english_resume_daily"','Daily is not treated as a fresh rotating session');
+reject(supabase,'case "english_get_hindu_quiz"','Hindu Today remains a fixed/repeat set');
+reject(supabase,'case "english_get_phrasal_today"','Phrasal Today remains fixed');
+reject(supabase,'case "english_get_phrasal_history_batch"','Phrasal History remains fixed/history');
+reject(supabase,'case "english_get_saved_history_batch"','My Saved History remains fixed/history');
+need(supabase,'mode === "all" ? null','Demand Practice All bypasses rotation for deterministic resume');
 need(supabase,'english_get_bank_coverage_seen_batch','Bank seen-practice remains an intentional live repeat lane');
 need(supabase,'english_get_bank_coverage_review_batch','Bank Today Review remains an intentional live repeat lane');
 
@@ -73,9 +74,18 @@ reject(sql,'delete from english.attempts','migration never deletes attempt histo
 reject(sql,'truncate english.attempts','migration never resets attempt history');
 reject(sql,'delete from english.question_state','migration never deletes learning state');
 
+// Extra Practice exact-question cooldown + same-concept variant contract.
+need(migration3,"interval '24 hours'",'Extra exact-question cooldown is 24 hours');
+need(migration3,"interval '90 minutes'",'same-day wrong exact-question fallback waits at least 90 minutes');
+need(migration3,'extra_exposed_24h','opening an Extra session also participates in the 24h cooldown');
+need(migration3,'Fresh variant · ','same-concept fresh variants are learner-visible as such');
+need(migration3,"'sourceQuestionId'",'fresh variants retain the source learning signal');
+need(migration3,'partition by concept_key','Extra serves at most one question per concept in a candidate pass');
+need(migration3,"return public.english_start_fresh_session(",'direct Extra callers use the central exposure ledger');
+
 // Sources/PDF no longer fans out independent served sessions then slices locally.
 need(sources,'english_get_source_group_batch','Sources/PDF uses one grouped learner-visible session');
-reject(sources,'pick.keys.map(key=>rpc<any[]>(\"english_get_source_batch\"','Sources/PDF no longer records false per-source exposures');
+reject(sources,'pick.keys.map(key=>rpc<any[]>("english_get_source_batch"','Sources/PDF no longer records false per-source exposures');
 reject(sources,'items.slice(0,Math.max(1,pick.count))','Sources/PDF does not truncate after exposures are recorded');
 
 // Extra lane mismatch regression.
@@ -85,8 +95,8 @@ reject(extra,'english_get_revision_batch','Extra Practice no longer falls back t
 // Stable navigation + safe learner-facing errors.
 [runner,daily,hindu].forEach((text,i)=>{
   const label=['shared QuizRunner','Daily','Hindu'][i];
-  reject(text,'behavior:\"smooth\"',`${label} has no smooth question-to-question scroll`);
-  need(text,'behavior:\"auto\"',`${label} uses instant controlled top positioning`);
+  reject(text,'behavior:"smooth"',`${label} has no smooth question-to-question scroll`);
+  need(text,'behavior:"auto"',`${label} uses instant controlled top positioning`);
   need(text,'learnerErrorMessage',`${label} sanitizes database/network errors`);
 });
 need(runner,'english_complete_fresh_session','shared QuizRunner marks fresh sessions complete on Finish');
@@ -157,6 +167,17 @@ assert(pendingNext.slice(0,10).every(id=>!pendingPrev.includes(id)),'pending-syn
 const duplicateInput=[{id:'D1'},{id:'D1'},{id:'D2'},{id:'D3'},{id:'D2'}];
 const duplicateOut=select(duplicateInput,10);
 assert(unique(duplicateOut)&&duplicateOut.length===3,'same-session duplicate Question_IDs are removed deterministically');
+
+// Extra Practice freshness classes: alternate concept questions win before exact repeats.
+const extraCandidates=[
+  {id:'ALT',freshClass:0,priority:115},
+  {id:'SAME_WRONG_AFTER_90M',freshClass:1,priority:115},
+  {id:'RECENT_24H',freshClass:2,priority:120},
+  {id:'FRESH_LOWER_PRIORITY',freshClass:0,priority:70},
+].sort((a,b)=>a.freshClass-b.freshClass||b.priority-a.priority);
+assert(extraCandidates[0].id==='ALT','Extra prefers a fresh same-concept variant over the exact recent wrong question');
+assert(extraCandidates[1].id==='FRESH_LOWER_PRIORITY','Extra exhausts fresh questions before controlled exact-question fallback');
+assert(extraCandidates.at(-1).id==='RECENT_24H','24h recent exact questions remain last-resort fallbacks');
 
 if(process.exitCode){
   console.error('\nEnglish V2 fresh-session validation failed. Merge/deployment must not proceed.');
