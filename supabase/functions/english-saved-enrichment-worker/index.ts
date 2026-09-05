@@ -13,6 +13,11 @@ const classifyError=(e:unknown)=>{
   if(/(?:ANTIGRAVITY|LUNA|GEMINI_RESCUE|AI)_TIMEOUT|AbortError|timed?\s*out/i.test(text))return `AI_TIMEOUT: ${text}`;
   return text;
 };
+async function featureEnabled(db:any,flag:string){
+  const {data,error}=await db.rpc("english_ai_content_feature_enabled",{p_flag:flag});
+  if(error)throw new Error(`FEATURE_READ_FAILED: ${error.message}`);
+  return data===true;
+}
 
 const enrichmentSchema:any={
   type:"object",additionalProperties:false,
@@ -72,6 +77,9 @@ Deno.serve(async req=>{
   const token=String(req.headers.get("x-english-context-token")||"").trim();if(!token)return reply({error:"Unauthorized"},401);
   const url=Deno.env.get("SUPABASE_URL"),serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");if(!url||!serviceKey)return reply({error:"Supabase service configuration missing"},503);
   const db=createClient(url,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
+  try{
+    if(!await featureEnabled(db,"antigravity_writer_v1")||!await featureEnabled(db,"luna_critic_v1"))return reply({error:"AI_PIPELINE_DISABLED: Saved Antigravity/Luna flags are not enabled"},503);
+  }catch(e){return reply({error:errorText(e)},500)}
   let body:any={};try{body=await req.json()}catch{body={}}
   const limit=Math.max(1,Math.min(10,Number(body?.limit)||10)),started=Date.now();
   const {data:claim,error:claimError}=await db.rpc("english_saved_enrichment_worker_claim",{p_token:token,p_limit:limit});
