@@ -114,15 +114,18 @@ async function fetchTrustedEvidence(targetDate:string){
   return [...enriched,...unique.slice(20)].map(({priority,...e})=>e);
 }
 
+// Candidate discovery is deliberately bounded because Gemini structured-output schemas
+// can reject oversized array shapes with generic INVALID_ARGUMENT. Published MCQs below
+// are still generated one learning item per Gemini request and independently Groq-reviewed.
 const candidateBatchSchema={
-  type:"object",additionalProperties:false,required:["candidates"],properties:{candidates:{type:"array",minItems:12,maxItems:60,items:{
+  type:"object",additionalProperties:false,required:["candidates"],properties:{candidates:{type:"array",minItems:8,maxItems:24,items:{
     type:"object",additionalProperties:false,
     required:["word","partOfSpeech","familyKeys","articleTitle","sourceName","sourceUrl","articleDate","contextParaphrase","whyUseful","candidateType"],
     properties:{word:{type:"string"},partOfSpeech:{type:"string"},familyKeys:{type:"array",items:{type:"string"},maxItems:8},articleTitle:{type:"string"},sourceName:{type:"string"},sourceUrl:{type:"string"},articleDate:{type:"string"},contextParaphrase:{type:"string"},whyUseful:{type:"string"},candidateType:{type:"string",enum:["vocabulary","discourse_marker"]}}
   }}}};
 const focusedDiscourseSchema=structuredClone(candidateBatchSchema) as any;
 focusedDiscourseSchema.properties.candidates.minItems=4;
-focusedDiscourseSchema.properties.candidates.maxItems=20;
+focusedDiscourseSchema.properties.candidates.maxItems=12;
 const hinduItemSchema={
   type:"object",additionalProperties:false,
   required:["meaning","partOfSpeech","synonyms","antonyms","example","wordFamily","usageNote","tip","memoryAid","question","questionType","optionA","optionB","optionC","optionD","correctKey","explanation","difficulty","relatedWords"],
@@ -138,11 +141,11 @@ function candidateBackedByEvidence(candidate:Json,evidenceMap:Map<string,Evidenc
   return {...candidate,articleTitle:evidence.articleTitle,sourceName:evidence.sourceName,sourceUrl:evidence.sourceUrl,articleDate:evidence.articleDate};
 }
 async function researchHinduCandidates(targetDate:string,need:number,existing:string[],excluded:string[],evidence:Evidence[],discourseOnly=false){
-  const requested=discourseOnly?Math.min(20,Math.max(8,need*4)):Math.min(60,Math.max(30,need*3));
+  const requested=discourseOnly?Math.min(12,Math.max(6,need*3)):Math.min(24,Math.max(12,need+4));
   const instructions=discourseOnly
     ?`Choose SSC-useful discourse, transition or connective expressions ONLY from the supplied trusted current-news article evidence. The expression must literally occur in evidenceText for the exact sourceUrl you return. Do not browse, invent a source, or quote article prose. Return only meaningful contrast, concession, consequence, comparison, continuation, qualification, cause-effect, transition or authorial-relation markers; avoid routine filler. candidateType must be discourse_marker. Preserve the supplied source URL exactly and paraphrase the local context.`
     :`Choose moderate-to-hard SSC CGL vocabulary ONLY from the supplied trusted current-news article evidence. Every target word/expression must literally occur in evidenceText for the exact sourceUrl you return. Do not browse, invent a source, or quote article prose. Prefer high-yield editorial/explainer vocabulary over proper nouns, easy words and topic-specific jargon. Include 2-3 useful discourse/transition markers only when genuinely evidenced. Preserve the supplied source URL exactly and paraphrase the local context. Return more candidates than needed because deterministic history filtering happens after generation.`;
-  const compactEvidence=evidence.map(({articleTitle,sourceName,sourceUrl,articleDate,evidenceText})=>({articleTitle,sourceName,sourceUrl,articleDate,evidenceText:evidenceText.slice(0,3600)}));
+  const compactEvidence=evidence.slice(0,16).map(({articleTitle,sourceName,sourceUrl,articleDate,evidenceText})=>({articleTitle,sourceName,sourceUrl,articleDate,evidenceText:evidenceText.slice(0,2400)}));
   const out=await geminiJson<any>(instructions,{targetDate,requested,existingWords:existing,excludeWords:excluded,discourseOnly,evidence:compactEvidence},discourseOnly?focusedDiscourseSchema:candidateBatchSchema,{model:GEMINI_BULK_MODEL});
   const evidenceMap=new Map(evidence.map(e=>[normUrl(e.sourceUrl),e]));
   const candidates=(Array.isArray(out.data?.candidates)?out.data.candidates:[]).map((c:any)=>candidateBackedByEvidence(c,evidenceMap)).filter(Boolean) as Json[];
@@ -229,6 +232,7 @@ export async function runHinduGeneration(db:Db){
     const ordered=[...discourse,...accepted.filter(x=>!discourseSet.has(normWord(String(x.word))))].slice(0,need);
     if(ordered.length!==need)throw new Error(`HINDU_FINAL_MIX_INVALID: expected ${need}, got ${ordered.length}`);
 
+    // Bounded concurrency only; every final word/MCQ is a separate Gemini request and separate Groq review.
     const items=await mapLimit(ordered,3,fullHinduItem);
     const {data:applied,error:applyError}=await db.rpc("english_hindu_task_apply",{p_run_id:runId,p_items:items});
     if(applyError)throw new Error(`HINDU_APPLY_FAILED: ${applyError.message}`);
