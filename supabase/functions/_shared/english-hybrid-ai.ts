@@ -1,5 +1,6 @@
 // Server-only English content generation helper. Never import from browser code.
 export const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-3.8-flash";
+export const GEMINI_GROUNDED_MODEL = Deno.env.get("GEMINI_GROUNDED_MODEL") || "gemini-2.5-flash";
 export const GROQ_MODEL = Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-120b";
 const AI_TIMEOUT_MS = 28_000;
 
@@ -38,20 +39,19 @@ function errorText(e:unknown){return e instanceof Error?e.message:String(e||"Unk
 function withTimeout(){const c=new AbortController();const timer=setTimeout(()=>c.abort(),AI_TIMEOUT_MS);return {c,timer}}
 function parseJsonText(text:string,label:string){try{return JSON.parse(text)}catch(e){throw new Error(`${label}_MALFORMED_JSON: ${errorText(e)}`)}}
 
-export async function geminiJson<T>(instructions:string,input:unknown,schema:unknown,opts:{googleSearch?:boolean}={}):Promise<{data:T;model:string;grounding?:unknown}> {
+export async function geminiJson<T>(instructions:string,input:unknown,schema:unknown,opts:{googleSearch?:boolean;model?:string}={}):Promise<{data:T;model:string;grounding?:unknown}> {
   const key=Deno.env.get("GEMINI_API_KEY");
   if(!key)throw new Error("AUTH_CONFIG: GEMINI_API_KEY is not configured");
+  const model=String(opts.model||GEMINI_MODEL);
   const {c,timer}=withTimeout();
   try{
-    const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent`,{
+    const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{
       method:"POST",signal:c.signal,
       headers:{"x-goog-api-key":key,"Content-Type":"application/json"},
       body:JSON.stringify({
         systemInstruction:{parts:[{text:instructions}]},
         contents:[{role:"user",parts:[{text:JSON.stringify(input)}]}],
         ...(opts.googleSearch?{tools:[{googleSearch:{}}]}:{}),
-        // generateContent currently accepts the legacy structured-output fields
-        // reliably across the Gemini 3.8 Flash REST surface. Keep these paired.
         generationConfig:{responseMimeType:"application/json",responseJsonSchema:schema},
       }),
     });
@@ -60,7 +60,7 @@ export async function geminiJson<T>(instructions:string,input:unknown,schema:unk
     const parts=payload?.candidates?.[0]?.content?.parts||[];
     const text=parts.map((p:any)=>typeof p?.text==="string"?p.text:"").join("").trim();
     if(!text)throw new Error("GEMINI_MALFORMED_OUTPUT: no JSON text returned");
-    return {data:parseJsonText(text,"GEMINI") as T,model:GEMINI_MODEL,grounding:payload?.candidates?.[0]?.groundingMetadata};
+    return {data:parseJsonText(text,"GEMINI") as T,model,grounding:payload?.candidates?.[0]?.groundingMetadata};
   }catch(e:any){if(e?.name==="AbortError")throw new Error("GEMINI_TIMEOUT");throw e}finally{clearTimeout(timer)}
 }
 
