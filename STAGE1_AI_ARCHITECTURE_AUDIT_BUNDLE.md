@@ -2,6 +2,12 @@
 
 Branch: `english-ai-architecture-stabilization-stage1-20260905`
 Starting `main`: `34779f1c5cf61554e2d2460ca90f9dac7a787396`
+Remote Stage 1 head at validation: `412fc2713473a4d2cce6250a7412868b3c4ef35b`
+
+## Commit list
+
+- `b9724612bd4fb4c7423a3dac32728b477156d3ae` — Stabilize English AI worker ownership and retries
+- `412fc2713473a4d2cce6250a7412868b3c4ef35b` — Align revision contracts with dedicated worker
 
 ## Production reconciliation
 
@@ -41,7 +47,10 @@ timeout/transient failure as a quality rejection.
 - English CI now runs for pushes to `main` and PRs, and watches all three English worker paths.
 - Repo-side ownership/lifecycle drift contract: PASS.
 - `git diff --check`: PASS.
-- TypeScript/build/full PostgreSQL contract suite: not executed locally because this checkout has no `node_modules` and no `psql`; CI is configured to run them on the branch.
+- `npm ci`, TypeScript, and production build: PASS.
+- English contracts: PASS, including Daily selection, fresh-session/cooldown, Hindu boundary, My Saved, Phrasal, Targeted, revision, and worker ownership contracts.
+- GK and Maths boundary contracts: PASS.
+- PostgreSQL-dependent migration execution remains delegated to GitHub Actions (the local runtime has no `psql`).
 
 ## Deliberately untouched
 
