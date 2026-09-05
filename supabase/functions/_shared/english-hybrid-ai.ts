@@ -2,6 +2,7 @@
 export const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-3.6-flash";
 export const GROQ_MODEL = Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-120b";
 const AI_TIMEOUT_MS = 28_000;
+const RETRYABLE_PROVIDER_STATUS = new Set([429, 500, 502, 503, 504]);
 
 export type HardGates = {
   exactlyOneCorrect:boolean; correctKeyMatches:boolean; linguisticallyValid:boolean;
@@ -37,29 +38,37 @@ export const qualitySchema={
 function errorText(e:unknown){return e instanceof Error?e.message:String(e||"Unknown AI error")}
 function withTimeout(){const c=new AbortController();const timer=setTimeout(()=>c.abort(),AI_TIMEOUT_MS);return {c,timer}}
 function parseJsonText(text:string,label:string){try{return JSON.parse(text)}catch(e){throw new Error(`${label}_MALFORMED_JSON: ${errorText(e)}`)}}
+const sleep=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms));
 
-export async function geminiJson<T>(instructions:string,input:unknown,schema:unknown,opts:{googleSearch?:boolean;model?:string}={}):Promise<{data:T;model:string;grounding?:unknown}> {
+export async function geminiJson<T>(instructions:string,input:unknown,schema:unknown,opts:{model?:string}={}):Promise<{data:T;model:string;grounding?:unknown}> {
   const key=Deno.env.get("GEMINI_API_KEY");
   if(!key)throw new Error("AUTH_CONFIG: GEMINI_API_KEY is not configured");
   const model=String(opts.model||GEMINI_MODEL);
   const {c,timer}=withTimeout();
   try{
-    const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{
-      method:"POST",signal:c.signal,
-      headers:{"x-goog-api-key":key,"Content-Type":"application/json"},
-      body:JSON.stringify({
-        systemInstruction:{parts:[{text:instructions}]},
-        contents:[{role:"user",parts:[{text:JSON.stringify(input)}]}],
-        ...(opts.googleSearch?{tools:[{googleSearch:{}}]}:{}),
-        generationConfig:{responseMimeType:"application/json",responseJsonSchema:schema},
-      }),
-    });
-    const payload=await res.json().catch(()=>null);
-    if(!res.ok)throw new Error(`GEMINI_${res.status}: ${payload?.error?.message||"request failed"}`);
-    const parts=payload?.candidates?.[0]?.content?.parts||[];
-    const text=parts.map((p:any)=>typeof p?.text==="string"?p.text:"").join("").trim();
-    if(!text)throw new Error("GEMINI_MALFORMED_OUTPUT: no JSON text returned");
-    return {data:parseJsonText(text,"GEMINI") as T,model,grounding:payload?.candidates?.[0]?.groundingMetadata};
+    for(let attempt=0;attempt<3;attempt++){
+      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{
+        method:"POST",signal:c.signal,
+        headers:{"x-goog-api-key":key,"Content-Type":"application/json"},
+        body:JSON.stringify({
+          systemInstruction:{parts:[{text:instructions}]},
+          contents:[{role:"user",parts:[{text:JSON.stringify(input)}]}],
+          generationConfig:{responseMimeType:"application/json",responseJsonSchema:schema},
+        }),
+      });
+      const payload=await res.json().catch(()=>null);
+      if(res.ok){
+        const parts=payload?.candidates?.[0]?.content?.parts||[];
+        const text=parts.map((p:any)=>typeof p?.text==="string"?p.text:"").join("").trim();
+        if(!text)throw new Error("GEMINI_MALFORMED_OUTPUT: no JSON text returned");
+        return {data:parseJsonText(text,"GEMINI") as T,model,grounding:payload?.candidates?.[0]?.groundingMetadata};
+      }
+      if(!RETRYABLE_PROVIDER_STATUS.has(res.status)||attempt===2){
+        throw new Error(`GEMINI_${res.status}: ${payload?.error?.message||"request failed"}`);
+      }
+      await sleep(700*(attempt+1));
+    }
+    throw new Error("GEMINI_RETRY_EXHAUSTED");
   }catch(e:any){if(e?.name==="AbortError")throw new Error("GEMINI_TIMEOUT");throw e}finally{clearTimeout(timer)}
 }
 
@@ -74,20 +83,28 @@ export async function groqJson<T>(instructions:string,input:unknown,schema:unkno
   if(!key)throw new Error("AUTH_CONFIG: GROQ_API_KEY is not configured");
   const {c,timer}=withTimeout();
   try{
-    const res=await fetch("https://api.groq.com/openai/v1/responses",{
-      method:"POST",signal:c.signal,
-      headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},
-      body:JSON.stringify({
-        model:GROQ_MODEL,reasoning:{effort:"medium"},max_output_tokens:2200,
-        instructions,input:JSON.stringify(input),
-        text:{format:{type:"json_schema",name:"english_quality_decision",schema}},
-      }),
-    });
-    const payload=await res.json().catch(()=>null);
-    if(!res.ok)throw new Error(`GROQ_${res.status}: ${payload?.error?.message||"request failed"}`);
-    const text=groqOutputText(payload).trim();
-    if(!text)throw new Error("GROQ_MALFORMED_OUTPUT: no JSON text returned");
-    return {data:parseJsonText(text,"GROQ") as T,model:String(payload?.model||GROQ_MODEL)};
+    for(let attempt=0;attempt<3;attempt++){
+      const res=await fetch("https://api.groq.com/openai/v1/responses",{
+        method:"POST",signal:c.signal,
+        headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},
+        body:JSON.stringify({
+          model:GROQ_MODEL,reasoning:{effort:"medium"},max_output_tokens:2200,
+          instructions,input:JSON.stringify(input),
+          text:{format:{type:"json_schema",name:"english_quality_decision",schema}},
+        }),
+      });
+      const payload=await res.json().catch(()=>null);
+      if(res.ok){
+        const text=groqOutputText(payload).trim();
+        if(!text)throw new Error("GROQ_MALFORMED_OUTPUT: no JSON text returned");
+        return {data:parseJsonText(text,"GROQ") as T,model:String(payload?.model||GROQ_MODEL)};
+      }
+      if(!RETRYABLE_PROVIDER_STATUS.has(res.status)||attempt===2){
+        throw new Error(`GROQ_${res.status}: ${payload?.error?.message||"request failed"}`);
+      }
+      await sleep(700*(attempt+1));
+    }
+    throw new Error("GROQ_RETRY_EXHAUSTED");
   }catch(e:any){if(e?.name==="AbortError")throw new Error("GROQ_TIMEOUT");throw e}finally{clearTimeout(timer)}
 }
 
@@ -104,9 +121,9 @@ export async function critic(item:unknown,context:unknown):Promise<{quality:Qual
 
 export async function generateCriticRepair<T>(args:{
   instructions:string; input:unknown; schema:unknown; criticContext:unknown;
-  googleSearch?:boolean; repairInput?:(original:unknown,current:T,quality:Quality)=>unknown;
+  repairInput?:(original:unknown,current:T,quality:Quality)=>unknown;
 }):Promise<{item:T;quality:Quality;repairCount:number;generatorModel:string;criticModel:string;grounding?:unknown}> {
-  let generated=await geminiJson<T>(args.instructions,args.input,args.schema,{googleSearch:args.googleSearch});
+  let generated=await geminiJson<T>(args.instructions,args.input,args.schema);
   let current=generated.data;
   let review=await critic(current,args.criticContext);
   let repairs=0;
@@ -115,7 +132,7 @@ export async function generateCriticRepair<T>(args:{
     generated=await geminiJson<T>(
       args.instructions+"\nRepair only the critic-identified defects. Preserve the assigned concept, sense, family and learner intent. Return the complete corrected item.",
       args.repairInput?args.repairInput(args.input,current,review.quality):{originalAssignment:args.input,currentItem:current,critic:review.quality},
-      args.schema,{googleSearch:false}
+      args.schema
     );
     current=generated.data;
     review=await critic(current,args.criticContext);
