@@ -50,10 +50,9 @@ export async function geminiJson<T>(instructions:string,input:unknown,schema:unk
         systemInstruction:{parts:[{text:instructions}]},
         contents:[{role:"user",parts:[{text:JSON.stringify(input)}]}],
         ...(opts.googleSearch?{tools:[{googleSearch:{}}]}:{}),
-        // Gemini 3.8 Flash supports structured outputs and Google Search together.
-        // Sampling controls such as temperature/top_p/top_k are intentionally omitted:
-        // Gemini 3.6+ no longer supports those legacy parameters.
-        generationConfig:{responseFormat:{text:{mimeType:"application/json",schema}}},
+        // generateContent currently accepts the legacy structured-output fields
+        // reliably across the Gemini 3.8 Flash REST surface. Keep these paired.
+        generationConfig:{responseMimeType:"application/json",responseJsonSchema:schema},
       }),
     });
     const payload=await res.json().catch(()=>null);
