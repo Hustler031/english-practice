@@ -8,11 +8,15 @@ set search_path='pg_catalog','public','english','auth'
 as $$
 declare
   base_items jsonb;
+  generated_items jsonb;
   applied jsonb;
   meta_count integer:=0;
 begin
-  if english.ai_feature_enabled('groq_critic_v1') then
-    perform english.assert_generated_items_quality(p_items,false);
+  select coalesce(jsonb_agg(e.value),'[]'::jsonb) into generated_items
+  from jsonb_array_elements(p_items) e(value)
+  where lower(coalesce(e.value->>'generatorProvider','gemini'))<>'legacy_bank';
+  if english.ai_feature_enabled('groq_critic_v1') and jsonb_array_length(generated_items)>0 then
+    perform english.assert_generated_items_quality(generated_items,false);
   end if;
 
   -- The legacy materializer still owns IDs, exact 20 atomicity and history safety.
@@ -46,7 +50,7 @@ begin
     coalesce(nullif(i.value->>'variantKey',''),'variant_'||left(md5(lower(regexp_replace(coalesce(i.value->>'question',''),'\s+',' ','g'))),12)),
     coalesce(nullif(i.value->>'variantFingerprint',''),md5(lower(regexp_replace(coalesce(i.value->>'question',''),'\s+',' ','g')))),
     coalesce(nullif(i.value->>'generatorProvider',''),'gemini'),
-    coalesce(nullif(i.value->>'criticProvider',''),'groq'),
+    nullif(i.value->>'criticProvider',''),
     nullif(i.value->'quality'->>'score','')::numeric,
     nullif(i.value->'quality'->>'decision',''),
     coalesce((i.value->>'repairCount')::int,0),
@@ -88,6 +92,12 @@ begin
   on conflict(question_id) do update set
     concept_id=excluded.concept_id,mapping_confidence=1,mapping_method='deterministic_metadata',
     review_status='mapped',relation_type='primary',updated_at=now();
+
+  if english.ai_feature_enabled('gemini_content_v1') then
+    update english.sources set
+      notes='Central-selected adaptive Phrasal batch. New variants use Gemini generation plus independent Groq quality gates; validated legacy recall cards may pass through unchanged.'
+    where source_id=v_source_id;
+  end if;
 
   v_verify:=english.maintenance_verify_phrasal_daily();
   select count(*) into v_total from english.questions q where q.active and q.source_id=v_source_id;
