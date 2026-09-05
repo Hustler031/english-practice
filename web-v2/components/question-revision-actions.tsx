@@ -40,6 +40,17 @@ function looksLikeRelatedPractice(note:string){
   || (/\b(related|confus\w*|mix\w*)\b/.test(value)&&/\b(question|practice)\b/.test(value));
 }
 
+function proposalStatusMessage(proposal: Proposal){
+  const code=(proposal.lastError||"").match(/\b(AI_TIMEOUT|RATE_LIMIT|PROVIDER_5XX|NETWORK_TRANSIENT|MALFORMED_OUTPUT|QUALITY_REJECTED|STALE_INPUT|AUTH_CONFIG|RETRIES_EXHAUSTED)\b/)?.[1];
+  if(proposal.status==="queued") return code?"Improvement retry is scheduled. You can continue studying normally.":"Improvement queued. Keep studying — the proposal is being checked in the background.";
+  if(proposal.status==="processing") return "Improvement is being checked in the background.";
+  if(proposal.status!=="failed") return null;
+  if(code==="QUALITY_REJECTED") return "The proposed improvement did not meet the quality checks. You can send fresh feedback.";
+  if(code==="STALE_INPUT") return "This request was replaced by a newer question version, so no old result was applied.";
+  if(code==="RETRIES_EXHAUSTED") return "The improvement service could not finish after safe retries. Your original question is unchanged; please try again later.";
+  return "The improvement service could not finish. Your original question is unchanged; please try again later.";
+}
+
 export default function QuestionRevisionActions({ questionId }: { questionId: string }) {
   const [open,setOpen]=useState(false);
   const [preview,setPreview]=useState(false);
@@ -107,16 +118,17 @@ export default function QuestionRevisionActions({ questionId }: { questionId: st
   }
 
   const proposal=state?.proposal;
+  const proposalMessage=proposal?proposalStatusMessage(proposal):null;
   const review=state?.qualityReview;
   const repairOnly=reason==="options_too_obvious"||reason==="distractors_unrelated";
   return <div className="question-revision-actions">
     <button className="btn ghost" type="button" onClick={()=>setOpen(v=>!v)}>Too Easy / Improve Question</button>
 
-    {proposal?.status==="queued"||proposal?.status==="processing"?<div className="context-saved">Improvement queued. Keep studying — the proposal is being checked in the background.</div>:null}
+    {(proposal?.status==="queued"||proposal?.status==="processing")&&proposalMessage?<div className="context-saved">{proposalMessage}</div>:null}
     {proposal?.status==="ready"&&proposal.proposed?<div className="context-saved revision-ready-inline"><b>Revision proposal ready</b><button className="btn ghost" type="button" onClick={()=>setPreview(true)}>Preview</button></div>:null}
     {proposal?.status==="applied"?<div className="context-saved">Revised version active for future practice.</div>:null}
     {proposal?.status==="kept"?<div className="context-saved">Current version kept.</div>:null}
-    {proposal?.status==="failed"?<div className="error-box">This proposal did not pass the quality checks. You can submit fresh feedback.</div>:null}
+    {proposal?.status==="failed"&&proposalMessage?<div className="error-box">{proposalMessage}</div>:null}
 
     {review?.status==="queued"||review?.status==="processing"?<div className="context-saved">Correct-answer review queued. Nothing will be changed automatically.</div>:null}
     {review?.status==="reviewed"&&review.verdict==="valid"?<div className="context-saved">Answer review: the current key looks valid.</div>:null}

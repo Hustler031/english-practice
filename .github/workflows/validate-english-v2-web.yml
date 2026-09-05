@@ -2,12 +2,15 @@ name: Validate English V2 Web
 
 on:
   push:
-    branches: [english-v2-supabase, english-v2-30d-mastery-sprint]
+    branches: [main]
     paths:
       - 'web-v2/**'
       - 'supabase/managed-migrations/**english**.sql'
       - 'supabase/functions/english-ssc-sprint/**'
       - 'supabase/functions/english-context-worker/**'
+      - 'supabase/functions/english-revision-worker/**'
+      - 'supabase/functions/english-concept-semantic/**'
+      - '.github/scripts/validate-english-ai-architecture.cjs'
       - '.github/scripts/validate-english-v2-fresh-session.cjs'
       - '.github/scripts/validate-english-v2-interaction-cooldown.cjs'
       - '.github/scripts/validate-english-v2-fresh-session-module-audit.cjs'
@@ -24,6 +27,9 @@ on:
       - 'supabase/managed-migrations/**english**.sql'
       - 'supabase/functions/english-ssc-sprint/**'
       - 'supabase/functions/english-context-worker/**'
+      - 'supabase/functions/english-revision-worker/**'
+      - 'supabase/functions/english-concept-semantic/**'
+      - '.github/scripts/validate-english-ai-architecture.cjs'
       - '.github/scripts/validate-english-v2-fresh-session.cjs'
       - '.github/scripts/validate-english-v2-interaction-cooldown.cjs'
       - '.github/scripts/validate-english-v2-fresh-session-module-audit.cjs'
@@ -232,6 +238,7 @@ jobs:
           node .github/scripts/validate-phrasal-recall.cjs
           node .github/scripts/validate-final-hardening.cjs
           node .github/scripts/validate-boot-cleanup.cjs
+          node .github/scripts/validate-english-ai-architecture.cjs
       - name: Validate shared GK contracts
         run: npm run contracts:gk
       - name: Verify Maths source boundary and contracts

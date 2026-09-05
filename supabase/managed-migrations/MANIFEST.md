@@ -102,3 +102,14 @@ Saved-generated questions carry an explicit owner in `english.question_origins`;
 `supabase/migrations/20260829_001_english_behavior_parity.sql` remains a consolidated convenience artifact, but disaster recovery and audit should use the ordered managed-migration mirror in this directory.
 
 **Rule:** no V2 cutover may rely on an unversioned manual SQL change. GPT enrichment/scheduling remains a separate content workflow rather than an untracked schema/runtime change.
+
+## Stage 1 reconciliation (2026-09-05)
+
+| Version | Migration | Repository mirror |
+|---|---|---|
+| 20260904192910 | english_dedicated_revision_worker_schedule | live ledger recorded; exact SQL recovery pending export, runtime source recovered below |
+| 20260904193012 | english_phrasal_maintenance_and_ai_budgets | live ledger recorded; exact SQL recovery pending export |
+| 20260904193504 | english_dedicated_revision_claim | live ledger recorded; equivalent queue hardening is tracked in 20260905090000 |
+| 20260905090000 | english_ai_architecture_stage1 | additive lifecycle/error-code/retry observability mirror |
+
+Live English function inventory is checked by the Stage 1 audit bundle. `english-revision-worker` source is now Git-managed; its dedicated ownership is enforced by `.github/scripts/validate-english-ai-architecture.cjs`.
