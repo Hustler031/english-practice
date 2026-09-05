@@ -25,9 +25,31 @@ export type AppliedRevision = {
   payload: RevisionPayload;
 };
 
+let activeRevisionCache: AppliedRevision[] | null = null;
+let activeRevisionFetchedAt = 0;
+let activeRevisionPromise: Promise<AppliedRevision[]> | null = null;
+const ACTIVE_REVISION_TTL_MS = 10_000;
+
+function refreshActiveQuestionRevisions(): Promise<AppliedRevision[]> {
+  if (activeRevisionPromise) return activeRevisionPromise;
+  activeRevisionPromise = rpc<{ revisions?: AppliedRevision[] }>("english_get_active_question_revisions")
+    .then(result => {
+      activeRevisionCache = Array.isArray(result?.revisions) ? result.revisions : [];
+      activeRevisionFetchedAt = Date.now();
+      return activeRevisionCache;
+    })
+    .finally(() => { activeRevisionPromise = null; });
+  return activeRevisionPromise;
+}
+
 export async function fetchActiveQuestionRevisions(): Promise<AppliedRevision[]> {
-  const result = await rpc<{ revisions?: AppliedRevision[] }>("english_get_active_question_revisions");
-  return Array.isArray(result?.revisions) ? result.revisions : [];
+  const fresh = activeRevisionCache !== null && Date.now() - activeRevisionFetchedAt < ACTIVE_REVISION_TTL_MS;
+  if (fresh) return activeRevisionCache!;
+  return refreshActiveQuestionRevisions();
+}
+
+export function invalidateActiveQuestionRevisions() {
+  activeRevisionFetchedAt = 0;
 }
 
 export function applyQuestionRevisionList<T extends RevisableQuestion>(rows: T[], revisions: AppliedRevision[]): T[] {
@@ -57,12 +79,15 @@ export function applyQuestionRevisionList<T extends RevisableQuestion>(rows: T[]
 
 export async function applyActiveQuestionRevisions<T extends RevisableQuestion>(rows: T[]): Promise<T[]> {
   if (!rows.length) return rows;
-  const ids = [...new Set(rows.map(row => String(row.id || "").trim()).filter(Boolean))].slice(0, 120);
-  if (!ids.length) return rows;
-  const result = await rpc<{ revisions?: AppliedRevision[] }>("english_get_applied_question_revisions", {
-    p_question_ids: ids,
-    p_cache_buster: Date.now(),
-  });
-  const revisions = Array.isArray(result?.revisions) ? result.revisions : [];
-  return applyQuestionRevisionList(rows,revisions);
+  try {
+    const revisions = await fetchActiveQuestionRevisions();
+    return applyQuestionRevisionList(rows,revisions);
+  } catch {
+    return rows;
+  }
 }
+
+// QuizRunner imports this module before its loader effect runs. Starting the tiny,
+// owner-scoped overlay request here lets it overlap the main question-batch request
+// instead of adding a second network round-trip after the batch has finished.
+if (typeof window !== "undefined") void refreshActiveQuestionRevisions().catch(() => {});
