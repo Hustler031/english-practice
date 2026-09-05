@@ -94,7 +94,7 @@ select
   and coalesce((p_item->'quality'->'hardGates'->>'learnerRequestPreserved')::boolean,false)
   and coalesce((p_item->'quality'->'hardGates'->>'noFactualError')::boolean,false)
   and coalesce((p_item->'quality'->'hardGates'->>'noLexicalGrammarError')::boolean,false)
-  and coalesce((p_item->'quality'->'hardGates'->>'fourNonblankOptions')::boolean,false)
+  and coalesce((p_item->'quality'->'hardGates'->>'requiredOptionsValid')::boolean,false)
   and coalesce((p_item->'quality'->'hardGates'->>'explanationMatchesQuestion')::boolean,false)
   and coalesce((p_item->'quality'->'hardGates'->>'explanationMatchesAnswer')::boolean,false)
   and coalesce((p_item->'quality'->'hardGates'->>'noStaleExplanation')::boolean,false)
