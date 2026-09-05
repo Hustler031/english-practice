@@ -1,5 +1,8 @@
 // Server-only English content generation helper. Never import from browser code.
-export const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-3.6-flash";
+export const GEMINI_BULK_MODEL = Deno.env.get("GEMINI_BULK_MODEL") || "gemini-3.5-flash-lite";
+export const GEMINI_ESCALATION_MODEL = Deno.env.get("GEMINI_ESCALATION_MODEL") || "gemini-3.6-flash";
+// Backward-compatible audit/default alias. New bulk work must use Flash-Lite; specialist repair uses GEMINI_ESCALATION_MODEL.
+export const GEMINI_MODEL = GEMINI_BULK_MODEL;
 export const GROQ_MODEL = Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-120b";
 const AI_TIMEOUT_MS = 28_000;
 const RETRYABLE_PROVIDER_STATUS = new Set([429, 500, 502, 503, 504]);
@@ -40,13 +43,19 @@ function withTimeout(){const c=new AbortController();const timer=setTimeout(()=>
 function parseJsonText(text:string,label:string){try{return JSON.parse(text)}catch(e){throw new Error(`${label}_MALFORMED_JSON: ${errorText(e)}`)}}
 const sleep=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms));
 
-export async function geminiJson<T>(instructions:string,input:unknown,schema:unknown,opts:{model?:string}={}):Promise<{data:T;model:string;grounding?:unknown}> {
+export async function geminiJson<T>(
+  instructions:string,
+  input:unknown,
+  schema:unknown,
+  opts:{model?:string;maxAttempts?:number}={}
+):Promise<{data:T;model:string;grounding?:unknown}> {
   const key=Deno.env.get("GEMINI_API_KEY");
   if(!key)throw new Error("AUTH_CONFIG: GEMINI_API_KEY is not configured");
-  const model=String(opts.model||GEMINI_MODEL);
+  const model=String(opts.model||GEMINI_BULK_MODEL);
+  const maxAttempts=Math.max(1,Math.min(3,Number(opts.maxAttempts)||3));
   const {c,timer}=withTimeout();
   try{
-    for(let attempt=0;attempt<3;attempt++){
+    for(let attempt=0;attempt<maxAttempts;attempt++){
       const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{
         method:"POST",signal:c.signal,
         headers:{"x-goog-api-key":key,"Content-Type":"application/json"},
@@ -63,7 +72,7 @@ export async function geminiJson<T>(instructions:string,input:unknown,schema:unk
         if(!text)throw new Error("GEMINI_MALFORMED_OUTPUT: no JSON text returned");
         return {data:parseJsonText(text,"GEMINI") as T,model,grounding:payload?.candidates?.[0]?.groundingMetadata};
       }
-      if(!RETRYABLE_PROVIDER_STATUS.has(res.status)||attempt===2){
+      if(!RETRYABLE_PROVIDER_STATUS.has(res.status)||attempt===maxAttempts-1){
         throw new Error(`GEMINI_${res.status}: ${payload?.error?.message||"request failed"}`);
       }
       await sleep(700*(attempt+1));
@@ -119,24 +128,49 @@ export async function critic(item:unknown,context:unknown):Promise<{quality:Qual
   return {quality:out.data,model:out.model};
 }
 
-export async function generateCriticRepair<T>(args:{
-  instructions:string; input:unknown; schema:unknown; criticContext:unknown;
+export async function criticAndEscalate<T>(args:{
+  current:T;
+  instructions:string;
+  input:unknown;
+  schema:unknown;
+  criticContext:unknown;
+  initialGeneratorModel?:string;
   repairInput?:(original:unknown,current:T,quality:Quality)=>unknown;
-}):Promise<{item:T;quality:Quality;repairCount:number;generatorModel:string;criticModel:string;grounding?:unknown}> {
-  let generated=await geminiJson<T>(args.instructions,args.input,args.schema);
-  let current=generated.data;
+}):Promise<{item:T;quality:Quality;repairCount:number;generatorModel:string;criticModel:string;escalated:boolean}> {
+  let current=args.current;
+  let generatorModel=String(args.initialGeneratorModel||GEMINI_BULK_MODEL);
   let review=await critic(current,args.criticContext);
   let repairs=0;
-  while(!hardGatesPass(review.quality)&&review.quality.decision==="REVISE"&&repairs<2){
+  while(!hardGatesPass(review.quality)&&repairs<2){
     repairs++;
-    generated=await geminiJson<T>(
-      args.instructions+"\nRepair only the critic-identified defects. Preserve the assigned concept, sense, family and learner intent. Return the complete corrected item.",
-      args.repairInput?args.repairInput(args.input,current,review.quality):{originalAssignment:args.input,currentItem:current,critic:review.quality},
-      args.schema
+    const generated=await geminiJson<T>(
+      args.instructions+"\nYou are the specialist escalation model. Fix only the critic-identified defects while preserving the assigned concept, sense, family, evidence and learner intent. Return the complete corrected item.",
+      args.repairInput?args.repairInput(args.input,current,review.quality):{originalAssignment:args.input,currentItem:current,critic:{decision:review.quality.decision,issues:review.quality.issues,repairInstruction:review.quality.repairInstruction}},
+      args.schema,
+      {model:GEMINI_ESCALATION_MODEL,maxAttempts:1},
     );
     current=generated.data;
+    generatorModel=generated.model;
     review=await critic(current,args.criticContext);
   }
   if(!hardGatesPass(review.quality))throw new Error(`QUALITY_REJECTED: ${review.quality.decision} ${review.quality.score}`);
-  return {item:current,quality:review.quality,repairCount:repairs,generatorModel:generated.model,criticModel:review.model,grounding:generated.grounding};
+  return {item:current,quality:review.quality,repairCount:repairs,generatorModel,criticModel:review.model,escalated:repairs>0};
+}
+
+export async function generateCriticRepair<T>(args:{
+  instructions:string; input:unknown; schema:unknown; criticContext:unknown;
+  initialModel?:string;
+  repairInput?:(original:unknown,current:T,quality:Quality)=>unknown;
+}):Promise<{item:T;quality:Quality;repairCount:number;generatorModel:string;criticModel:string;grounding?:unknown;escalated:boolean}> {
+  const generated=await geminiJson<T>(args.instructions,args.input,args.schema,{model:args.initialModel||GEMINI_BULK_MODEL});
+  const reviewed=await criticAndEscalate<T>({
+    current:generated.data,
+    instructions:args.instructions,
+    input:args.input,
+    schema:args.schema,
+    criticContext:args.criticContext,
+    initialGeneratorModel:generated.model,
+    repairInput:args.repairInput,
+  });
+  return {...reviewed,grounding:generated.grounding};
 }
