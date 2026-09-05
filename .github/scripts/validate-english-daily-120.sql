@@ -97,6 +97,7 @@ language sql stable as $$
 $$;
 
 \ir ../../supabase/managed-migrations/20260905094500_english_daily_ai_priority_nonstarvation.sql
+\ir ../../supabase/managed-migrations/20260905095000_english_daily_topup_sequence_hardening.sql
 
 -- Recreate the compact test helper after migration (production has the richer existing function).
 create or replace function english.current_daily_items(p_user_id uuid)
