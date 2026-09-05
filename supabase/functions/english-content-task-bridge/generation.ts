@@ -1,4 +1,4 @@
-import { GEMINI_MODEL, GROQ_MODEL, generateCriticRepair, geminiJson } from "../_shared/english-hybrid-ai.ts";
+import { GEMINI_MODEL, GEMINI_GROUNDED_MODEL, GROQ_MODEL, generateCriticRepair, geminiJson } from "../_shared/english-hybrid-ai.ts";
 
 type Db=any;
 type Json=Record<string,any>;
@@ -64,7 +64,7 @@ async function researchHinduCandidates(targetDate:string,need:number,existing:st
   const instructions=discourseOnly
     ?`Research current reliable English-language news/editorial writing for one SSC CGL learner using Google Search grounding. Return ONLY genuinely useful discourse/transition/connective expressions that actually occur in grounded recent writing: contrast, concession, consequence, comparison, continuation, qualification, cause-effect, transition or authorial relation markers. Prefer The Hindu when genuinely accessible; otherwise use Reuters, Indian Express, AP, BBC or similarly strong English-language sources. Never label a source The Hindu unless sourceUrl is actually on thehindu.com. Avoid routine filler connectors and do not manufacture a marker merely to satisfy a quota. Article dates must be within the last 7 days ending on targetDate. Paraphrase context; never quote article prose. candidateType must be discourse_marker for every candidate.`
     :`Research current reliable English-language news/editorial writing for one SSC CGL learner using Google Search grounding. Prefer The Hindu when genuinely accessible; otherwise use Reuters, Indian Express, AP, BBC or similarly strong English-language sources. Never label a source The Hindu unless sourceUrl is actually on thehindu.com. Find moderate-to-hard, exam-useful vocabulary actually used in recent articles, not easy filler. Include 2-3 useful discourse/transition markers when they genuinely occur in grounded current writing. Article dates must be within the last 7 days ending on targetDate. Paraphrase context; never quote article prose. Return more candidates than needed for deterministic historical duplicate filtering.`;
-  const out=await geminiJson<any>(instructions,{targetDate,requested,existingWords:existing,excludeWords:excluded,discourseOnly},discourseOnly?focusedDiscourseSchema:candidateBatchSchema,{googleSearch:true});
+  const out=await geminiJson<any>(instructions,{targetDate,requested,existingWords:existing,excludeWords:excluded,discourseOnly},discourseOnly?focusedDiscourseSchema:candidateBatchSchema,{googleSearch:true,model:GEMINI_GROUNDED_MODEL});
   const sources=groundingSources(out.grounding);
   const candidates=(Array.isArray(out.data?.candidates)?out.data.candidates:[]).filter((c:any)=>{
     if(!c?.word||!articleRecent(String(c.articleDate||""),targetDate)||!/^https?:\/\//i.test(String(c.sourceUrl||"")))return false;
@@ -72,7 +72,7 @@ async function researchHinduCandidates(targetDate:string,need:number,existing:st
     if(/the\s*hindu/i.test(String(c.sourceName||""))&&!/(^|\.)thehindu\.com$/i.test(urlHost(String(c.sourceUrl||""))))return false;
     return sourceIsGrounded(c,sources);
   });
-  return {candidates,sources};
+  return {candidates,sources,model:out.model};
 }
 async function checkHinduCandidates(db:Db,runId:string,candidates:Json[]){
   if(!candidates.length)return [] as Json[];
@@ -156,7 +156,7 @@ export async function runHinduGeneration(db:Db){
   const items=await mapLimit(ordered,4,fullHinduItem);
   const {data:applied,error:applyError}=await db.rpc("english_hindu_task_apply",{p_run_id:runId,p_items:items});
   if(applyError)throw new Error(`HINDU_APPLY_FAILED: ${applyError.message}`);
-  await audit(db,items.map(x=>({lane:"hindu",entityKey:x.word,generatorProvider:"gemini",generatorModel:GEMINI_MODEL,criticProvider:"groq",criticModel:GROQ_MODEL,qualityScore:x.quality?.score,criticDecision:x.quality?.decision,repairCount:x.repairCount,publicationResult:"applied",metadata:{sourceName:x.sourceName,sourceUrl:x.sourceUrl,candidateType:x.candidateType}})));
+  await audit(db,items.map(x=>({lane:"hindu",entityKey:x.word,generatorProvider:"gemini",generatorModel:GEMINI_MODEL,criticProvider:"groq",criticModel:GROQ_MODEL,qualityScore:x.quality?.score,criticDecision:x.quality?.decision,repairCount:x.repairCount,publicationResult:"applied",metadata:{sourceName:x.sourceName,sourceUrl:x.sourceUrl,candidateType:x.candidateType,groundingModel:GEMINI_GROUNDED_MODEL}})));
 
   let toneResult:any={ok:true,skipped:true,reason:"weekly_cadence"};
   const toneKind=weeklyToneSlot(targetDate);
