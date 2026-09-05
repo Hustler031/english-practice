@@ -1,0 +1,29 @@
+name: Validate English Content ChatGPT Bridge
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/english-content-task-bridge/**'
+      - 'supabase/managed-migrations/**english_phrasal_hindu_chatgpt_bridge.sql'
+      - 'supabase/managed-migrations/**english_phrasal_task_central_mapping.sql'
+      - '.github/scripts/validate-english-content-chatgpt-bridge.cjs'
+      - '.github/workflows/validate-english-content-chatgpt-bridge.yml'
+  pull_request:
+    paths:
+      - 'supabase/functions/english-content-task-bridge/**'
+      - 'supabase/managed-migrations/**english_phrasal_hindu_chatgpt_bridge.sql'
+      - 'supabase/managed-migrations/**english_phrasal_task_central_mapping.sql'
+      - '.github/scripts/validate-english-content-chatgpt-bridge.cjs'
+      - '.github/workflows/validate-english-content-chatgpt-bridge.yml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node .github/scripts/validate-english-content-chatgpt-bridge.cjs
