@@ -1,5 +1,5 @@
 // Server-only English content generation helper. Never import from browser code.
-export const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-3.6-flash";
+export const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-3.8-flash";
 export const GROQ_MODEL = Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-120b";
 const AI_TIMEOUT_MS = 28_000;
 
@@ -50,6 +50,9 @@ export async function geminiJson<T>(instructions:string,input:unknown,schema:unk
         systemInstruction:{parts:[{text:instructions}]},
         contents:[{role:"user",parts:[{text:JSON.stringify(input)}]}],
         ...(opts.googleSearch?{tools:[{googleSearch:{}}]}:{}),
+        // Gemini 3.8 Flash supports structured outputs and Google Search together.
+        // Sampling controls such as temperature/top_p/top_k are intentionally omitted:
+        // Gemini 3.6+ no longer supports those legacy parameters.
         generationConfig:{responseFormat:{text:{mimeType:"application/json",schema}}},
       }),
     });
