@@ -84,7 +84,7 @@ requireText(overlay,'questionId','same canonical id overlay');
 requireText(overlay,'p_cache_buster: Date.now()','live applied-revision read');
 
 [
- [home,'Next Best Action','Home next-best action'],[home,'Start focused practice','Home focused CTA'],[home,'targetedDue>0','Home Targeted recommendation is due-gated'],
+ [home,'Targeted Mastery','Home keeps Targeted access in Quick Start'],
  [practice,'Daily Practice','Practice Daily'],[practice,'Targeted Mastery','Practice Targeted'],[practice,'Fast Track','Practice Fast Track'],[practice,'New Practice','Practice New'],[practice,'Topic Practice','Practice Topic'],[practice,'Exam Sprint','Practice Exam Sprint'],
  [revision,'Due Now','Revision due'],[revision,'Difficult &amp; Incorrect','Revision difficult/incorrect'],[revision,'Starred','Revision starred'],[revision,'My Saved','Revision saved'],[revision,'Browse by Topic','Revision topic'],[revision,'Learning Insights','Revision insights'],
  [targeted,'Fix Now','Targeted Fix Now'],[targeted,'Your Confusions','Targeted confusions'],[targeted,'Waiting for Later','Targeted waiting'],[targeted,'OverviewCard','Targeted progressive-disclosure overview'],[targeted,'LearnerRow','Targeted learner rows'],[targeted,'english_get_question_labels','Targeted display labels'],[targeted,'english_get_targeted_question','Targeted exact question'],[targeted,'english_get_targeted_due_session','Targeted Fix Now uses due-only session'],[targeted,'"due_now"','Targeted due-only UI kind'],
@@ -93,8 +93,10 @@ requireText(overlay,'p_cache_buster: Date.now()','live applied-revision read');
  [hindu,'QuestionRevisionActions','Hindu Improve Question action'],[hindu,'english_get_applied_question_revisions','Hindu applied revision overlay'],[hindu,'english_record_guess','Hindu confidence signal'],[hindu,'english_save_context_note','Hindu context signal'],
  [frame,'targeted|fast-track|exam','Practice nav routing'],[frame,'pathname.startsWith("/english/revision/")','Revision nav routing'],
  [learnerUi,'learner-overview-card','shared overview-card primitive'],[learnerUi,'learner-row','shared learner-row primitive'],[learnerLabels,'confusionLabel','learner confusion label resolver'],[learnerLabels,'cleanLearnerName','generic-label guard'],[learnerCss,'.learner-overview-card','new learner overview styling'],[learnerCss,'.learner-row','new learner row styling'],[learnerCss,'.practice-primary-card','Practice learner-card harmony'],[learnerCss,'.revision-primary-row','Revision learner-row harmony'],
- [finalCss,'.next-best-action-card','Home next action UI'],[finalCss,'grid-template-columns:repeat(3','three question actions layout']
+ [finalCss,'.next-best-action-card','legacy next-action styling remains harmless'],[finalCss,'grid-template-columns:repeat(3','three question actions layout']
 ].forEach(([text,needle,label])=>requireText(text,needle,label));
+forbid(home,/Next Best Action/,'Home stays clean: no Next Best Action card');
+forbid(home,/next-best-action-card/,'Home stays clean: no next-action card markup');
 forbid(home,/targeted\?\.retentionChecks\?/,'Home must not recommend future retention merely because it exists');
 forbid(insights,/\{item\.questionId\}/,'no question IDs on Today surface');
 forbid(targeted,/Question IDs are visible/i,'no developer audit copy in Targeted');
