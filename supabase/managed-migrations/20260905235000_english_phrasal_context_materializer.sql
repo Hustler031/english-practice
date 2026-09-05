@@ -138,10 +138,12 @@ begin
     end if;
     if v_family='recall' then
       if v_correct<>'A'
-         or coalesce(v_item->>'optionA','')<>'I knew this'
-         or coalesce(v_item->>'optionB','')<>'Unsure'
-         or coalesce(v_item->>'optionC','')<>'Forgot' then
-        raise exception 'Recall card must preserve A/B/C self-assessment semantics for concept %',v_concept;
+         or v_question_type<>'Reverse Recall Card'
+         or coalesce(v_item->>'optionA','')<>'Yaad tha'
+         or coalesce(v_item->>'optionB','')<>'Confused'
+         or coalesce(v_item->>'optionC','')<>'Bhool gaya'
+         or coalesce(v_item->>'optionD','')<>'' then
+        raise exception 'Reverse Recall Card must preserve Yaad tha / Confused / Bhool gaya self-assessment semantics for concept %',v_concept;
       end if;
     else
       if btrim(coalesce(v_item->>'optionD',''))='' or v_correct not in ('A','B','C','D') then
@@ -208,12 +210,25 @@ declare
   generated_items jsonb;
   applied jsonb;
   meta_count integer:=0;
+  sense_count integer:=0;
 begin
   select coalesce(jsonb_agg(e.value),'[]'::jsonb) into generated_items
   from jsonb_array_elements(p_items) e(value)
   where lower(coalesce(e.value->>'generatorProvider','gemini'))<>'legacy_bank';
   if english.ai_feature_enabled('groq_critic_v1') and jsonb_array_length(generated_items)>0 then
     perform english.assert_generated_items_quality(generated_items,false);
+  end if;
+
+  -- Exact generated-stem reuse is a defect, not a harmless legacy duplicate.
+  if exists(
+    select 1
+    from jsonb_array_elements(generated_items) e(value)
+    join english.phrasal_question_variants v
+      on v.concept_id=e.value->>'conceptId'
+     and v.variant_fingerprint=e.value->>'variantFingerprint'
+    where nullif(e.value->>'variantFingerprint','') is not null
+  ) then
+    raise exception 'Generated Phrasal variant duplicates an existing concept fingerprint';
   end if;
 
   select jsonb_agg(
@@ -226,8 +241,24 @@ begin
 
   applied:=english.maintenance_apply_phrasal_hybrid_core(base_items);
   if coalesce((applied->>'alreadyComplete')::boolean,false) then
-    return applied||jsonb_build_object('variantMetadataCount',0);
+    return applied||jsonb_build_object('variantMetadataCount',0,'senseMetadataCount',0);
   end if;
+
+  -- Generated content incrementally builds the real multi-sense registry. Legacy
+  -- history is not destructively guessed or backfilled.
+  insert into english.phrasal_concept_senses(concept_id,sense_key,gloss,active,priority,metadata,updated_at)
+  select distinct
+    btrim(e.value->>'conceptId'),btrim(e.value->>'senseKey'),btrim(e.value->>'senseGloss'),true,0,
+    jsonb_build_object('source','generated_phrasal_variant'),now()
+  from jsonb_array_elements(generated_items) e(value)
+  where btrim(coalesce(e.value->>'conceptId',''))<>''
+    and btrim(coalesce(e.value->>'senseKey',''))<>''
+    and btrim(coalesce(e.value->>'senseKey',''))<>'legacy_default'
+    and btrim(coalesce(e.value->>'senseGloss',''))<>''
+  on conflict(concept_id,sense_key) do update set
+    gloss=excluded.gloss,active=true,updated_at=now(),
+    metadata=english.phrasal_concept_senses.metadata||excluded.metadata;
+  get diagnostics sense_count=row_count;
 
   with items as (
     select value,ordinality from jsonb_array_elements(p_items) with ordinality
@@ -247,11 +278,11 @@ begin
     coalesce(nullif(i.value->>'generatorProvider',''),'gemini'),nullif(i.value->>'criticProvider',''),
     nullif(i.value->'quality'->>'score','')::numeric,nullif(i.value->'quality'->>'decision',''),
     coalesce((i.value->>'repairCount')::int,0),
-    jsonb_build_object('legacyFamily',i.value->>'legacyFamily','source','daily_phrasal')
+    jsonb_build_object('legacyFamily',i.value->>'legacyFamily','source','daily_phrasal','senseGloss',coalesce(i.value->>'senseGloss',''))
   from items i join qids q using(ordinality)
-  on conflict(question_id) do nothing;
+  on conflict do nothing;
   get diagnostics meta_count=row_count;
 
-  return applied||jsonb_build_object('variantMetadataCount',meta_count);
+  return applied||jsonb_build_object('variantMetadataCount',meta_count,'senseMetadataCount',sense_count);
 end
 $$;
