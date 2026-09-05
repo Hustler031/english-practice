@@ -146,13 +146,15 @@ function candidateBackedByEvidence(candidate:Json,evidenceMap:Map<string,Evidenc
   const familyKeys=[...new Set([normWord(String(candidate.word||"")),...rawFamily])].filter(Boolean);
   return {...candidate,familyKeys,articleTitle:evidence.articleTitle,sourceName:evidence.sourceName,sourceUrl:evidence.sourceUrl,articleDate:evidence.articleDate};
 }
-async function researchHinduCandidates(targetDate:string,need:number,existing:string[],excluded:string[],evidence:Evidence[],discourseOnly=false){
+async function researchHinduCandidates(targetDate:string,need:number,existing:string[],excluded:string[],evidence:Evidence[],discourseOnly=false,evidenceOffset=0){
   const requested=discourseOnly?Math.min(12,Math.max(6,need*3)):Math.min(24,Math.max(12,need+4));
   const instructions=discourseOnly
     ?`Choose exactly up to requested SSC-useful discourse, transition or connective expressions ONLY from the supplied trusted current-news article evidence. The expression must literally occur in evidenceText for the exact sourceUrl you return. Do not browse, invent a source, or quote article prose. candidateType must be discourse_marker. familyKeyCsv must be a short comma-separated list of normalized lexical/morphological family forms, with no JSON array. Preserve the supplied source URL exactly and paraphrase the local context.`
     :`Choose exactly up to requested moderate-to-hard SSC CGL vocabulary items ONLY from the supplied trusted current-news article evidence. Every target word/expression must literally occur in evidenceText for the exact sourceUrl you return. Do not browse, invent a source, or quote article prose. Prefer high-yield editorial/explainer vocabulary over proper nouns, easy words and topic-specific jargon. Include 2-3 useful discourse/transition markers only when genuinely evidenced. familyKeyCsv must be a short comma-separated list of normalized lexical/morphological family forms, with no JSON array. Preserve the supplied source URL exactly and paraphrase the local context. Return more candidates than needed when evidence supports them because deterministic history filtering happens after generation.`;
-  const compactEvidence=evidence.slice(0,16).map(({articleTitle,sourceName,sourceUrl,articleDate,evidenceText})=>({articleTitle,sourceName,sourceUrl,articleDate,evidenceText:evidenceText.slice(0,2400)}));
-  const out=await geminiJson<any>(instructions,{targetDate,requested,existingWords:existing,excludeWords:excluded,discourseOnly,evidence:compactEvidence},discourseOnly?focusedDiscourseSchema:candidateBatchSchema,{model:GEMINI_BULK_MODEL});
+  const safeOffset=evidence.length?Math.abs(Math.trunc(evidenceOffset))%evidence.length:0;
+  const rotatedEvidence=[...evidence.slice(safeOffset),...evidence.slice(0,safeOffset)];
+  const compactEvidence=rotatedEvidence.slice(0,16).map(({articleTitle,sourceName,sourceUrl,articleDate,evidenceText})=>({articleTitle,sourceName,sourceUrl,articleDate,evidenceText:evidenceText.slice(0,2400)}));
+  const out=await geminiJson<any>(instructions,{targetDate,requested,existingWords:existing,excludeWords:excluded,discourseOnly,evidenceOffset:safeOffset,evidence:compactEvidence},discourseOnly?focusedDiscourseSchema:candidateBatchSchema,{model:GEMINI_BULK_MODEL});
   const evidenceMap=new Map(evidence.map(e=>[normUrl(e.sourceUrl),e]));
   const candidates=(Array.isArray(out.data?.candidates)?out.data.candidates:[]).slice(0,requested).map((c:any)=>candidateBackedByEvidence(c,evidenceMap)).filter(Boolean) as Json[];
   return {candidates,model:out.model};
@@ -208,8 +210,9 @@ export async function runHinduGeneration(db:Db){
     const existing=(Array.isArray(claim?.existingWords)?claim.existingWords:[]).map((x:any)=>String(x?.word||x)).filter(Boolean);
     const evidence=await fetchTrustedEvidence(targetDate);
     const accepted:Json[]=[];const excluded:string[]=[];const seen=new Set<string>();
-    for(let round=0;round<2&&accepted.length<need;round++){
-      const research=await researchHinduCandidates(targetDate,need-accepted.length,existing,excluded,evidence,false);
+    for(let round=0;round<3&&accepted.length<need;round++){
+      const roundExcluded=[...excluded,...accepted.map(x=>String(x.word))];
+      const research=await researchHinduCandidates(targetDate,need-accepted.length,existing,roundExcluded,evidence,false,round*8);
       const candidates=research.candidates.filter((c:any)=>{const n=normWord(String(c.word));if(!n||seen.has(n))return false;seen.add(n);return true});
       if(!candidates.length)continue;
       const clean=await checkHinduCandidates(db,runId,candidates);
@@ -225,7 +228,7 @@ export async function runHinduGeneration(db:Db){
     const initialDiscourse=accepted.filter(x=>x.candidateType==="discourse_marker");
     const focusedDiscourse:Json[]=[];
     if(initialDiscourse.length<2){
-      const focused=await researchHinduCandidates(targetDate,3-initialDiscourse.length,[...existing,...accepted.map(x=>String(x.word))],excluded,evidence,true);
+      const focused=await researchHinduCandidates(targetDate,3-initialDiscourse.length,[...existing,...accepted.map(x=>String(x.word))],[...excluded,...accepted.map(x=>String(x.word))],evidence,true,16);
       const candidates=focused.candidates.filter((c:any)=>{const n=normWord(String(c.word));if(!n||seen.has(n))return false;seen.add(n);return true});
       const clean=await checkHinduCandidates(db,runId,candidates);
       for(const c of clean){focusedDiscourse.push(c);if(initialDiscourse.length+focusedDiscourse.length>=3)break}
