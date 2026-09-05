@@ -1,0 +1,28 @@
+name: Validate Daily Analysis Navigation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web-v2/app/english/revision/ai-intelligence/daily-analysis/**'
+      - 'web-v2/lib/daily-analysis.ts'
+      - 'web-v2/app/daily-analysis.css'
+      - '.github/scripts/validate-daily-analysis-navigation.cjs'
+      - '.github/workflows/validate-daily-analysis-navigation.yml'
+  pull_request:
+    paths:
+      - 'web-v2/app/english/revision/ai-intelligence/daily-analysis/**'
+      - 'web-v2/lib/daily-analysis.ts'
+      - 'web-v2/app/daily-analysis.css'
+      - '.github/scripts/validate-daily-analysis-navigation.cjs'
+      - '.github/workflows/validate-daily-analysis-navigation.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node .github/scripts/validate-daily-analysis-navigation.cjs
