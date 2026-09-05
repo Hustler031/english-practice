@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { rpc, subscribeRpcFresh } from "@/lib/supabase";
+import { learnerErrorMessage, rpc, subscribeRpcFresh } from "@/lib/supabase";
 import { subscribeTargetedDurability, targetedLiveRpc } from "@/lib/targeted-reliability";
 import { useAuthGuard } from "@/lib/use-auth";
 import AddWordSheet from "@/components/add-word-sheet";
@@ -52,8 +52,8 @@ export default function EnglishHome() {
   const refreshTargeted=()=>targetedLiveRpc<TargetedSummary>("english_get_targeted_summary").then(x=>{if(alive)setTargeted(x)}).catch(()=>{});
   const unsubscribe=subscribeRpcFresh<HomeSnapshot>("english_get_home_snapshot",undefined,accept);
   const unsubscribeTargeted=subscribeTargetedDurability(()=>void refreshTargeted());
-  rpc<HomeSnapshot>("english_get_home_snapshot").then(accept).catch((e:any)=>{if(alive)setError(e.message)});
-  rpc<ExamSummary>("english_get_exam_preparation").then(x=>{if(alive)setExam(x)}).catch(()=>{});
+  rpc<HomeSnapshot>("english_get_home_snapshot").then(accept).catch((e:any)=>{if(alive)setError(learnerErrorMessage(e,"Home data is taking longer than usual. Please retry."))});
+  rpc<ExamSummary>("english_get_exam_home_summary").then(x=>{if(alive)setExam(x)}).catch(()=>{});
   void refreshTargeted();
   setPaused(readPausedQuiz());
   return()=>{alive=false;unsubscribe();unsubscribeTargeted();};
