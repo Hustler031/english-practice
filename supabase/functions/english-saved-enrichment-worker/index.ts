@@ -86,7 +86,9 @@ Deno.serve(async req=>{
     if(completed.length){
       const {error}=await db.rpc("english_saved_enrichment_worker_apply",{p_token:token,p_lease_id:leaseId,p_items:completed});
       if(error)throw new Error(`APPLY_FAILED: ${error.message}`);
-      await db.schema("english").from("content_generation_audits").insert(completed.map(x=>({lane:"saved",entity_key:x.savedId,generator_provider:"gemini",generator_model:GEMINI_MODEL,critic_provider:"groq",critic_model:GROQ_MODEL,quality_score:Number(x?.quality?.score||0),critic_decision:String(x?.quality?.decision||""),repair_count:Number(x?.repairCount||0),publication_result:x.gptStatus==="Ready"?"applied":"needs_review"})));
+      const auditPayload=completed.map(x=>({lane:"saved",entityKey:x.savedId,generatorProvider:"gemini",generatorModel:GEMINI_MODEL,criticProvider:"groq",criticModel:GROQ_MODEL,qualityScore:Number(x?.quality?.score||0),criticDecision:String(x?.quality?.decision||""),repairCount:Number(x?.repairCount||0),publicationResult:x.gptStatus==="Ready"?"applied":"needs_review"}));
+      const {error:auditError}=await db.rpc("english_record_content_generation_audits",{p_items:auditPayload});
+      if(auditError)throw new Error(`AUDIT_FAILED: ${auditError.message}`);
     }
     const ids=completed.map(x=>x.savedId);
     const {data:verified,error:finishError}=await db.rpc("english_saved_enrichment_worker_finish",{p_token:token,p_lease_id:leaseId,p_saved_ids:ids,p_error:failures.length?failures.slice(0,4).join(" | ").slice(0,1200):null});
