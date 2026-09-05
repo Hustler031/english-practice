@@ -1,5 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { createRemoteJWKSet, jwtVerify } from "npm:jose@5.9.6";
+import { runHinduGeneration } from "./generation.ts";
+import { runPhrasalGeneration } from "./phrasal-generation.ts";
 
 const ISSUER = "https://token.actions.githubusercontent.com";
 const AUDIENCE = "english-content-automation";
@@ -12,6 +14,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
   status,
   headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
 });
+const errorText=(e:unknown)=>e instanceof Error?e.message:String(e||"Unknown content automation error");
 
 async function authorize(req: Request): Promise<"phrasal"|"hindu"> {
   const auth = String(req.headers.get("authorization") || "");
@@ -39,6 +42,13 @@ Deno.serve(async (req) => {
   let body: any = {};
   try { body = await req.json(); } catch { return json({ error: "Invalid JSON body" }, 400); }
   const action = String(body?.action || "");
+
+  if(action==="run"){
+    try{
+      const result=lane==="phrasal"?await runPhrasalGeneration(db):await runHinduGeneration(db);
+      return json(result??{ok:true});
+    }catch(e){return json({ok:false,lane,error:errorText(e)},500)}
+  }
 
   if (lane === "phrasal") {
     if (action === "claim") {

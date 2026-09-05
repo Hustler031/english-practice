@@ -8,7 +8,7 @@ import { useAuthGuard } from "@/lib/use-auth";
 import { EnglishLoading } from "@/components/english-frame";
 import "./mywords-parity.css";
 
-type Saved={id:string;word:string;meaning:string;context:string;status:string;practiceQuestionId:string;gptStatus:string;captureType:string;resolvedType:string;created:string;partOfSpeech?:string;synonyms?:string;antonyms?:string;example?:string;explanation?:string;question?:string;optionA?:string;optionB?:string;optionC?:string;optionD?:string;correctOption?:string};
+type Saved={id:string;word:string;meaning:string;context:string;status:string;practiceQuestionId:string;gptStatus:string;gptSource?:string;captureType:string;resolvedType:string;created:string;partOfSpeech?:string;synonyms?:string;antonyms?:string;example?:string;explanation?:string;question?:string;optionA?:string;optionB?:string;optionC?:string;optionD?:string;correctOption?:string};
 type Stats={saved:number;eligible:number;controlledNew:number;neverRevised:number;due:number;weak:number;difficult:number;starred:number;mastered:number};
 type History={date:string|null;day?:number;label:string;saved:number;eligible:number;controlledNew:number;due:number;weak:number;difficult:number;mastered:number};
 type Hub={currentDay?:number;stats:Stats;available:{smart:number;new:number;weak:number;difficult:number;starred:number;random:number;all:number};sizes:number[];history:History[]};
@@ -17,6 +17,7 @@ const types=["AUTO","V","SM","OWS","PV","IP"];
 const modes=[["🧠","Smart Revision","smart"],["🆕","New","new"],["🔥","Weak","weak"],["⚡","Difficult","difficult"],["⭐","Starred","starred"],["🎲","Random","random"],["▶","Practice All","all"]] as const;
 function shortDate(value:string){const d=new Date(value);return Number.isNaN(d.getTime())?value:d.toLocaleDateString("en-CA",{timeZone:"Asia/Kolkata"});}
 function savedStatus(item:Saved){if(String(item.practiceQuestionId||"").trim())return "In Practice";const g=String(item.gptStatus||"").trim().toLowerCase();if(g==="ready")return "Ready";if(/review|error|fail|invalid/.test(g))return "Needs Review";return "Pending";}
+function isGptUpgraded(item:Saved){return /manual\s+chatgpt\s+upgraded|chatgpt\s+upgraded/i.test(String(item.gptSource||""));}
 
 export default function SavedPage(){
  const ready=useAuthGuard(),router=useRouter();
@@ -71,7 +72,7 @@ function ManageSaved({rows,error,editing,setEditing,onBack,onOpen,onType}:{rows:
  return <div className="saved-parity-page saved-manage-page">
   <section className="saved-subhead"><button className="btn ghost saved-back" onClick={onBack}>← Back</button><div><h1>My Words</h1><p>Every word you save appears here automatically.</p></div></section>
   {error&&<div className="error-box">{error}</div>}
-  <div className="mywords-final-list">{rows.map(item=><article className="mywords-final-row" key={item.id} onClick={()=>onOpen(item)} role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")onOpen(item)}}><div><b>{item.word}</b><div className={`mywords-final-status status-${savedStatus(item).toLowerCase().replace(/\s+/g,"-")}`}>{savedStatus(item)} · {shortDate(item.created)}</div>{editing===item.id&&<div className="capture-types myword-types" onClick={e=>e.stopPropagation()}>{types.map(next=><button key={next} className={`capture-type ${item.captureType===next?"selected":""}`} onClick={()=>void onType(item.id,next)}>{next==="IP"?"I/P":next}</button>)}</div>}</div><button className="btn ghost mini" onClick={e=>{e.stopPropagation();setEditing(editing===item.id?null:item.id)}}>Edit</button></article>)}</div>
+  <div className="mywords-final-list">{rows.map(item=><article className="mywords-final-row" key={item.id} onClick={()=>onOpen(item)} role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")onOpen(item)}}><div><b>{item.word}</b><div className={`mywords-final-status status-${savedStatus(item).toLowerCase().replace(/\s+/g,"-")}`}>{savedStatus(item)}{isGptUpgraded(item)?" · GPT Upgraded":""} · {shortDate(item.created)}</div>{editing===item.id&&<div className="capture-types myword-types" onClick={e=>e.stopPropagation()}>{types.map(next=><button key={next} className={`capture-type ${item.captureType===next?"selected":""}`} onClick={()=>void onType(item.id,next)}>{next==="IP"?"I/P":next}</button>)}</div>}</div><button className="btn ghost mini" onClick={e=>{e.stopPropagation();setEditing(editing===item.id?null:item.id)}}>Edit</button></article>)}</div>
  </div>;
 }
 
@@ -79,7 +80,7 @@ function SavedDetail({item,onBack}:{item:Saved;onBack:()=>void}){
  const options:Array<[string,string|undefined]>=[["A",item.optionA],["B",item.optionB],["C",item.optionC],["D",item.optionD]];const correct=String(item.correctOption||"").trim().toUpperCase().replace(/[^A-D].*$/,"").charAt(0);
  const block=(label:string,value?:string)=>!String(value||"").trim()?null:<div className="myword-detail-block"><small>{label}</small><div>{value}</div></div>;
  return <div className="saved-parity-page saved-detail-page">
-  <section className="saved-subhead mywords-detail-head"><button className="btn ghost saved-back" onClick={onBack}>← My Words</button><div><h1>{item.word}</h1><p>GPT enrichment · {savedStatus(item)}</p></div></section>
+  <section className="saved-subhead mywords-detail-head"><button className="btn ghost saved-back" onClick={onBack}>← My Words</button><div><h1>{item.word}</h1><p>GPT enrichment · {savedStatus(item)}{isGptUpgraded(item)?" · GPT Upgraded":""}</p></div></section>
   <article className="myword-detail-card">
    <div><div className="myword-detail-word">{item.word}</div>{(item.partOfSpeech||item.resolvedType)&&<div className="myword-detail-type">{item.partOfSpeech||item.resolvedType}</div>}</div>
    {block("Meaning",item.meaning||item.context)}
