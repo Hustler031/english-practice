@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/learner-ui";
-import { DAILY_ANALYSIS_RANGES,categoryMeta,formatAttemptTime,isDailyAnalysisCategory,isDailyAnalysisRange,rangeLabel,stateLabel,type DailyAnalysisDetail,type DailyAnalysisRange } from "@/lib/daily-analysis";
+import { DAILY_ANALYSIS_RANGES,categoryMeta,dailyAnalysisNavigationKey,formatAttemptTime,isDailyAnalysisCategory,isDailyAnalysisRange,rangeLabel,stateLabel,type DailyAnalysisDetail,type DailyAnalysisList,type DailyAnalysisRange } from "@/lib/daily-analysis";
 import { learnerErrorMessage,rpc } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
 
@@ -14,6 +14,7 @@ export default function DailyAnalysisReviewPage(){
  const [categoryRange,setCategoryRange]=useState<DailyAnalysisRange>("today");
  const [attemptRange,setAttemptRange]=useState<DailyAnalysisRange>("today");
  const [data,setData]=useState<DailyAnalysisDetail|null>(null);
+ const [navIds,setNavIds]=useState<string[]>([]);
  const [loading,setLoading]=useState(true);
  const [attemptBusy,setAttemptBusy]=useState(false);
  const [error,setError]=useState("");
@@ -50,12 +51,41 @@ export default function DailyAnalysisReviewPage(){
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[ready,category,questionId,categoryRange,attemptRange]);
 
+ useEffect(()=>{
+  if(!ready||!category||!questionId||!isDailyAnalysisCategory(category))return;
+  const storageKey=dailyAnalysisNavigationKey(category,categoryRange);
+  try{
+   const parsed=JSON.parse(window.sessionStorage.getItem(storageKey)||"[]");
+   const stored=Array.isArray(parsed)?parsed.filter((x):x is string=>typeof x==="string"&&!!x):[];
+   if(stored.includes(questionId)){setNavIds(stored);return;}
+  }catch{}
+  let alive=true;
+  rpc<DailyAnalysisList>("english_get_daily_analysis_questions_filtered",{p_category:category,p_range:categoryRange,p_limit:200})
+   .then(x=>{
+    if(!alive)return;
+    const ids=(x.questions||[]).map(row=>row.questionId).filter(Boolean);
+    setNavIds(ids);
+    try{window.sessionStorage.setItem(storageKey,JSON.stringify(ids))}catch{}
+   })
+   .catch(()=>{if(alive)setNavIds([])});
+  return()=>{alive=false};
+ },[ready,category,questionId,categoryRange]);
+
  function changeAttemptRange(next:DailyAnalysisRange){
   setAttemptRange(next);
   if(typeof window!=="undefined"){
     const qs=new URLSearchParams(window.location.search);qs.set("attemptRange",next);
     window.history.replaceState(window.history.state,"",`${window.location.pathname}?${qs.toString()}`);
   }
+ }
+
+ function goToQuestion(nextQuestionId:string){
+  if(!nextQuestionId||nextQuestionId===questionId||typeof window==="undefined")return;
+  setData(null);setLoading(true);setAttemptBusy(false);setError("");setQuestionId(nextQuestionId);
+  const qs=new URLSearchParams(window.location.search);
+  qs.set("category",category);qs.set("questionId",nextQuestionId);qs.set("range",categoryRange);qs.set("attemptRange",attemptRange);
+  window.history.replaceState(window.history.state,"",`${window.location.pathname}?${qs.toString()}`);
+  window.scrollTo({top:0,left:0,behavior:"auto"});
  }
 
  if(!ready)return null;
@@ -65,6 +95,9 @@ export default function DailyAnalysisReviewPage(){
  const selected=String(a?.latestSelected||"").toUpperCase();
  const backHref=category?`/english/revision/ai-intelligence/daily-analysis/questions?category=${encodeURIComponent(category)}&range=${categoryRange}`:"/english/revision/ai-intelligence/daily-analysis";
  const periodAttempts=a?.periodAttempts??0,periodWrong=a?.periodWrong??0;
+ const navIndex=navIds.indexOf(questionId);
+ const previousId=navIndex>0?navIds[navIndex-1]:"";
+ const nextId=navIndex>=0&&navIndex<navIds.length-1?navIds[navIndex+1]:"";
  return <main className="top-level-parity learner-rebuild-page learner-insights-page daily-analysis-page daily-analysis-detail-page">
   <PageHeader back={<Link href={backHref} className="back-link">← {meta?.title||"Daily Analysis"}</Link>} eyebrow="Read-only review" title={a?.displayName||"Question review"} subtitle="Correct answer is shown for manual weakness review."/>
   {error&&<div className="error-box">{error}</div>}
@@ -74,6 +107,11 @@ export default function DailyAnalysisReviewPage(){
     <span><b>{periodWrong} / {periodAttempts}</b><small>wrong / attempts · {rangeLabel(categoryRange)}</small></span>
     <span><b>{a.totalWrong} / {a.totalAttempts}</b><small>wrong / attempts · lifetime</small></span>
    </section>
+   <nav className="daily-review-nav" aria-label="Daily Analysis question navigation">
+    <button type="button" disabled={!previousId} onClick={()=>goToQuestion(previousId)}>← Previous</button>
+    <span>{navIndex>=0?`${navIndex+1} / ${navIds.length}`:"Review"}</span>
+    <button type="button" disabled={!nextId} onClick={()=>goToQuestion(nextId)}>Next →</button>
+   </nav>
    <section className="daily-review-card">
     <div className="daily-review-meta"><span>{q.topic||a.topic}</span>{a.dailyReason&&<span>{a.dailyReason}</span>}{q.revisionApplied&&<span>AI revision in use</span>}</div>
     <h2>{q.question}</h2>
