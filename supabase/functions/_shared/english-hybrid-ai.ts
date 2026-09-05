@@ -82,7 +82,7 @@ export async function groqJson<T>(instructions:string,input:unknown,schema:unkno
       body:JSON.stringify({
         model:GROQ_MODEL,reasoning:{effort:"medium"},max_output_tokens:2200,
         instructions,input:JSON.stringify(input),
-        text:{format:{type:"json_schema",name:"english_quality_decision",strict:true,schema}},
+        text:{format:{type:"json_schema",name:"english_quality_decision",schema}},
       }),
     });
     const payload=await res.json().catch(()=>null);
