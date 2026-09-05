@@ -1,7 +1,7 @@
 // Server-only English content generation helper. Never import from browser code.
 export const GEMINI_BULK_MODEL = Deno.env.get("GEMINI_BULK_MODEL") || "gemini-3.5-flash-lite";
 export const GEMINI_ESCALATION_MODEL = Deno.env.get("GEMINI_ESCALATION_MODEL") || "gemini-3.6-flash";
-// Backward-compatible audit/default alias. New bulk work must use Flash-Lite; specialist repair uses GEMINI_ESCALATION_MODEL.
+// Compatibility alias only. New callers should record the actual returned model per item.
 export const GEMINI_MODEL = GEMINI_BULK_MODEL;
 export const GROQ_MODEL = Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-120b";
 const AI_TIMEOUT_MS = 28_000;
@@ -42,20 +42,26 @@ function errorText(e:unknown){return e instanceof Error?e.message:String(e||"Unk
 function withTimeout(){const c=new AbortController();const timer=setTimeout(()=>c.abort(),AI_TIMEOUT_MS);return {c,timer}}
 function parseJsonText(text:string,label:string){try{return JSON.parse(text)}catch(e){throw new Error(`${label}_MALFORMED_JSON: ${errorText(e)}`)}}
 const sleep=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms));
+export function chunks<T>(values:T[],size:number){
+  const n=Math.max(1,Math.floor(size));
+  const out:T[][]=[];
+  for(let i=0;i<values.length;i+=n)out.push(values.slice(i,i+n));
+  return out;
+}
 
 export async function geminiJson<T>(
   instructions:string,
   input:unknown,
   schema:unknown,
   opts:{model?:string;maxAttempts?:number}={}
-):Promise<{data:T;model:string;grounding?:unknown}> {
+):Promise<{data:T;model:string}> {
   const key=Deno.env.get("GEMINI_API_KEY");
   if(!key)throw new Error("AUTH_CONFIG: GEMINI_API_KEY is not configured");
   const model=String(opts.model||GEMINI_BULK_MODEL);
   const maxAttempts=Math.max(1,Math.min(3,Number(opts.maxAttempts)||3));
-  const {c,timer}=withTimeout();
-  try{
-    for(let attempt=0;attempt<maxAttempts;attempt++){
+  for(let attempt=0;attempt<maxAttempts;attempt++){
+    const {c,timer}=withTimeout();
+    try{
       const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{
         method:"POST",signal:c.signal,
         headers:{"x-goog-api-key":key,"Content-Type":"application/json"},
@@ -70,15 +76,23 @@ export async function geminiJson<T>(
         const parts=payload?.candidates?.[0]?.content?.parts||[];
         const text=parts.map((p:any)=>typeof p?.text==="string"?p.text:"").join("").trim();
         if(!text)throw new Error("GEMINI_MALFORMED_OUTPUT: no JSON text returned");
-        return {data:parseJsonText(text,"GEMINI") as T,model,grounding:payload?.candidates?.[0]?.groundingMetadata};
+        return {data:parseJsonText(text,"GEMINI") as T,model};
       }
       if(!RETRYABLE_PROVIDER_STATUS.has(res.status)||attempt===maxAttempts-1){
         throw new Error(`GEMINI_${res.status}: ${payload?.error?.message||"request failed"}`);
       }
-      await sleep(700*(attempt+1));
-    }
-    throw new Error("GEMINI_RETRY_EXHAUSTED");
-  }catch(e:any){if(e?.name==="AbortError")throw new Error("GEMINI_TIMEOUT");throw e}finally{clearTimeout(timer)}
+    }catch(e:any){
+      if(e?.name==="AbortError"){
+        if(attempt===maxAttempts-1)throw new Error("GEMINI_TIMEOUT");
+      }else if(!/^GEMINI_(429|500|502|503|504):/.test(errorText(e))){
+        throw e;
+      }else if(attempt===maxAttempts-1){
+        throw e;
+      }
+    }finally{clearTimeout(timer)}
+    await sleep(700*(attempt+1));
+  }
+  throw new Error("GEMINI_RETRY_EXHAUSTED");
 }
 
 function groqOutputText(payload:any){
@@ -90,9 +104,9 @@ function groqOutputText(payload:any){
 export async function groqJson<T>(instructions:string,input:unknown,schema:unknown):Promise<{data:T;model:string}> {
   const key=Deno.env.get("GROQ_API_KEY");
   if(!key)throw new Error("AUTH_CONFIG: GROQ_API_KEY is not configured");
-  const {c,timer}=withTimeout();
-  try{
-    for(let attempt=0;attempt<3;attempt++){
+  for(let attempt=0;attempt<3;attempt++){
+    const {c,timer}=withTimeout();
+    try{
       const res=await fetch("https://api.groq.com/openai/v1/responses",{
         method:"POST",signal:c.signal,
         headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},
@@ -111,10 +125,18 @@ export async function groqJson<T>(instructions:string,input:unknown,schema:unkno
       if(!RETRYABLE_PROVIDER_STATUS.has(res.status)||attempt===2){
         throw new Error(`GROQ_${res.status}: ${payload?.error?.message||"request failed"}`);
       }
-      await sleep(700*(attempt+1));
-    }
-    throw new Error("GROQ_RETRY_EXHAUSTED");
-  }catch(e:any){if(e?.name==="AbortError")throw new Error("GROQ_TIMEOUT");throw e}finally{clearTimeout(timer)}
+    }catch(e:any){
+      if(e?.name==="AbortError"){
+        if(attempt===2)throw new Error("GROQ_TIMEOUT");
+      }else if(!/^GROQ_(429|500|502|503|504):/.test(errorText(e))){
+        throw e;
+      }else if(attempt===2){
+        throw e;
+      }
+    }finally{clearTimeout(timer)}
+    await sleep(700*(attempt+1));
+  }
+  throw new Error("GROQ_RETRY_EXHAUSTED");
 }
 
 export function hardGatesPass(q:Quality){
@@ -135,16 +157,18 @@ export async function criticAndEscalate<T>(args:{
   schema:unknown;
   criticContext:unknown;
   initialGeneratorModel?:string;
+  maxRepairs?:number;
   repairInput?:(original:unknown,current:T,quality:Quality)=>unknown;
 }):Promise<{item:T;quality:Quality;repairCount:number;generatorModel:string;criticModel:string;escalated:boolean}> {
   let current=args.current;
   let generatorModel=String(args.initialGeneratorModel||GEMINI_BULK_MODEL);
   let review=await critic(current,args.criticContext);
   let repairs=0;
-  while(!hardGatesPass(review.quality)&&repairs<2){
+  const repairCap=Math.max(0,Math.min(2,Number(args.maxRepairs??2)));
+  while(!hardGatesPass(review.quality)&&review.quality.decision!=="REJECT"&&repairs<repairCap){
     repairs++;
     const generated=await geminiJson<T>(
-      args.instructions+"\nYou are the specialist escalation model. Fix only the critic-identified defects while preserving the assigned concept, sense, family, evidence and learner intent. Return the complete corrected item.",
+      args.instructions+"\nYou are the specialist escalation model. Fix only the independent critic's identified defects. Preserve the assigned concept, sense, family, trusted evidence and learner intent. Return the complete corrected item.",
       args.repairInput?args.repairInput(args.input,current,review.quality):{originalAssignment:args.input,currentItem:current,critic:{decision:review.quality.decision,issues:review.quality.issues,repairInstruction:review.quality.repairInstruction}},
       args.schema,
       {model:GEMINI_ESCALATION_MODEL,maxAttempts:1},
@@ -160,17 +184,13 @@ export async function criticAndEscalate<T>(args:{
 export async function generateCriticRepair<T>(args:{
   instructions:string; input:unknown; schema:unknown; criticContext:unknown;
   initialModel?:string;
+  maxRepairs?:number;
   repairInput?:(original:unknown,current:T,quality:Quality)=>unknown;
-}):Promise<{item:T;quality:Quality;repairCount:number;generatorModel:string;criticModel:string;grounding?:unknown;escalated:boolean}> {
+}):Promise<{item:T;quality:Quality;repairCount:number;generatorModel:string;criticModel:string;escalated:boolean}> {
   const generated=await geminiJson<T>(args.instructions,args.input,args.schema,{model:args.initialModel||GEMINI_BULK_MODEL});
   const reviewed=await criticAndEscalate<T>({
-    current:generated.data,
-    instructions:args.instructions,
-    input:args.input,
-    schema:args.schema,
-    criticContext:args.criticContext,
-    initialGeneratorModel:generated.model,
-    repairInput:args.repairInput,
+    current:generated.data,instructions:args.instructions,input:args.input,schema:args.schema,
+    criticContext:args.criticContext,initialGeneratorModel:generated.model,maxRepairs:args.maxRepairs,repairInput:args.repairInput,
   });
-  return {...reviewed,grounding:generated.grounding};
+  return reviewed;
 }
