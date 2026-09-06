@@ -10,6 +10,7 @@ const metadata=read('supabase/managed-migrations/20260905231800_english_phrasal_
 const materializer=read('supabase/managed-migrations/20260905235000_english_phrasal_context_materializer.sql');
 const savedScheduler=read('supabase/managed-migrations/20260905235930_english_saved_hybrid_scheduler.sql');
 const stage1Flags=read('supabase/managed-migrations/20260906031000_english_antigravity_luna_stage1_flags.sql');
+const phrasalCap=read('supabase/managed-migrations/20260906033000_english_phrasal_context_fill_cap_six.sql');
 const legacyHybrid=read('supabase/functions/_shared/english-hybrid-ai.ts');
 const stage1=read('supabase/functions/_shared/english-antigravity-luna.ts');
 const bridge=read('supabase/functions/english-content-task-bridge/index.ts');
@@ -24,7 +25,8 @@ need(foundation,'requiredOptionsValid','DB family-aware option gate retained');
 need(foundation,'english_ai_content_feature_enabled','Service-only flag read RPC retained');
 need(metadata,'referenceVariant','Central-selected Phrasal reference variant retained');
 need(metadata,'knownSenses','Known Phrasal senses reach generation');
-need(metadata,'eligible_rank<=8','Context-fill remains capped at eight');
+need(phrasalCap,'eligible_rank<=6','Context-fill is capped at six');
+forbid(phrasalCap,'eligible_rank<=8','Eight-slot context-fill cap is retired');
 need(metadata,'public.english_get_phrasal_maintenance_batch(p_mode,p_count)','Central Intelligence remains upstream Phrasal selector');
 need(materializer,'jsonb_array_length(p_items)<>20','Phrasal publication remains exact-20');
 need(materializer,'v_expected_ids is distinct from v_given_ids','Exact Central concept-set gate retained');
@@ -65,7 +67,7 @@ need(stage1,'Only a second Luna REPAIR reaches the rare Gemini 3.8 Flash HIGH re
 need(stage1,'repairCount:2','Rare rescue remains bounded to second semantic repair');
 forbid(stage1,'GROQ_API_KEY','Stage-1 helper no longer depends on Groq');
 
-// Phrasal: every Central-selected slot is generated and independently criticised one-item-at-a-time.
+// Phrasal: Central selects 20; serviceable cards reuse bank content, only real gaps use one-item AI.
 need(bridge,'runPhrasalGeneration','Private bridge still owns Phrasal run action');
 need(phrasal,'antigravity_writer_v1','Phrasal checks writer rollout flag');
 need(phrasal,'luna_critic_v1','Phrasal checks critic rollout flag');
@@ -78,10 +80,12 @@ need(phrasal,'keyedReferenceOption','Malformed Saved raw captures may use the ke
 need(phrasal,'compactPhrasalTarget','Resolved Phrasal targets are bounded compact expressions');
 need(phrasal,'PHRASAL_REFERENCE_MISSING_OR_TARGET_UNRESOLVED','Unresolvable targets fail closed before AI publication');
 need(phrasal,'recentConceptStems','Phrasal anti-repeat context retained');
-need(phrasal,'const finalized = await mapLimit(items, 4, async (item: Json) => await generatePhrasal(item))','All 20 Central slots use item-wise generation');
-forbid(phrasal,'legacyPhrasal','Legacy zero-AI shortcut removed from Stage 1');
+need(phrasal,'function legacyPhrasal','Serviceable canonical Phrasal cards can bypass AI');
+need(phrasal,'generatorProvider: "legacy_bank"','Reused cards are explicitly marked as bank reuse');
+need(phrasal,'legacyPhrasal(item) || await generatePhrasal(item)','Only unusable or gap slots reach AI');
+need(phrasal,'const generated = finalized.filter((x) => x.generatorProvider !== "legacy_bank")','Only AI-generated slots are audited as generated');
 need(phrasal,'items.length !== 20','Phrasal claim remains exact-20');
-need(phrasal,'expectedContextCount > 8','Maximum eight context-fill slots remains enforced');
+need(phrasal,'expectedContextCount > 6','Maximum six context-fill slots remains enforced');
 need(phrasal,'contextCount !== expectedContextCount','Generated mix must exactly match Central request');
 need(phrasal,'new Set(finalized.map(x => x.conceptId)).size !== 20','All 20 concepts must remain distinct');
 need(phrasal,'english_phrasal_task_apply','Atomic apply contract retained');

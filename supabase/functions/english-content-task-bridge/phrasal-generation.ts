@@ -148,6 +148,73 @@ function phrasalCodeGate(draft: Json, assignment: Json) {
   return issues;
 }
 
+const legacyOption = (reference: Json, key: "A"|"B"|"C"|"D") => {
+  const hit = Array.isArray(reference?.options)
+    ? reference.options.find((x: any) => String(x?.key || "").toUpperCase() === key)
+    : null;
+  return String(hit?.text ?? reference?.[`option${key}`] ?? "").trim();
+};
+function legacyPhrasal(item: Json) {
+  const conceptId = String(item?.phrasalConceptId || item?.conceptId || "");
+  const requested = String(item?.requestedQuestionFamily || item?.missingFamily || item?.phrasalQuestionFamily || "recognition").toLowerCase();
+  const legacy = String(item?.legacyFamily || item?.missingFamily || item?.phrasalQuestionFamily || requested || "recognition").toLowerCase();
+  const reference = Object.keys(item?.referenceVariant || {}).length ? item.referenceVariant : item;
+  const targetWord = resolvePhrasalTarget(item, reference, conceptId);
+  if (!conceptId || !targetWord) return null;
+  if (item?.contentGap === true || String(item?.slotStatus || "").toLowerCase() === "content_gap") return null;
+  if (requested === "context_fill" || requested !== legacy) return null;
+
+  const draft: Json = {
+    word: targetWord,
+    senseKey: String(item?.senseKey || "legacy_default"),
+    senseGloss: String(item?.senseGloss || ""),
+    question: String(reference?.question || "").trim(),
+    questionType: String(reference?.questionType || "").trim(),
+    optionA: legacyOption(reference, "A"),
+    optionB: legacyOption(reference, "B"),
+    optionC: legacyOption(reference, "C"),
+    optionD: legacyOption(reference, "D"),
+    correctKey: String(reference?.correctKey || "").toUpperCase(),
+    explanation: String(reference?.explanation || "").trim(),
+    tip: String(reference?.tip || ""),
+    usageNote: String(reference?.usageNote || ""),
+    example: String(reference?.example || reference?.exampleSentence || ""),
+    memoryAid: String(reference?.memoryAid || ""),
+    related: String(reference?.related || reference?.relatedWords || ""),
+    difficulty: String(reference?.difficulty || item?.difficulty || "Medium"),
+    sourcePage: String(reference?.sourcePage || ""),
+    sourceUrl: String(reference?.sourceUrl || ""),
+  };
+  if (!draft.question || !draft.explanation) return null;
+  if (requested === "recall") {
+    if (draft.questionType !== "Reverse Recall Card" || draft.optionA !== "Yaad tha" || draft.optionB !== "Confused" || draft.optionC !== "Bhool gaya" || draft.optionD !== "" || draft.correctKey !== "A") return null;
+    if (normText(draft.question).includes(normText(targetWord))) return null;
+  } else if (fourOptionCodeGate(draft, "correctKey").length) return null;
+
+  return {
+    ...draft,
+    conceptId,
+    requestedQuestionFamily: requested,
+    questionFamily: requested,
+    legacyFamily: legacy,
+    family: requested,
+    baseQuestionId: String(reference?.id || reference?.questionId || item?.id || item?.questionId || ""),
+    contentGap: false,
+    generatorProvider: "legacy_bank",
+    generatorModel: "canonical_bank",
+    criticProvider: null,
+    criticModel: null,
+    quality: null,
+    repairCount: 0,
+    codeRepairCount: 0,
+    rareRescue: false,
+    writerRequests: 0,
+    criticRequests: 0,
+    variantFingerprint: "",
+    variantKey: "",
+  };
+}
+
 async function generatePhrasal(item: Json) {
   const conceptId = String(item?.phrasalConceptId || item?.conceptId || "");
   const requested = String(item?.requestedQuestionFamily || item?.missingFamily || item?.phrasalQuestionFamily || "recognition").toLowerCase();
@@ -248,18 +315,21 @@ export async function runPhrasalGeneration(db: Db) {
     const expectedContextCount = items.filter((item: Json) =>
       String(item?.requestedQuestionFamily || item?.missingFamily || item?.phrasalQuestionFamily || "recognition").toLowerCase() === "context_fill"
     ).length;
-    if (expectedContextCount > 8) throw new Error(`PHRASAL_CONTEXT_SELECTION_INVALID: maximum 8 contextual slots, got ${expectedContextCount}`);
+    if (expectedContextCount > 6) throw new Error(`PHRASAL_CONTEXT_SELECTION_INVALID: maximum 6 contextual slots, got ${expectedContextCount}`);
 
-    // Quality-first Stage 1: every Central-selected slot gets its own writer + critic path.
-    const finalized = await mapLimit(items, 4, async (item: Json) => await generatePhrasal(item));
+    // Central Intelligence owns the 20-slot batch. Reuse structurally valid serviceable cards;
+    // AI only fills actual family/content gaps and context-fill slots.
+    const finalized = await mapLimit(items, 4, async (item: Json) => legacyPhrasal(item) || await generatePhrasal(item));
     const contextCount = finalized.filter((x) => x.requestedQuestionFamily === "context_fill").length;
-    if (contextCount !== expectedContextCount || contextCount > 8) throw new Error(`PHRASAL_CONTEXT_MIX_REJECTED: Central requested ${expectedContextCount}, finalized ${contextCount}`);
+    if (contextCount !== expectedContextCount || contextCount > 6) throw new Error(`PHRASAL_CONTEXT_MIX_REJECTED: Central requested ${expectedContextCount}, finalized ${contextCount}`);
     if (new Set(finalized.map(x => x.conceptId)).size !== 20) throw new Error("PHRASAL_CONCEPT_DUPLICATION: finalized batch does not contain 20 distinct concepts");
 
     const { data: applied, error: applyError } = await db.rpc("english_phrasal_task_apply", { p_run_id: runId, p_items: finalized });
     if (applyError) throw new Error(`PHRASAL_APPLY_FAILED: ${applyError.message}`);
 
-    await audit(db, finalized.map((x) => ({
+    const generated = finalized.filter((x) => x.generatorProvider !== "legacy_bank");
+    const reused = finalized.length - generated.length;
+    await audit(db, generated.map((x) => ({
       lane: "phrasal",
       entityKey: x.conceptId,
       generatorProvider: String(x.generatorProvider || "antigravity"),
@@ -297,7 +367,8 @@ export async function runPhrasalGeneration(db: Db) {
       runId,
       contextCount,
       expectedContextCount,
-      generated: finalized.length,
+      generated: generated.length,
+      reused,
       writer: "antigravity",
       antigravityAgent: ANTIGRAVITY_AGENT,
       antigravityModel: ANTIGRAVITY_MODEL,
@@ -306,10 +377,10 @@ export async function runPhrasalGeneration(db: Db) {
       criticModel: LUNA_MODEL,
       criticReasoning: "low",
       rareRescueModel: GEMINI_RARE_RESCUE_MODEL,
-      rareRescues: finalized.filter(x => x.rareRescue === true).length,
-      writerRequests: finalized.reduce((n, x) => n + Number(x.writerRequests || 1), 0),
-      criticRequests: finalized.reduce((n, x) => n + Number(x.criticRequests || 1), 0),
-      codeRepairs: finalized.reduce((n, x) => n + Number(x.codeRepairCount || 0), 0),
+      rareRescues: generated.filter(x => x.rareRescue === true).length,
+      writerRequests: generated.reduce((n, x) => n + Number(x.writerRequests || 0), 0),
+      criticRequests: generated.reduce((n, x) => n + Number(x.criticRequests || 0), 0),
+      codeRepairs: generated.reduce((n, x) => n + Number(x.codeRepairCount || 0), 0),
       applied,
     };
   } catch (e) {
