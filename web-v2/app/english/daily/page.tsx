@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { learnerErrorMessage, rpc } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
 import { makeDisplayOptions, type DisplayOption } from "@/lib/options";
+import { splitSentenceQuestionForDisplay } from "@/lib/question-display";
 import AddWordSheet from "@/components/add-word-sheet";
 import QuestionRevisionActions from "@/components/question-revision-actions";
 import type { RevisionPayload } from "@/lib/question-revisions";
@@ -75,6 +76,7 @@ export default function DailyPage(){
   },[ready]);
 
   const item=batch?.items?.[idx];
+  const sentenceDisplay=item?splitSentenceQuestionForDisplay(item.question):null;
   const answerState=item?answers[item.question_id]:undefined;
   const answeredCount=Object.keys(answers).length;
   const options=useMemo(()=>{
@@ -163,7 +165,7 @@ export default function DailyPage(){
     <div className="progress"><span style={{width:`${batch.items.length?(answeredCount/batch.items.length)*100:0}%`}}/></div>
     <section className="quiz-card">
       <div className="quiz-meta"><span className="pill">{item.topic}</span><span className="pill">{item.question_id}</span>{["Persistent Weak","Weak","Fragile"].includes(item.status)&&<span className={`pill learning-chip ${item.status==="Persistent Weak"?"signal-persistent":"signal-weak"}`}>{item.status}</span>}<button className="intel-button" onClick={()=>setIntelOpen(true)} aria-label="Question intelligence">ⓘ</button></div>
-      <div className="question-area">{item.word&&<div className="question-word">{item.word}</div>}<div className="question">{item.question}</div></div>
+      <div className="question-area">{item.word&&<div className="question-word">{item.word}</div>}{sentenceDisplay?<div className="sentence-question"><div className="sentence-question-instruction">{sentenceDisplay.instruction}</div><div className="question sentence-question-body">{sentenceDisplay.sentence}</div></div>:<div className="question">{item.question}</div>}</div>
       <div className="options">{options.map(o=>{let cls="option";if(answerState?.selectedDisplayKey===o.key)cls+=" selected";if(answerState&&o.canonicalKey===answerState.correctCanonicalKey)cls+=" correct";if(answerState&&answerState.selectedDisplayKey===o.key&&o.canonicalKey!==answerState.correctCanonicalKey)cls+=" wrong";return <button key={o.key} className={cls} onClick={()=>void answer(o)} disabled={!!answerState||busy}><span className="option-key">{o.key}</span><span>{o.text}</span></button>;})}</div>
       {error&&<div className="result-wrap"><div className="error-box">{error}</div></div>}
       {answerState&&<div className="result-wrap">
