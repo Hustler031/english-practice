@@ -1,0 +1,24 @@
+name: One-shot Antigravity repair backoff
+on:
+  push:
+    branches: [english-antigravity-repair-backoff-20260906]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: english-antigravity-repair-backoff-20260906
+      - name: Patch repair backoff
+        run: python .github/scripts/patch-antigravity-repair-backoff.py
+      - name: Commit source-only result
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/zz-antigravity-repair-backoff.yml .github/scripts/patch-antigravity-repair-backoff.py
+          git add supabase/functions/_shared/english-antigravity-luna.ts .github/scripts/validate-english-hybrid-ai-content.cjs
+          git commit -m "Honor quota windows during Antigravity repairs"
+          git push origin HEAD:english-antigravity-repair-backoff-20260906
