@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   ANTIGRAVITY_AGENT, ANTIGRAVITY_MODEL, LUNA_MODEL, GEMINI_RARE_RESCUE_MODEL,
-  fourOptionCodeGate, runAntigravityLunaPipeline,
+  fourOptionCodeGate, runAntigravityLunaPipeline, lunaCritic, lunaPass,
 } from "../_shared/english-antigravity-luna.ts";
 
 // Scheduler-only worker. Auth remains the existing private English runtime token.
@@ -10,9 +10,19 @@ const reply=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status
 const errorText=(e:unknown)=>e instanceof Error?e.message:String(e||"Unknown saved enrichment worker error");
 const classifyError=(e:unknown)=>{
   const text=errorText(e);
-  if(/(?:ANTIGRAVITY|LUNA|GEMINI_RESCUE|AI)_TIMEOUT|AbortError|timed?\s*out/i.test(text))return `AI_TIMEOUT: ${text}`;
+  if(/(?:ANTIGRAVITY|LUNA|GEMINI_RESCUE|GEMINI36|AI)_TIMEOUT|AbortError|timed?\s*out/i.test(text))return `AI_TIMEOUT: ${text}`;
   return text;
 };
+const sleep=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms));
+const TRANSIENT=new Set([429,500,502,503,504]);
+const GEMINI_SECONDARY_FALLBACK_MODEL=Deno.env.get("GEMINI_SECONDARY_FALLBACK_MODEL")||"gemini-3.6-flash";
+function parseJsonText(text:string,label:string){
+  let raw=String(text||"").trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/i,"").trim();
+  try{return JSON.parse(raw)}catch{}
+  const start=raw.indexOf("{"),end=raw.lastIndexOf("}");
+  if(start>=0&&end>start){try{return JSON.parse(raw.slice(start,end+1))}catch{}}
+  throw new Error(`${label}_MALFORMED_JSON`);
+}
 async function featureEnabled(db:any,flag:string){
   const {data,error}=await db.rpc("english_ai_content_feature_enabled",{p_flag:flag});
   if(error)throw new Error(`FEATURE_READ_FAILED: ${error.message}`);
@@ -49,26 +59,97 @@ function readyOutput(item:any,data:any,reviewed:any){
   return {
     savedId:String(item?.savedId||""),meaning:String(data.meaning||""),partOfSpeech:String(data.partOfSpeech||""),synonyms:String(data.synonyms||""),antonyms:String(data.antonyms||""),example:String(data.example||""),
     explanation:String(data.explanation||""),question:String(data.question||""),optionA:String(data.optionA||""),optionB:String(data.optionB||""),optionC:String(data.optionC||""),optionD:String(data.optionD||""),correctOption:String(data.correctOption||"").toUpperCase(),
-    source:`Supabase Antigravity+Luna My Saved enrichment · ${reviewed.generatorProvider}/${reviewed.generatorModel} · ${reviewed.criticModel}`,
+    source:`Supabase English AI My Saved enrichment · ${reviewed.generatorProvider}/${reviewed.generatorModel} · ${reviewed.criticModel}`,
     gptStatus:"Ready",captureType:String(data.captureType||"AUTO").toUpperCase(),
     generatorProvider:reviewed.generatorProvider,generatorModel:reviewed.generatorModel,criticProvider:reviewed.criticProvider,criticModel:reviewed.criticModel,
     repairCount:reviewed.repairCount,quality:reviewed.quality,rareRescue:reviewed.rareRescue,writerRequests:reviewed.writerRequests,criticRequests:reviewed.criticRequests,codeRepairCount:reviewed.codeRepairCount,
   };
 }
 
+async function gemini36Json<T>(systemInstructions:string,input:unknown,schema:unknown):Promise<T>{
+  const key=Deno.env.get("GEMINI_API_KEY");
+  if(!key)throw new Error("AUTH_CONFIG: GEMINI_API_KEY is not configured");
+  for(let attempt=0;attempt<2;attempt++){
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),55_000);
+    try{
+      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_SECONDARY_FALLBACK_MODEL)}:generateContent`,{
+        method:"POST",signal:controller.signal,
+        headers:{"x-goog-api-key":key,"Content-Type":"application/json"},
+        body:JSON.stringify({
+          systemInstruction:{parts:[{text:`${systemInstructions}\nYou are the final secondary writer fallback after Antigravity and Gemini 3.8 were unavailable. Preserve the exact assignment and return one complete JSON item only.`}]},
+          contents:[{role:"user",parts:[{text:JSON.stringify(input)}]}],
+          generationConfig:{responseMimeType:"application/json",responseJsonSchema:schema,thinkingConfig:{thinkingLevel:"high"}},
+        }),
+      });
+      const payload=await res.json().catch(()=>null);
+      if(res.ok){
+        const text=(payload?.candidates?.[0]?.content?.parts||[]).map((p:any)=>typeof p?.text==="string"&&!p?.thought?p.text:"").join("").trim();
+        if(!text)throw new Error("GEMINI36_MALFORMED_OUTPUT");
+        return parseJsonText(text,"GEMINI36") as T;
+      }
+      if(!TRANSIENT.has(res.status)||attempt===1)throw new Error(`GEMINI36_${res.status}: ${payload?.error?.message||"request failed"}`);
+    }catch(e:any){
+      if(e?.name==="AbortError"){
+        if(attempt===1)throw new Error("GEMINI36_TIMEOUT");
+      }else if(!/^GEMINI36_(429|500|502|503|504):/.test(errorText(e))){throw e}
+      else if(attempt===1)throw e;
+    }finally{clearTimeout(timer)}
+    await sleep(1200*(attempt+1));
+  }
+  throw new Error("GEMINI36_RETRY_EXHAUSTED");
+}
+
+async function gemini36ReviewedFallback(item:any,input:any,originalCapture:string,upstreamError:string){
+  const criticContext={lane:"saved",rawLearnerRequest:input.rawSavedRequest,captureType:originalCapture,resolvedType:input.resolvedType,upstreamWriterFailure:upstreamError};
+  let current=await gemini36Json<any>(instructions,input,enrichmentSchema);
+  let writerRequests=1,criticRequests=0,codeRepairCount=0,repairCount=0;
+  preserveCapture(item,current);
+  let codeIssues=savedCodeGate(item,current);
+  if(codeIssues.length){
+    current=await gemini36Json<any>(instructions,{originalAssignment:input,currentItem:current,codeGateIssues:codeIssues,repairInstruction:"Repair only the listed deterministic defects. Preserve learner intent and return the full corrected JSON item."},enrichmentSchema);
+    writerRequests++;codeRepairCount++;repairCount++;
+    preserveCapture(item,current);
+    codeIssues=savedCodeGate(item,current);
+    if(codeIssues.length)throw new Error(`GEMINI36_CODE_GATE_REJECTED: ${codeIssues.join("; ")}`);
+  }
+  let review=await lunaCritic(current,criticContext);criticRequests++;
+  if(!lunaPass(review.quality)){
+    current=await gemini36Json<any>(instructions,{originalAssignment:input,currentItem:current,critic:{decision:review.quality.decision,issues:review.quality.issues,repairInstruction:review.quality.repairInstruction}},enrichmentSchema);
+    writerRequests++;repairCount++;
+    preserveCapture(item,current);
+    codeIssues=savedCodeGate(item,current);
+    if(codeIssues.length)throw new Error(`GEMINI36_CODE_GATE_REJECTED: ${codeIssues.join("; ")}`);
+    review=await lunaCritic(current,criticContext);criticRequests++;
+  }
+  if(!lunaPass(review.quality))throw new Error(`GEMINI36_QUALITY_REJECTED: score=${Number(review.quality?.score||0)} decision=${String(review.quality?.decision||"")}`);
+  if(!validateReady(current))throw new Error("CODE_GATE_REJECTED: final Gemini 3.6 Saved item is incomplete or not Ready");
+  return readyOutput(item,current,{
+    generatorProvider:"gemini",generatorModel:GEMINI_SECONDARY_FALLBACK_MODEL,criticProvider:review.provider,criticModel:review.model,
+    repairCount,quality:review.quality,rareRescue:false,writerRequests,criticRequests,codeRepairCount,
+  });
+}
+
 async function enrichOne(item:any){
   const input=assignment(item);
   const originalCapture=String(item?.captureType||"AUTO").toUpperCase();
-  // Exactly one learner item enters one Antigravity generation request. Luna also receives one item per critic call.
-  const reviewed=await runAntigravityLunaPipeline<any>({
-    instructions,input,schema:enrichmentSchema,
-    criticContext:{lane:"saved",rawLearnerRequest:input.rawSavedRequest,captureType:originalCapture,resolvedType:input.resolvedType},
-    structuralGate:(draft:any)=>{preserveCapture(item,draft);return savedCodeGate(item,draft)},
-    repairInput:(original,current,quality)=>({originalAssignment:original,currentItem:current,critic:{decision:quality.decision,issues:quality.issues,repairInstruction:quality.repairInstruction}}),
-  });
-  preserveCapture(item,reviewed.item);
-  if(!validateReady(reviewed.item))throw new Error("CODE_GATE_REJECTED: final Saved item is incomplete or not Ready");
-  return readyOutput(item,reviewed.item,reviewed);
+  try{
+    // Primary chain is Antigravity -> Gemini 3.8 fallback inside the shared pipeline -> Luna critic.
+    const reviewed=await runAntigravityLunaPipeline<any>({
+      instructions,input,schema:enrichmentSchema,
+      criticContext:{lane:"saved",rawLearnerRequest:input.rawSavedRequest,captureType:originalCapture,resolvedType:input.resolvedType},
+      structuralGate:(draft:any)=>{preserveCapture(item,draft);return savedCodeGate(item,draft)},
+      repairInput:(original,current,quality)=>({originalAssignment:original,currentItem:current,critic:{decision:quality.decision,issues:quality.issues,repairInstruction:quality.repairInstruction}}),
+    });
+    preserveCapture(item,reviewed.item);
+    if(!validateReady(reviewed.item))throw new Error("CODE_GATE_REJECTED: final Saved item is incomplete or not Ready");
+    return readyOutput(item,reviewed.item,reviewed);
+  }catch(e){
+    const reason=errorText(e);
+    // Gemini 3.6 is a final writer availability fallback, not a quality-gate bypass.
+    if(!/^GEMINI_WRITER_(429|500|502|503|504):|^GEMINI_WRITER_TIMEOUT$|^GEMINI_WRITER_RETRY_EXHAUSTED$|^GEMINI_WRITER_MALFORMED_OUTPUT$/.test(reason))throw e;
+    return await gemini36ReviewedFallback(item,input,originalCapture,reason);
+  }
 }
 
 Deno.serve(async req=>{
@@ -101,7 +182,7 @@ Deno.serve(async req=>{
       const auditPayload=completed.map(x=>({
         lane:"saved",entityKey:x.savedId,generatorProvider:String(x.generatorProvider||"antigravity"),generatorModel:String(x.generatorModel||ANTIGRAVITY_MODEL),
         criticProvider:String(x.criticProvider||"openai"),criticModel:String(x.criticModel||LUNA_MODEL),qualityScore:Number(x?.quality?.score||0),criticDecision:String(x?.quality?.decision||""),repairCount:Number(x?.repairCount||0),publicationResult:"applied",
-        metadata:{requestMode:"one_item_per_generation_request",writer:"antigravity",writerReasoning:"high",antigravityAgent:ANTIGRAVITY_AGENT,antigravityModel:ANTIGRAVITY_MODEL,critic:"luna",criticReasoning:"low",lunaModel:LUNA_MODEL,rareRescueModel:GEMINI_RARE_RESCUE_MODEL,rareRescue:x.rareRescue===true,writerRequests:Number(x.writerRequests||1),criticRequests:Number(x.criticRequests||1),codeRepairCount:Number(x.codeRepairCount||0)}
+        metadata:{requestMode:"one_item_per_generation_request",writer:String(x.generatorProvider||"antigravity"),writerReasoning:"high",antigravityAgent:ANTIGRAVITY_AGENT,antigravityModel:ANTIGRAVITY_MODEL,critic:"luna",criticReasoning:"low",lunaModel:LUNA_MODEL,rareRescueModel:GEMINI_RARE_RESCUE_MODEL,secondaryFallbackModel:GEMINI_SECONDARY_FALLBACK_MODEL,rareRescue:x.rareRescue===true,writerRequests:Number(x.writerRequests||1),criticRequests:Number(x.criticRequests||1),codeRepairCount:Number(x.codeRepairCount||0)}
       }));
       const {error:auditError}=await db.rpc("english_record_content_generation_audits",{p_items:auditPayload});
       if(auditError)throw new Error(`AUDIT_FAILED: ${auditError.message}`);
@@ -111,7 +192,7 @@ Deno.serve(async req=>{
     if(finishError)throw new Error(`VERIFY_FAILED: ${finishError.message}`);
     const verifyItems=Array.isArray(verified?.items)?verified.items:[];
     for(const row of verifyItems)if(String(row?.gptStatus||"").toLowerCase()==="ready"&&row?.questionReady!==true)throw new Error(`VERIFY_FAILED: Ready item ${String(row?.savedId||"unknown")} is not question-ready`);
-    return reply({ok:true,generator:"antigravity",antigravityAgent:ANTIGRAVITY_AGENT,antigravityModel:ANTIGRAVITY_MODEL,writerReasoning:"high",critic:"luna",criticModel:LUNA_MODEL,criticReasoning:"low",rareRescueModel:GEMINI_RARE_RESCUE_MODEL,claimed:items.length,processed:completed.length,failed:failures.length,initialAntigravityRequests:items.length,verified:verifyItems.length,elapsedMs:Date.now()-started});
+    return reply({ok:true,generator:"antigravity",antigravityAgent:ANTIGRAVITY_AGENT,antigravityModel:ANTIGRAVITY_MODEL,writerReasoning:"high",critic:"luna",criticModel:LUNA_MODEL,criticReasoning:"low",rareRescueModel:GEMINI_RARE_RESCUE_MODEL,secondaryFallbackModel:GEMINI_SECONDARY_FALLBACK_MODEL,claimed:items.length,processed:completed.length,failed:failures.length,initialAntigravityRequests:items.length,verified:verifyItems.length,elapsedMs:Date.now()-started});
   }catch(e){
     const classified=classifyError(e);
     try{await db.rpc("english_saved_enrichment_worker_finish",{p_token:token,p_lease_id:leaseId,p_saved_ids:[],p_error:classified.slice(0,1200)})}catch{}
