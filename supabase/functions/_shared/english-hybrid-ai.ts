@@ -100,12 +100,21 @@ function groqOutputText(payload:any){
   for(const item of payload?.output||[])for(const c of item?.content||[])if(c?.type==="output_text"&&typeof c.text==="string")return c.text;
   return "";
 }
+function groqRetryDelayMs(status:number,payload:any,attempt:number){
+  if(status!==429)return 900*(attempt+1);
+  const message=String(payload?.error?.message||"");
+  const match=message.match(/try again in\s+([0-9.]+)s/i);
+  const providerSeconds=match?Number(match[1]):0;
+  return Math.max(4_000,Math.ceil(providerSeconds*1000)+1_250+(attempt*500));
+}
 
 export async function groqJson<T>(instructions:string,input:unknown,schema:unknown):Promise<{data:T;model:string}> {
   const key=Deno.env.get("GROQ_API_KEY");
   if(!key)throw new Error("AUTH_CONFIG: GROQ_API_KEY is not configured");
-  for(let attempt=0;attempt<3;attempt++){
+  const maxAttempts=6;
+  for(let attempt=0;attempt<maxAttempts;attempt++){
     const {c,timer}=withTimeout();
+    let retryDelay=900*(attempt+1);
     try{
       const res=await fetch("https://api.groq.com/openai/v1/responses",{
         method:"POST",signal:c.signal,
@@ -122,19 +131,21 @@ export async function groqJson<T>(instructions:string,input:unknown,schema:unkno
         if(!text)throw new Error("GROQ_MALFORMED_OUTPUT: no JSON text returned");
         return {data:parseJsonText(text,"GROQ") as T,model:String(payload?.model||GROQ_MODEL)};
       }
-      if(!RETRYABLE_PROVIDER_STATUS.has(res.status)||attempt===2){
+      retryDelay=groqRetryDelayMs(res.status,payload,attempt);
+      if(!RETRYABLE_PROVIDER_STATUS.has(res.status)||attempt===maxAttempts-1){
         throw new Error(`GROQ_${res.status}: ${payload?.error?.message||"request failed"}`);
       }
     }catch(e:any){
       if(e?.name==="AbortError"){
-        if(attempt===2)throw new Error("GROQ_TIMEOUT");
+        if(attempt===maxAttempts-1)throw new Error("GROQ_TIMEOUT");
+        retryDelay=Math.max(retryDelay,1_500*(attempt+1));
       }else if(!/^GROQ_(429|500|502|503|504):/.test(errorText(e))){
         throw e;
-      }else if(attempt===2){
+      }else if(attempt===maxAttempts-1){
         throw e;
       }
     }finally{clearTimeout(timer)}
-    await sleep(700*(attempt+1));
+    await sleep(retryDelay);
   }
   throw new Error("GROQ_RETRY_EXHAUSTED");
 }
