@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EnglishLoading } from "@/components/english-frame";
 import { learnerErrorMessage, localProductionSafetyMode, rpc, supabaseBrowser } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
+import { splitSentenceQuestionForDisplay } from "@/lib/question-display";
 
 type Readiness={lastSprint:number|null;fiveSprintAverage:number|null;best:number|null;lowest:number|null;accuracy:number|null;timeSeconds:number|null;goalStreak:number;knownButMissed:number;targetedMissed:number;preventableMarksLost:number};
 type Weakness={category:string;wrong:number};
@@ -244,6 +245,7 @@ function SprintRunner({initial,onExit}:{initial:SprintSession;onExit:()=>void}){
   const runtimeRef=useRef<RuntimeSnapshot>({answers,visited,review,idx,seconds});
   const q=session.items[idx];
   const answer=q?answers[q.position]:undefined;
+  const sentenceDisplay=q?splitSentenceQuestionForDisplay(q.question):null;
 
   useEffect(()=>{runtimeRef.current={answers,visited,review,idx,seconds};},[answers,visited,review,idx,seconds]);
   useEffect(()=>{document.body.classList.add("english-sprint-mode");return()=>document.body.classList.remove("english-sprint-mode");},[]);
@@ -402,7 +404,7 @@ function SprintRunner({initial,onExit}:{initial:SprintSession;onExit:()=>void}){
 
     <section className="sprint-question-clean">
       <div className="question-eyebrow"><span>{pretty(q?.category||"English")}</span><span>Question {q?.position}</span></div>
-      <h1>{q?.question}</h1>
+      {sentenceDisplay?<div className="sentence-question sprint-sentence-question"><div className="sentence-question-instruction">{sentenceDisplay.instruction}</div><h1 className="sentence-question-body">{sentenceDisplay.sentence}</h1></div>:<h1>{q?.question}</h1>}
       <div className="sprint-options-clean">{q?.options?.map(o=><button type="button" key={o.key} className={answer?.selectedKey===o.key?"selected":""} disabled={submitting} onClick={()=>select(o.key)}><span>{o.key}</span><b>{o.text}</b></button>)}</div>
       {answer?.selectedKey&&<button type="button" className="clear-response" onClick={clearResponse}>Clear response</button>}
     </section>

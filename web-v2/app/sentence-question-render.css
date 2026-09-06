@@ -3,8 +3,15 @@
 .english-app .sentence-question-instruction{color:var(--muted);font-size:13px;font-weight:850;line-height:1.38;letter-spacing:.005em}
 .english-app .sentence-question-body{margin:0;padding:13px 14px;border:1px solid color-mix(in srgb,var(--line) 88%,var(--primary));border-radius:15px;background:color-mix(in srgb,var(--card) 78%,transparent);font-size:20px!important;font-weight:780!important;line-height:1.5!important;letter-spacing:-.012em;overflow-wrap:anywhere}
 
+/* Timed SSC Sprint keeps its deliberately compact exam density while using the same semantic split. */
+body.english-sprint-mode .english-app .sprint-question-clean .sprint-sentence-question{display:grid;gap:8px;min-width:0}
+body.english-sprint-mode .english-app .sprint-question-clean .sprint-sentence-question .sentence-question-instruction{color:var(--muted);font-size:.75rem!important;font-weight:850;line-height:1.35;letter-spacing:.005em}
+body.english-sprint-mode .english-app .sprint-question-clean .sprint-sentence-question h1.sentence-question-body{margin:0;padding:11px 12px;border:1px solid color-mix(in srgb,var(--line) 88%,var(--primary));border-radius:13px;background:color-mix(in srgb,var(--card) 78%,transparent);font-size:1.05rem!important;font-weight:780!important;line-height:1.45!important;letter-spacing:-.01em;overflow-wrap:anywhere}
+
 @media(max-width:430px){
   .english-app .sentence-question{gap:8px}
   .english-app .sentence-question-instruction{font-size:12.5px;line-height:1.35}
   .english-app .sentence-question-body{padding:12px 13px;font-size:19px!important;line-height:1.5!important}
+  body.english-sprint-mode .english-app .sprint-question-clean .sprint-sentence-question .sentence-question-instruction{font-size:.72rem!important}
+  body.english-sprint-mode .english-app .sprint-question-clean .sprint-sentence-question h1.sentence-question-body{padding:10px 11px;font-size:1.05rem!important;line-height:1.45!important}
 }
