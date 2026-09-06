@@ -7,6 +7,34 @@ type Db = any;
 type Json = Record<string, any>;
 
 const normText = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const compactPhrasalTarget = (v: string) => {
+  const s = String(v || "").trim();
+  if (!s || s.length > 80) return false;
+  const words = s.replace(/[\/|]+/g, " ").match(/[A-Za-z]+(?:'[A-Za-z]+)?/g) || [];
+  return words.length >= 2 && words.length <= 6;
+};
+const keyedReferenceOption = (reference: Json) => {
+  const key = String(reference?.correctKey || "").toUpperCase();
+  if (!["A", "B", "C", "D"].includes(key)) return "";
+  const hit = Array.isArray(reference?.options)
+    ? reference.options.find((x: any) => String(x?.key || "").toUpperCase() === key)
+    : null;
+  return String(hit?.text || reference?.[`option${key}`] || "").trim();
+};
+function resolvePhrasalTarget(item: Json, reference: Json, conceptId: string) {
+  const raw = String(reference?.word || item?.word || "").trim();
+  if (compactPhrasalTarget(raw)) return raw;
+  const idMatch = String(conceptId || "").match(/^(?:PV_|phrasal_)(.+)$/i);
+  if (idMatch) {
+    const fromId = idMatch[1].replace(/_/g, " ").trim();
+    if (compactPhrasalTarget(fromId)) return fromId;
+  }
+  const question = String(reference?.question || item?.question || "");
+  const keyed = keyedReferenceOption(reference);
+  const answerIdentifiesTarget = /phrasal verb|which pair|_{2,}|=\s*\?/i.test(question);
+  if (answerIdentifiesTarget && compactPhrasalTarget(keyed)) return keyed;
+  return "";
+}
 const errorText = (e: unknown) => e instanceof Error ? e.message : String(e || "Unknown Phrasal generation error");
 const sha256 = async (text: string) => {
   const bytes = new TextEncoder().encode(text.trim().toLowerCase().replace(/\s+/g, " "));
@@ -127,9 +155,9 @@ async function generatePhrasal(item: Json) {
   const reference = Object.keys(item?.referenceVariant || {}).length ? item.referenceVariant : item;
   const knownSenses = Array.isArray(item?.knownSenses) ? item.knownSenses : [];
   const preferredSenseKey = String(item?.senseKey || "legacy_default");
-  const targetWord = String(reference?.word || item?.word || "").trim();
+  const targetWord = resolvePhrasalTarget(item, reference, conceptId);
   if (!conceptId || !targetWord || !String(reference?.question || reference?.explanation || reference?.word || "").trim()) {
-    throw new Error(`PHRASAL_REFERENCE_MISSING: ${conceptId || "unknown"}`);
+    throw new Error(`PHRASAL_REFERENCE_MISSING_OR_TARGET_UNRESOLVED: ${conceptId || "unknown"}`);
   }
 
   const assignment = {

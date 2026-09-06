@@ -73,6 +73,10 @@ need(phrasal,'runAntigravityLunaPipeline<any>','Phrasal uses new writer/critic p
 need(phrasal,'referenceVariant','Phrasal remains grounded in Central-selected reference');
 need(phrasal,'knownSenses','Phrasal retains sense registry context');
 need(phrasal,'preferredSenseKey','Phrasal preserves selected sense identity');
+need(phrasal,'resolvePhrasalTarget','Phrasal deterministically resolves canonical target metadata');
+need(phrasal,'keyedReferenceOption','Malformed Saved raw captures may use the keyed target option only under deterministic cues');
+need(phrasal,'compactPhrasalTarget','Resolved Phrasal targets are bounded compact expressions');
+need(phrasal,'PHRASAL_REFERENCE_MISSING_OR_TARGET_UNRESOLVED','Unresolvable targets fail closed before AI publication');
 need(phrasal,'recentConceptStems','Phrasal anti-repeat context retained');
 need(phrasal,'const finalized = await mapLimit(items, 4, async (item: Json) => await generatePhrasal(item))','All 20 Central slots use item-wise generation');
 forbid(phrasal,'legacyPhrasal','Legacy zero-AI shortcut removed from Stage 1');
