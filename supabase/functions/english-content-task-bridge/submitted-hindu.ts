@@ -50,24 +50,21 @@ async function persistLedger(db: Db, batchDate: string, runId: string, submitted
     const word = String(item?.word || "").trim();
     const rejected = String(decision?.status || "").startsWith("rejected");
     return {
-      batch_date: batchDate,
-      run_id: runId || null,
-      submitted_index: index,
+      batchDate,
+      runId: runId || "",
+      submittedIndex: index,
       word,
-      normalized_word: normWord(word) || `invalid${index}`,
+      normalizedWord: normWord(word) || `invalid${index}`,
       status: ledgerStatus(decision),
       payload: item,
-      quality_score: decision?.score ?? null,
-      critic_decision: decision?.criticDecision ?? null,
-      critic_model: decision?.criticModel ?? null,
-      rejection_stage: rejected ? String(decision?.stage || "") : null,
-      rejection_reason: rejected ? String(decision?.reason || "") : null,
-      updated_at: new Date().toISOString(),
+      qualityScore: decision?.score ?? null,
+      criticDecision: decision?.criticDecision ?? null,
+      criticModel: decision?.criticModel ?? null,
+      rejectionStage: rejected ? String(decision?.stage || "") : null,
+      rejectionReason: rejected ? String(decision?.reason || "") : null,
     };
   });
-  const { error } = await db.schema("english").from("hindu_candidate_backlog").upsert(rows, {
-    onConflict: "batch_date,submitted_index",
-  });
+  const { error } = await db.rpc("english_hindu_candidate_backlog_upsert", { p_rows: rows });
   if (error) throw new Error(`HINDU_LEDGER_FAILED: ${error.message}`);
 }
 
