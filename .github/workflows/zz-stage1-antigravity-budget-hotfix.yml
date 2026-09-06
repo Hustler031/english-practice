@@ -1,0 +1,59 @@
+name: One-shot Antigravity budget hotfix
+
+on:
+  push:
+    branches:
+      - english-antigravity-budget-hotfix-20260906
+    paths:
+      - '.github/workflows/zz-stage1-antigravity-budget-hotfix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: english-antigravity-budget-hotfix-20260906
+          fetch-depth: 0
+      - name: Apply exact bounded hotfix
+        shell: python
+        run: |
+          from pathlib import Path
+          p=Path('supabase/functions/_shared/english-antigravity-luna.ts')
+          s=p.read_text()
+          replacements={
+            'const ANTIGRAVITY_MAX_TOTAL_TOKENS = Math.max(4_000, Math.min(40_000, Number(Deno.env.get("ANTIGRAVITY_MAX_TOTAL_TOKENS")) || 18_000));':
+            'const ANTIGRAVITY_MAX_TOTAL_TOKENS = Math.max(8_000, Math.min(60_000, Number(Deno.env.get("ANTIGRAVITY_MAX_TOTAL_TOKENS")) || 40_000));',
+            'Work carefully with high reasoning effort. Use only the supplied assignment as the learning source; do not browse for unrelated facts. Return ONLY one complete valid JSON object and no markdown or commentary.':
+            'Work carefully with high reasoning effort. This is a self-contained writing task: do not call browser, web, shell, code-execution, or filesystem tools. Use only the supplied assignment as the learning source. Return ONLY one complete valid JSON object and no markdown or commentary.',
+            'if(payload?.status&&payload.status!=="completed")throw new Error(`ANTIGRAVITY_${String(payload.status).toUpperCase()}`);':
+            'if(payload?.status&&payload.status!=="completed"){const u=payload?.usage||{};throw new Error(`ANTIGRAVITY_${String(payload.status).toUpperCase()}: total_tokens=${String(u.total_tokens??"unknown")} output_tokens=${String(u.total_output_tokens??"unknown")} thought_tokens=${String(u.total_thought_tokens??"unknown")}`);}',
+          }
+          for old,new in replacements.items():
+            if s.count(old)!=1:
+              raise SystemExit(f'expected exactly one match, got {s.count(old)}: {old[:80]}')
+            s=s.replace(old,new)
+          p.write_text(s)
+      - name: Assert scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F '|| 40_000));' supabase/functions/_shared/english-antigravity-luna.ts
+          grep -F 'do not call browser, web, shell, code-execution, or filesystem tools' supabase/functions/_shared/english-antigravity-luna.ts
+          grep -F 'total_tokens=${String(u.total_tokens??"unknown")}' supabase/functions/_shared/english-antigravity-luna.ts
+          git diff --check
+          test "$(git diff --name-only | wc -l)" -eq 1
+          test "$(git diff --name-only)" = 'supabase/functions/_shared/english-antigravity-luna.ts'
+      - name: Commit helper and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/zz-stage1-antigravity-budget-hotfix.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add supabase/functions/_shared/english-antigravity-luna.ts .github/workflows/zz-stage1-antigravity-budget-hotfix.yml
+          git commit -m 'Raise bounded Antigravity item budget'
+          git push origin HEAD:english-antigravity-budget-hotfix-20260906
