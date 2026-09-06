@@ -170,6 +170,21 @@ function normalizeContextFillDraft(draft: Json, assignment: Json) {
   });
 }
 
+function normalizeRecallDraft(draft: Json, assignment: Json) {
+  if (String(assignment?.requestedFamily || "").toLowerCase() !== "recall") return;
+  const targetWord = String(assignment?.targetWord || "").trim();
+  if (!targetWord) return;
+  // Reverse Recall controls are product UI semantics, not writer-owned content.
+  // Antigravity owns the meaning/situation cue and teaching text; code owns the fixed controls.
+  draft.word = targetWord;
+  draft.questionType = "Reverse Recall Card";
+  draft.optionA = "Yaad tha";
+  draft.optionB = "Confused";
+  draft.optionC = "Bhool gaya";
+  draft.optionD = "";
+  draft.correctKey = "A";
+}
+
 function phrasalCodeGate(draft: Json, assignment: Json) {
   const issues: string[] = [];
   const requested = String(assignment.requestedFamily || "recognition").toLowerCase();
@@ -307,7 +322,7 @@ async function generatePhrasal(item: Json) {
         ? { front: "meaning/situation cue; target hidden", A: "Yaad tha", B: "Confused", C: "Bhool gaya", D: "", correctKey: "A", questionType: "Reverse Recall Card" }
         : null,
     },
-    structuralGate: (draft: Json) => { normalizeContextFillDraft(draft, assignment); return phrasalCodeGate(draft, assignment); },
+    structuralGate: (draft: Json) => { normalizeContextFillDraft(draft, assignment); normalizeRecallDraft(draft, assignment); return phrasalCodeGate(draft, assignment); },
     repairInput: (original, current, quality) => ({
       originalAssignment: original,
       currentItem: current,
