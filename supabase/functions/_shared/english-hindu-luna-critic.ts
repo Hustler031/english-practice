@@ -1,0 +1,54 @@
+import { LUNA_MODEL, lunaJson, lunaQualitySchema, type LunaQuality } from "./english-antigravity-luna.ts";
+
+type Json = Record<string, any>;
+
+const VOCAB_INSTRUCTIONS = `You are the independent final quality critic for one SSC-oriented current-news/editorial English learning item authored by ChatGPT. Do not rewrite the item. Judge only whether it is safe and useful to publish. Verify the target word/sense is natural and source-grounded; exactly one option is defensibly correct; all distractors are close, realistic and not obviously eliminable; the explanation matches the exact question/options/correct answer; fixed-preposition, confusable-pair and logical-function claims are accurate when present; no ambiguity, stale explanation, lexical/grammar error or factual error is introduced. Score strictly. PASS requires score >=85 and every hard gate true. Use REPAIR when the item is potentially useful but needs author revision. Use REJECT only for fundamental defects.`;
+
+const TONE_INSTRUCTIONS = `You are the independent final quality critic for one SSC-style editorial tone/mood question authored by ChatGPT. Do not rewrite it. Verify that the short context paraphrase supports the requested actual or counterfactual tone task; writer tone and passage mood are not confused; exactly one option is defensibly correct; distractors are close and realistic; the explanation distinguishes the nearest trap; source metadata is plausible; no ambiguity, grammar error or factual contradiction is introduced. PASS requires score >=85 and every hard gate true. Use REPAIR for fixable question-quality defects and REJECT only for fundamental defects.`;
+
+export type HinduCriticResult = { quality: LunaQuality; provider: "openai"; model: string };
+
+export function hinduQualityPass(q: LunaQuality | null | undefined) {
+  return !!q && Number(q.score || 0) >= 85 && q.decision === "PASS" && Object.values(q.hardGates || {}).every(Boolean);
+}
+
+export function isHinduCriticTransient(error: unknown) {
+  const s = error instanceof Error ? error.message : String(error || "");
+  return /^LUNA_(429|500|502|503|504|TIMEOUT|RETRY_EXHAUSTED)/.test(s);
+}
+
+export async function criticHinduVocab(item: Json): Promise<HinduCriticResult> {
+  const result = await lunaJson<LunaQuality>(VOCAB_INSTRUCTIONS, {
+    item,
+    reviewContext: {
+      lane: "hindu",
+      mode: "chatgpt_sheet_submission",
+      targetWord: item.word,
+      candidateType: item.candidateType || "vocabulary",
+      fixedPreposition: item.fixedPreposition || "",
+      confusableWith: item.confusableWith || "",
+      examValueReason: item.examValueReason || "",
+      logicalFunction: item.logicalFunction || "",
+      sourceName: item.sourceName,
+      sourceUrl: item.sourceUrl,
+      articleTitle: item.articleTitle,
+      sourceDate: item.sourceDate || null,
+    },
+  }, lunaQualitySchema);
+  return { quality: result.data, provider: "openai", model: result.model || LUNA_MODEL };
+}
+
+export async function criticHinduTone(item: Json): Promise<HinduCriticResult> {
+  const result = await lunaJson<LunaQuality>(TONE_INSTRUCTIONS, {
+    item,
+    reviewContext: {
+      lane: "tone",
+      mode: "chatgpt_sheet_submission",
+      toneKind: item.toneKind || "actual",
+      sourceName: item.sourceName,
+      sourceUrl: item.sourceUrl,
+      sourceDate: item.sourceDate || null,
+    },
+  }, lunaQualitySchema);
+  return { quality: result.data, provider: "openai", model: result.model || LUNA_MODEL };
+}
