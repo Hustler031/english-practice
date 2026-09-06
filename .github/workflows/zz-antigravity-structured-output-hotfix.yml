@@ -26,31 +26,25 @@ jobs:
           from pathlib import Path
           p=Path('supabase/functions/_shared/english-antigravity-luna.ts')
           s=p.read_text()
-          replacements=[
-            ('export async function antigravityJson<T>(instructions:string,input:unknown,opts:{maxAttempts?:number}={}):Promise<{data:T;provider:"antigravity";model:string}> {',
-             'export async function antigravityJson<T>(instructions:string,input:unknown,opts:{maxAttempts?:number;schema?:unknown}={}):Promise<{data:T;provider:"antigravity";model:string}> {'),
-            ('          system_instruction:`${instructions}\\n\\nWork carefully with high reasoning effort. This is a self-contained writing task: do not call browser, web, shell, code-execution, or filesystem tools. Use only the supplied assignment as the learning source. Return ONLY one complete valid JSON object and no markdown or commentary.`,\n          environment:"remote",',
-             '          system_instruction:`${instructions}\\n\\nWork carefully with high reasoning effort. This is a self-contained writing task: do not call browser, web, shell, code-execution, or filesystem tools. Use only the supplied assignment as the learning source. Return ONLY one complete valid JSON object and no markdown or commentary.`,\n          response_format:opts.schema?{type:"text",mime_type:"application/json",schema:opts.schema}:undefined,\n          environment:"remote",'),
-            ('  let first=await antigravityJson<T>(args.instructions,args.input);',
-             '  let first=await antigravityJson<T>(args.instructions,args.input,{schema:args.schema});'),
-            ('      {maxAttempts:1},\n    );',
-             '      {maxAttempts:1,schema:args.schema},\n    );'),
-          ]
-          # The maxAttempts call pattern appears exactly twice and both must receive the schema.
-          old_sig=replacements[0][0]
-          old_wire=replacements[1][0]
-          old_first=replacements[2][0]
-          if s.count(old_sig)!=1: raise SystemExit(f'signature count={s.count(old_sig)}')
-          if s.count(old_wire)!=1: raise SystemExit(f'wire count={s.count(old_wire)}')
-          if s.count(old_first)!=1: raise SystemExit(f'first call count={s.count(old_first)}')
-          for old,new in replacements[:3]: s=s.replace(old,new,1)
-          old_call=replacements[3][0]
-          if s.count(old_call)!=2: raise SystemExit(f'repair call count={s.count(old_call)}')
-          s=s.replace(old_call,replacements[3][1],2)
+          old='export async function antigravityJson<T>(instructions:string,input:unknown,opts:{maxAttempts?:number}={}):Promise<{data:T;provider:"antigravity";model:string}> {'
+          new='export async function antigravityJson<T>(instructions:string,input:unknown,opts:{maxAttempts?:number;schema?:unknown}={}):Promise<{data:T;provider:"antigravity";model:string}> {'
+          if s.count(old)!=1: raise SystemExit(f'signature count={s.count(old)}')
+          s=s.replace(old,new,1)
+          old='          system_instruction:`${instructions}\\n\\nWork carefully with high reasoning effort. This is a self-contained writing task: do not call browser, web, shell, code-execution, or filesystem tools. Use only the supplied assignment as the learning source. Return ONLY one complete valid JSON object and no markdown or commentary.`,\n          environment:"remote",'
+          new='          system_instruction:`${instructions}\\n\\nWork carefully with high reasoning effort. This is a self-contained writing task: do not call browser, web, shell, code-execution, or filesystem tools. Use only the supplied assignment as the learning source. Return ONLY one complete valid JSON object and no markdown or commentary.`,\n          response_format:opts.schema?{type:"text",mime_type:"application/json",schema:opts.schema}:undefined,\n          environment:"remote",'
+          if s.count(old)!=1: raise SystemExit(f'wire count={s.count(old)}')
+          s=s.replace(old,new,1)
+          old='  let first=await antigravityJson<T>(args.instructions,args.input);'
+          new='  let first=await antigravityJson<T>(args.instructions,args.input,{schema:args.schema});'
+          if s.count(old)!=1: raise SystemExit(f'first call count={s.count(old)}')
+          s=s.replace(old,new,1)
+          if s.count('{maxAttempts:1}')!=2: raise SystemExit(f'repair opts count={s.count("{maxAttempts:1}")}')
+          s=s.replace('{maxAttempts:1}','{maxAttempts:1,schema:args.schema}')
           p.write_text(s)
           PY
           grep -F 'response_format:opts.schema?{type:"text",mime_type:"application/json",schema:opts.schema}:undefined' supabase/functions/_shared/english-antigravity-luna.ts
           test "$(grep -o 'schema:args.schema' supabase/functions/_shared/english-antigravity-luna.ts | wc -l)" -eq 3
+          test "$(grep -o 'maxAttempts:1,schema:args.schema' supabase/functions/_shared/english-antigravity-luna.ts | wc -l)" -eq 2
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add supabase/functions/_shared/english-antigravity-luna.ts
