@@ -54,7 +54,7 @@ function providerRetryMs(res:Response,payload:any,fallback:number){
   const message=String(payload?.error?.message||"");
   const match=message.match(/retry in\s+([0-9.]+)\s*s/i);
   if(match)ms=Math.max(ms,Number(match[1])*1000+500);
-  return Math.max(fallback,Math.min(30_000,Math.ceil(ms)));
+  return Math.max(fallback,Math.min(65_000,Math.ceil(ms)));
 }
 function parseJsonText(text:string,label:string){
   let raw=String(text||"").trim();
@@ -245,7 +245,7 @@ export async function runAntigravityLunaPipeline<T>(args:{
     const repaired=await antigravityJson<T>(
       `${args.instructions}\nA deterministic code gate rejected the current item. Fix only these structural defects and return the complete corrected JSON item: ${codeIssues.join("; ")}`,
       mkRepair(current,{decision:"CODE",issues:codeIssues,repairInstruction:codeIssues.join("; ")}),
-      {maxAttempts:1,schema:args.schema},
+      {maxAttempts:2,schema:args.schema},
     );
     current=repaired.data;finalProvider=repaired.provider;finalModel=repaired.model;
     codeIssues=args.structuralGate(current);
@@ -262,7 +262,7 @@ export async function runAntigravityLunaPipeline<T>(args:{
   const repaired=await antigravityJson<T>(
     `${args.instructions}\nThe independent Luna critic found repairable defects. Make the minimum targeted repair only; preserve everything not implicated by the critic. Return the complete corrected JSON item.`,
     mkRepair(current,review.quality),
-    {maxAttempts:1,schema:args.schema},
+    {maxAttempts:2,schema:args.schema},
   );
   current=repaired.data;finalProvider=repaired.provider;finalModel=repaired.model;
   codeIssues=args.structuralGate(current);
