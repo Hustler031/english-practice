@@ -1,0 +1,53 @@
+name: One-shot Phrasal schema hardening
+on:
+  push:
+    branches: [english-phrasal-schema-hardening-20260906]
+    paths: ['.github/workflows/zz-phrasal-schema-hardening.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: english-phrasal-schema-hardening-20260906
+          fetch-depth: 0
+      - name: Patch deterministic schema and diagnostics
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('supabase/functions/english-content-task-bridge/phrasal-generation.ts')
+          s=p.read_text()
+          old='function phrasalSchema(family: string) {\n  const schema = structuredClone(baseItemSchema) as any;'
+          new='function phrasalSchema(family: string, targetWord: string) {\n  const schema = structuredClone(baseItemSchema) as any;\n  schema.properties.word = { type: "string", enum: [targetWord] };'
+          assert old in s
+          s=s.replace(old,new,1)
+          old='''  } else if (family === "context_fill") {\n    schema.properties.questionType = { type: "string", enum: ["Context Fill"] };\n  }\n  return schema;'''
+          new='''  } else {\n    schema.properties.optionA = { type: "string", minLength: 1 };\n    schema.properties.optionB = { type: "string", minLength: 1 };\n    schema.properties.optionC = { type: "string", minLength: 1 };\n    schema.properties.optionD = { type: "string", minLength: 1 };\n    if (family === "context_fill") schema.properties.questionType = { type: "string", enum: ["Context Fill"] };\n  }\n  return schema;'''
+          assert old in s
+          s=s.replace(old,new,1)
+          assert 'schema: phrasalSchema(requested),' in s
+          s=s.replace('schema: phrasalSchema(requested),','schema: phrasalSchema(requested, targetWord),',1)
+          old='''  const reviewed = await runAntigravityLunaPipeline<any>({\n    instructions,'''
+          new='''  let reviewed: Awaited<ReturnType<typeof runAntigravityLunaPipeline<any>>>;\n  try {\n    reviewed = await runAntigravityLunaPipeline<any>({\n    instructions,'''
+          assert old in s
+          s=s.replace(old,new,1)
+          old='''    repairInput: (original, current, quality) => ({\n      originalAssignment: original,\n      currentItem: current,\n      critic: { decision: quality.decision, issues: quality.issues, repairInstruction: quality.repairInstruction },\n    }),\n  });\n\n  const outputSenseKey'''
+          new='''    repairInput: (original, current, quality) => ({\n      originalAssignment: original,\n      currentItem: current,\n      critic: { decision: quality.decision, issues: quality.issues, repairInstruction: quality.repairInstruction },\n    }),\n    });\n  } catch (e) {\n    throw new Error(`PHRASAL_ITEM_FAILED ${conceptId}/${requested}: ${errorText(e)}`);\n  }\n\n  const outputSenseKey'''
+          assert old in s
+          s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+          grep -F 'phrasalSchema(requested, targetWord)' supabase/functions/english-content-task-bridge/phrasal-generation.ts
+          grep -F 'PHRASAL_ITEM_FAILED ${conceptId}/${requested}' supabase/functions/english-content-task-bridge/phrasal-generation.ts
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add supabase/functions/english-content-task-bridge/phrasal-generation.ts
+          git commit -m 'Hard-lock Phrasal writer schema'
+          git push origin HEAD:english-phrasal-schema-hardening-20260906
+      - name: Remove one-shot workflow
+        run: |
+          git rm .github/workflows/zz-phrasal-schema-hardening.yml
+          git commit -m 'Remove one-shot Phrasal schema workflow'
+          git push origin HEAD:english-phrasal-schema-hardening-20260906
