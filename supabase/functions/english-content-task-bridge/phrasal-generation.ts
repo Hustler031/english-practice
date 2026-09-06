@@ -103,8 +103,9 @@ const baseItemSchema: any = {
     difficulty: { type: "string", enum: ["Medium", "Hard"] },
   },
 };
-function phrasalSchema(family: string) {
+function phrasalSchema(family: string, targetWord: string) {
   const schema = structuredClone(baseItemSchema) as any;
+  schema.properties.word = { type: "string", enum: [targetWord] };
   if (family === "recall") {
     schema.properties.questionType = { type: "string", enum: ["Reverse Recall Card"] };
     schema.properties.optionA = { type: "string", enum: ["Yaad tha"] };
@@ -112,8 +113,12 @@ function phrasalSchema(family: string) {
     schema.properties.optionC = { type: "string", enum: ["Bhool gaya"] };
     schema.properties.optionD = { type: "string", enum: [""] };
     schema.properties.correctKey = { type: "string", enum: ["A"] };
-  } else if (family === "context_fill") {
-    schema.properties.questionType = { type: "string", enum: ["Context Fill"] };
+  } else {
+    schema.properties.optionA = { type: "string", minLength: 1 };
+    schema.properties.optionB = { type: "string", minLength: 1 };
+    schema.properties.optionC = { type: "string", minLength: 1 };
+    schema.properties.optionD = { type: "string", minLength: 1 };
+    if (family === "context_fill") schema.properties.questionType = { type: "string", enum: ["Context Fill"] };
   }
   return schema;
 }
@@ -242,10 +247,12 @@ async function generatePhrasal(item: Json) {
 
   const instructions = `You are Antigravity, the WRITER for exactly ONE SSC CGL Phrasal Verb learning card selected by Central Intelligence. Central Intelligence owns WHAT concept, sense and family must be taught; you own only HOW to teach that fixed assignment well. Preserve targetWord exactly and preserve the exact meaning/sense evidenced by referenceVariant. Do not substitute another sense merely because the phrasal verb has multiple meanings. If preferredSenseKey is not legacy_default, reuse it exactly. Otherwise create a short lower_snake_case semantic senseKey for THIS evidenced sense and provide a precise senseGloss. requestedFamily is binding.\n\ncontext_fill: create a natural sentence-level cloze/usage MCQ testing the intended sense. Use four close, plausible phrasal-verb choices with exactly one defensible answer. Do not make distractors cheaply eliminable by grammar, length, or unrelated meaning. questionType must be exactly \"Context Fill\". Do not exactly or semantically repeat recentConceptStems.\nrecall: preserve the EXISTING Reverse Recall Card contract. The front must be a meaning/situation cue and MUST NOT reveal targetWord. questionType=\"Reverse Recall Card\"; A=\"Yaad tha\"; B=\"Confused\"; C=\"Bhool gaya\"; D=\"\"; correctKey=\"A\". Explanation may reveal and teach targetWord after recall.\nrecognition/confusion: normal four-option SSC MCQ with close, defensible distractors and exactly one answer.\nDifficulty must be Medium or Hard, not artificially obscure. Return the complete JSON item only.`;
 
-  const reviewed = await runAntigravityLunaPipeline<any>({
+  let reviewed: Awaited<ReturnType<typeof runAntigravityLunaPipeline<any>>>;
+  try {
+    reviewed = await runAntigravityLunaPipeline<any>({
     instructions,
     input: assignment,
-    schema: phrasalSchema(requested),
+    schema: phrasalSchema(requested, targetWord),
     criticContext: {
       lane: "phrasal",
       ...assignment,
@@ -259,7 +266,10 @@ async function generatePhrasal(item: Json) {
       currentItem: current,
       critic: { decision: quality.decision, issues: quality.issues, repairInstruction: quality.repairInstruction },
     }),
-  });
+    });
+  } catch (e) {
+    throw new Error(`PHRASAL_ITEM_FAILED ${conceptId}/${requested}: ${errorText(e)}`);
+  }
 
   const outputSenseKey = String(reviewed.item?.senseKey || "").trim();
   const outputSenseGloss = String(reviewed.item?.senseGloss || "").trim();
