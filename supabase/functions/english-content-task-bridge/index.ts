@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { createRemoteJWKSet, jwtVerify } from "npm:jose@5.9.6";
 import { runHinduGeneration } from "./generation.ts";
 import { runPhrasalGeneration } from "./phrasal-generation.ts";
+import { ingestSubmittedHinduItems } from "./submitted-hindu.ts";
 
 const ISSUER = "https://token.actions.githubusercontent.com";
 const AUDIENCE = "english-content-automation";
@@ -67,6 +68,15 @@ Deno.serve(async (req) => {
     return json({ error: "Unknown Phrasal action" }, 400);
   }
 
+  if (action === "ingest") {
+    const items = Array.isArray(body?.items) ? body.items : null;
+    if (!items || items.length < 25 || items.length > 30) return json({ error: "Hindu ingest requires 25-30 fully generated items" }, 400);
+    try {
+      return json(await ingestSubmittedHinduItems(db, items));
+    } catch (e) {
+      return json({ ok: false, lane: "hindu", mode: "sheet_ingest", error: errorText(e) }, 500);
+    }
+  }
   if (action === "claim") {
     const { data, error } = await db.rpc("english_hindu_task_claim");
     if (error) return json({ error: error.message }, 500);
