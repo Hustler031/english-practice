@@ -19,56 +19,53 @@ jobs:
           ref: english-phrasal-canonical-target-hotfix-20260906
           fetch-depth: 0
       - name: Apply deterministic target resolver
-        shell: python
+        shell: bash
         run: |
+          set -euo pipefail
+          python - <<'PY'
           from pathlib import Path
           p=Path('supabase/functions/english-content-task-bridge/phrasal-generation.ts')
           s=p.read_text()
           anchor='const normText = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();\n'
           insert='''const normText = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-const compactPhrasalTarget = (v: string) => {
-  const s = String(v || "").trim();
-  if (!s || s.length > 80) return false;
-  const words = s.replace(/[\\/|]+/g, " ").match(/[A-Za-z]+(?:'[A-Za-z]+)?/g) || [];
-  return words.length >= 2 && words.length <= 6;
-};
-const keyedReferenceOption = (reference: Json) => {
-  const key = String(reference?.correctKey || "").toUpperCase();
-  if (!["A", "B", "C", "D"].includes(key)) return "";
-  const hit = Array.isArray(reference?.options)
-    ? reference.options.find((x: any) => String(x?.key || "").toUpperCase() === key)
-    : null;
-  return String(hit?.text || reference?.[`option${key}`] || "").trim();
-};
-function resolvePhrasalTarget(item: Json, reference: Json, conceptId: string) {
-  const raw = String(reference?.word || item?.word || "").trim();
-  if (compactPhrasalTarget(raw)) return raw;
-
-  const idMatch = String(conceptId || "").match(/^(?:PV_|phrasal_)(.+)$/i);
-  if (idMatch) {
-    const fromId = idMatch[1].replace(/_/g, " ").trim();
-    if (compactPhrasalTarget(fromId)) return fromId;
-  }
-
-  const question = String(reference?.question || item?.question || "");
-  const keyed = keyedReferenceOption(reference);
-  const answerIdentifiesTarget = /phrasal verb|which pair|_{2,}|=\\s*\\?/i.test(question);
-  if (answerIdentifiesTarget && compactPhrasalTarget(keyed)) return keyed;
-  return "";
-}
-'''
-          if s.count(anchor)!=1:
-            raise SystemExit(f'normText anchor count={s.count(anchor)}')
+          const compactPhrasalTarget = (v: string) => {
+            const s = String(v || "").trim();
+            if (!s || s.length > 80) return false;
+            const words = s.replace(/[\\/|]+/g, " ").match(/[A-Za-z]+(?:'[A-Za-z]+)?/g) || [];
+            return words.length >= 2 && words.length <= 6;
+          };
+          const keyedReferenceOption = (reference: Json) => {
+            const key = String(reference?.correctKey || "").toUpperCase();
+            if (!["A", "B", "C", "D"].includes(key)) return "";
+            const hit = Array.isArray(reference?.options)
+              ? reference.options.find((x: any) => String(x?.key || "").toUpperCase() === key)
+              : null;
+            return String(hit?.text || reference?.[`option${key}`] || "").trim();
+          };
+          function resolvePhrasalTarget(item: Json, reference: Json, conceptId: string) {
+            const raw = String(reference?.word || item?.word || "").trim();
+            if (compactPhrasalTarget(raw)) return raw;
+            const idMatch = String(conceptId || "").match(/^(?:PV_|phrasal_)(.+)$/i);
+            if (idMatch) {
+              const fromId = idMatch[1].replace(/_/g, " ").trim();
+              if (compactPhrasalTarget(fromId)) return fromId;
+            }
+            const question = String(reference?.question || item?.question || "");
+            const keyed = keyedReferenceOption(reference);
+            const answerIdentifiesTarget = /phrasal verb|which pair|_{2,}|=\\s*\\?/i.test(question);
+            if (answerIdentifiesTarget && compactPhrasalTarget(keyed)) return keyed;
+            return "";
+          }
+          '''
+          if s.count(anchor)!=1: raise SystemExit(f'normText anchor count={s.count(anchor)}')
           s=s.replace(anchor,insert)
           old='const targetWord = String(reference?.word || item?.word || "").trim();'
           new='const targetWord = resolvePhrasalTarget(item, reference, conceptId);'
-          if s.count(old)!=1:
-            raise SystemExit(f'target anchor count={s.count(old)}')
+          if s.count(old)!=1: raise SystemExit(f'target anchor count={s.count(old)}')
           s=s.replace(old,new)
           old_err='throw new Error(`PHRASAL_REFERENCE_MISSING: ${conceptId || "unknown"}`);'
           new_err='throw new Error(`PHRASAL_REFERENCE_MISSING_OR_TARGET_UNRESOLVED: ${conceptId || "unknown"}`);'
-          if s.count(old_err)!=1:
-            raise SystemExit(f'error anchor count={s.count(old_err)}')
+          if s.count(old_err)!=1: raise SystemExit(f'error anchor count={s.count(old_err)}')
           s=s.replace(old_err,new_err)
           p.write_text(s)
 
@@ -76,9 +73,9 @@ function resolvePhrasalTarget(item: Json, reference: Json, conceptId: string) {
           t=v.read_text()
           marker="need(phrasal,'preferredSenseKey','Phrasal preserves selected sense identity');\n"
           add=marker+"need(phrasal,'resolvePhrasalTarget','Phrasal deterministically resolves canonical target metadata');\nneed(phrasal,'keyedReferenceOption','Malformed Saved raw captures may use the keyed target option only under deterministic cues');\nneed(phrasal,'compactPhrasalTarget','Resolved Phrasal targets are bounded compact expressions');\nneed(phrasal,'PHRASAL_REFERENCE_MISSING_OR_TARGET_UNRESOLVED','Unresolvable targets fail closed before AI publication');\n"
-          if t.count(marker)!=1:
-            raise SystemExit(f'validator marker count={t.count(marker)}')
+          if t.count(marker)!=1: raise SystemExit(f'validator marker count={t.count(marker)}')
           v.write_text(t.replace(marker,add))
+          PY
       - name: Verify deterministic examples and scope
         shell: bash
         run: |
@@ -101,7 +98,6 @@ function resolvePhrasalTarget(item: Json, reference: Json, conceptId: string) {
           set -euo pipefail
           rm .github/workflows/zz-phrasal-canonical-target-hotfix.yml
           git config user.name 'github-actions[bot]'
-          git config user.email '4189822+github-actions[bot]@users.noreply.github.com' || true
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add supabase/functions/english-content-task-bridge/phrasal-generation.ts .github/scripts/validate-english-hybrid-ai-content.cjs .github/workflows/zz-phrasal-canonical-target-hotfix.yml
           git commit -m 'Resolve canonical Phrasal targets before AI generation'
