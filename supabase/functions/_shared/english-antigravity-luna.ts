@@ -71,7 +71,7 @@ function openaiOutputText(payload:any){
   return chunks.join("").trim();
 }
 
-export async function antigravityJson<T>(instructions:string,input:unknown,opts:{maxAttempts?:number}={}):Promise<{data:T;provider:"antigravity";model:string}> {
+export async function antigravityJson<T>(instructions:string,input:unknown,opts:{maxAttempts?:number;schema?:unknown}={}):Promise<{data:T;provider:"antigravity";model:string}> {
   const key=Deno.env.get("GEMINI_API_KEY");
   if(!key)throw new Error("AUTH_CONFIG: GEMINI_API_KEY is not configured");
   const maxAttempts=Math.max(1,Math.min(2,Number(opts.maxAttempts)||2));
@@ -85,6 +85,7 @@ export async function antigravityJson<T>(instructions:string,input:unknown,opts:
           agent:ANTIGRAVITY_AGENT,
           input:JSON.stringify(input),
           system_instruction:`${instructions}\n\nWork carefully with high reasoning effort. This is a self-contained writing task: do not call browser, web, shell, code-execution, or filesystem tools. Use only the supplied assignment as the learning source. Return ONLY one complete valid JSON object and no markdown or commentary.`,
+          response_format:opts.schema?{type:"text",mime_type:"application/json",schema:opts.schema}:undefined,
           environment:"remote",
           store:true,
           background:false,
@@ -208,7 +209,7 @@ export async function runAntigravityLunaPipeline<T>(args:{
     ?args.repairInput(args.input,current,quality)
     :{originalAssignment:args.input,currentItem:current,critic:quality};
 
-  let first=await antigravityJson<T>(args.instructions,args.input);
+  let first=await antigravityJson<T>(args.instructions,args.input,{schema:args.schema});
   let current=first.data;
   let finalProvider=first.provider as string,finalModel=first.model;
   let writerRequests=1,criticRequests=0,codeRepairCount=0;
@@ -218,7 +219,7 @@ export async function runAntigravityLunaPipeline<T>(args:{
     const repaired=await antigravityJson<T>(
       `${args.instructions}\nA deterministic code gate rejected the current item. Fix only these structural defects and return the complete corrected JSON item: ${codeIssues.join("; ")}`,
       mkRepair(current,{decision:"CODE",issues:codeIssues,repairInstruction:codeIssues.join("; ")}),
-      {maxAttempts:1},
+      {maxAttempts:1,schema:args.schema},
     );
     current=repaired.data;finalProvider=repaired.provider;finalModel=repaired.model;
     codeIssues=args.structuralGate(current);
@@ -235,7 +236,7 @@ export async function runAntigravityLunaPipeline<T>(args:{
   const repaired=await antigravityJson<T>(
     `${args.instructions}\nThe independent Luna critic found repairable defects. Make the minimum targeted repair only; preserve everything not implicated by the critic. Return the complete corrected JSON item.`,
     mkRepair(current,review.quality),
-    {maxAttempts:1},
+    {maxAttempts:1,schema:args.schema},
   );
   current=repaired.data;finalProvider=repaired.provider;finalModel=repaired.model;
   codeIssues=args.structuralGate(current);
