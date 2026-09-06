@@ -1,0 +1,24 @@
+name: One-shot Phrasal deterministic recall
+on:
+  push:
+    branches: [english-phrasal-deterministic-recall-20260906]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: english-phrasal-deterministic-recall-20260906
+      - name: Apply patch
+        run: python .github/scripts/zz_patch_phrasal_deterministic_recall.py
+      - name: Commit final source-only diff
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/zz-phrasal-deterministic-recall.yml .github/scripts/zz_patch_phrasal_deterministic_recall.py
+          git add supabase/functions/_shared/english-antigravity-luna.ts supabase/functions/english-content-task-bridge/phrasal-generation.ts .github/scripts/validate-english-hybrid-ai-content.cjs
+          git commit -m "Build missing Phrasal Recall from canonical evidence"
+          git push origin HEAD:english-phrasal-deterministic-recall-20260906
