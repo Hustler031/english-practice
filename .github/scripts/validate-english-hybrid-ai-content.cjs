@@ -52,6 +52,7 @@ need(stage1,'store:true','Antigravity uses the required stateful interaction mod
 forbid(stage1,'store:false','Antigravity stateless mode is forbidden');
 need(stage1,'max_total_tokens','Antigravity agent budget is bounded');
 need(stage1,'Work carefully with high reasoning effort','High-effort writer instruction is explicit');
+need(stage1,'providerRetryMs','Gemini rate-limit retry hints are honored');
 need(stage1,'gpt-5.6-luna','Luna 5.6 is the independent critic');
 need(stage1,'https://api.openai.com/v1/responses','Luna uses OpenAI Responses API');
 need(stage1,'reasoning:{effort:"low"}','Luna reasoning is low');

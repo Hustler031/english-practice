@@ -47,6 +47,15 @@ export const lunaQualitySchema={
 const errorText=(e:unknown)=>e instanceof Error?e.message:String(e||"Unknown AI pipeline error");
 const sleep=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms));
 function withTimeout(ms:number){const c=new AbortController();const timer=setTimeout(()=>c.abort(),ms);return {c,timer}}
+function providerRetryMs(res:Response,payload:any,fallback:number){
+  let ms=Math.max(0,fallback);
+  const header=String(res.headers.get("retry-after")||"").trim();
+  if(/^\d+(?:\.\d+)?$/.test(header))ms=Math.max(ms,Number(header)*1000+250);
+  const message=String(payload?.error?.message||"");
+  const match=message.match(/retry in\s+([0-9.]+)\s*s/i);
+  if(match)ms=Math.max(ms,Number(match[1])*1000+500);
+  return Math.max(fallback,Math.min(30_000,Math.ceil(ms)));
+}
 function parseJsonText(text:string,label:string){
   let raw=String(text||"").trim();
   raw=raw.replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/i,"").trim();
@@ -77,6 +86,7 @@ export async function antigravityJson<T>(instructions:string,input:unknown,opts:
   const maxAttempts=Math.max(1,Math.min(2,Number(opts.maxAttempts)||2));
   for(let attempt=0;attempt<maxAttempts;attempt++){
     const {c,timer}=withTimeout(95_000);
+    let retryMs=800*(attempt+1);
     try{
       const res=await fetch("https://generativelanguage.googleapis.com/v1beta/interactions",{
         method:"POST",signal:c.signal,
@@ -93,6 +103,7 @@ export async function antigravityJson<T>(instructions:string,input:unknown,opts:
         }),
       });
       const payload=await res.json().catch(()=>null);
+      if(!res.ok&&TRANSIENT.has(res.status)&&attempt<maxAttempts-1)retryMs=providerRetryMs(res,payload,retryMs);
       if(res.ok){
         if(payload?.status&&payload.status!=="completed"){const u=payload?.usage||{};throw new Error(`ANTIGRAVITY_${String(payload.status).toUpperCase()}: total_tokens=${String(u.total_tokens??"unknown")} output_tokens=${String(u.total_output_tokens??"unknown")} thought_tokens=${String(u.total_thought_tokens??"unknown")}`);}
         const text=googleInteractionText(payload);
@@ -107,7 +118,7 @@ export async function antigravityJson<T>(instructions:string,input:unknown,opts:
         throw e;
       }else if(attempt===maxAttempts-1)throw e;
     }finally{clearTimeout(timer)}
-    await sleep(800*(attempt+1));
+    await sleep(retryMs);
   }
   throw new Error("ANTIGRAVITY_RETRY_EXHAUSTED");
 }
@@ -155,6 +166,7 @@ export async function geminiRareRescueJson<T>(instructions:string,input:unknown,
   const maxAttempts=3;
   for(let attempt=0;attempt<maxAttempts;attempt++){
     const {c,timer}=withTimeout(45_000);
+    let retryMs=1200*(attempt+1);
     try{
       const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_RARE_RESCUE_MODEL)}:generateContent`,{
         method:"POST",signal:c.signal,
@@ -166,6 +178,7 @@ export async function geminiRareRescueJson<T>(instructions:string,input:unknown,
         }),
       });
       const payload=await res.json().catch(()=>null);
+      if(!res.ok&&TRANSIENT.has(res.status)&&attempt<maxAttempts-1)retryMs=providerRetryMs(res,payload,retryMs);
       if(res.ok){
         const text=(payload?.candidates?.[0]?.content?.parts||[]).map((p:any)=>typeof p?.text==="string"&&!p?.thought?p.text:"").join("").trim();
         if(!text)throw new Error("GEMINI_RESCUE_MALFORMED_OUTPUT");
@@ -179,7 +192,7 @@ export async function geminiRareRescueJson<T>(instructions:string,input:unknown,
         throw e;
       }else if(attempt===maxAttempts-1)throw e;
     }finally{clearTimeout(timer)}
-    await sleep(1200*(attempt+1));
+    await sleep(retryMs);
   }
   throw new Error("GEMINI_RESCUE_RETRY_EXHAUSTED");
 }
