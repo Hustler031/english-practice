@@ -85,6 +85,7 @@ export async function antigravityJson<T>(instructions:string,input:unknown,opts:
           agent:ANTIGRAVITY_AGENT,
           input:JSON.stringify(input),
           system_instruction:`${instructions}\n\nWork carefully with high reasoning effort. Use only the supplied assignment as the learning source; do not browse for unrelated facts. Return ONLY one complete valid JSON object and no markdown or commentary.`,
+          environment:"remote",
           store:false,
           background:false,
           agent_config:{type:"antigravity",model:ANTIGRAVITY_MODEL,max_total_tokens:String(ANTIGRAVITY_MAX_TOTAL_TOKENS)},
