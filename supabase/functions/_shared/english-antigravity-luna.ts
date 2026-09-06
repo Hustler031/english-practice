@@ -225,6 +225,9 @@ export async function runAntigravityLunaPipeline<T>(args:{
   schema:unknown;
   criticContext:unknown;
   structuralGate:(item:T)=>string[];
+  initialItem?:T;
+  initialGeneratorProvider?:string;
+  initialGeneratorModel?:string;
   repairInput?:(original:unknown,current:T,quality:LunaQuality|{decision:"CODE";issues:string[];repairInstruction:string})=>unknown;
 }):Promise<{
   item:T;quality:LunaQuality;repairCount:number;codeRepairCount:number;
@@ -235,10 +238,19 @@ export async function runAntigravityLunaPipeline<T>(args:{
     ?args.repairInput(args.input,current,quality)
     :{originalAssignment:args.input,currentItem:current,critic:quality};
 
-  let first=await antigravityJson<T>(args.instructions,args.input,{schema:args.schema});
-  let current=first.data;
-  let finalProvider=first.provider as string,finalModel=first.model;
-  let writerRequests=1,criticRequests=0,codeRepairCount=0;
+  let current:T;
+  let finalProvider:string,finalModel:string;
+  let writerRequests=0,criticRequests=0,codeRepairCount=0;
+  if(args.initialItem!==undefined){
+    current=args.initialItem;
+    finalProvider=args.initialGeneratorProvider||"deterministic";
+    finalModel=args.initialGeneratorModel||"canonical_transform";
+  }else{
+    const first=await antigravityJson<T>(args.instructions,args.input,{schema:args.schema});
+    current=first.data;
+    finalProvider=first.provider as string;finalModel=first.model;
+    writerRequests=1;
+  }
   let codeIssues=args.structuralGate(current);
   if(codeIssues.length){
     codeRepairCount=1;writerRequests++;

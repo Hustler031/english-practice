@@ -63,6 +63,7 @@ need(stage1,'decision:"PASS"|"REPAIR"|"REJECT"','Luna decision contract is expli
 need(stage1,'q.score>=85','Runtime PASS threshold is 85');
 need(stage1,'Object.values(q.hardGates||{}).every(Boolean)','All semantic hard gates must pass');
 need(stage1,'fourOptionCodeGate','Deterministic pre/post structural gate exists');
+need(stage1,'initialItem?:T','Shared pipeline can begin from deterministic canonical content before Luna review');
 need(stage1,'GEMINI_RARE_RESCUE_MODEL','Rare specialist rescue model is explicit');
 need(stage1,'gemini-3.8-flash','Rare rescue uses Gemini 3.8 Flash');
 need(stage1,'thinkingConfig:{thinkingLevel:"high"}','Rare rescue reasoning is HIGH');
@@ -85,7 +86,9 @@ need(phrasal,'PHRASAL_REFERENCE_MISSING_OR_TARGET_UNRESOLVED','Unresolvable targ
 need(phrasal,'recentConceptStems','Phrasal anti-repeat context retained');
 need(phrasal,'function legacyPhrasal','Serviceable canonical Phrasal cards can bypass AI');
 need(phrasal,'generatorProvider: "legacy_bank"','Reused cards are explicitly marked as bank reuse');
-need(phrasal,'legacyPhrasal(item) || await generatePhrasal(item)','Only unusable or gap slots reach AI');
+need(phrasal,'deterministicRecallFromCanonical','Missing Recall can be built from canonical evidence before writer escalation');
+need(phrasal,'initialGeneratorProvider: "deterministic_recall"','Canonical Recall transform has truthful provenance');
+need(phrasal,'canonicalRecall || await generatePhrasal(item)','Only Recall candidates that cannot be built canonically reach the writer');
 need(phrasal,'const generated = finalized.filter((x) => x.generatorProvider !== "legacy_bank")','Only AI-generated slots are audited as generated');
 need(phrasal,'items.length !== 20','Phrasal claim remains exact-20');
 need(phrasal,'expectedContextCount > 6','Maximum six context-fill slots remains enforced');
@@ -93,8 +96,8 @@ need(phrasal,'contextCount !== expectedContextCount','Generated mix must exactly
 need(phrasal,'new Set(finalized.map(x => x.conceptId)).size !== 20','All 20 concepts must remain distinct');
 need(phrasal,'english_phrasal_task_apply','Atomic apply contract retained');
 need(phrasal,'english_release_content_task_claim','Failure releases claim');
-need(phrasal,'requestMode: "one_item_per_generation_request"','Phrasal audit records one-item request mode');
-need(phrasal,'writerReasoning: "high"','Phrasal audit records writer reasoning intent');
+need(phrasal,'"one_item_per_generation_request" : "deterministic_canonical_recall"','Phrasal audit distinguishes writer calls from deterministic Recall transforms');
+need(phrasal,'? "high" : "none"','Phrasal audit records reasoning only when a writer was actually called');
 need(phrasal,'criticReasoning: "low"','Phrasal audit records Luna low reasoning');
 need(phrasal,'rareRescueModel: GEMINI_RARE_RESCUE_MODEL','Phrasal audit records rare rescue model');
 need(phrasal,'schema.properties.optionA = { type: "string", enum: ["Yaad tha"] }','Recall A hard-lock retained');
