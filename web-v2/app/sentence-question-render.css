@@ -1,0 +1,10 @@
+/* Shared English QuizRunner display treatment for instruction + quoted sentence questions. */
+.english-app .sentence-question{display:grid;gap:9px;min-width:0}
+.english-app .sentence-question-instruction{color:var(--muted);font-size:13px;font-weight:850;line-height:1.38;letter-spacing:.005em}
+.english-app .sentence-question-body{margin:0;padding:13px 14px;border:1px solid color-mix(in srgb,var(--line) 88%,var(--primary));border-radius:15px;background:color-mix(in srgb,var(--card) 78%,transparent);font-size:20px!important;font-weight:780!important;line-height:1.5!important;letter-spacing:-.012em;overflow-wrap:anywhere}
+
+@media(max-width:430px){
+  .english-app .sentence-question{gap:8px}
+  .english-app .sentence-question-instruction{font-size:12.5px;line-height:1.35}
+  .english-app .sentence-question-body{padding:12px 13px;font-size:19px!important;line-height:1.5!important}
+}
