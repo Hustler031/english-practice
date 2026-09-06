@@ -1,0 +1,36 @@
+name: One-shot Phrasal concurrency timeout
+on:
+  push:
+    branches: [english-phrasal-concurrency-timeout-20260906]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: english-phrasal-concurrency-timeout-20260906
+      - name: Patch source and migration
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('supabase/functions/english-content-task-bridge/phrasal-generation.ts')
+          s=p.read_text()
+          old='const finalized = await mapLimit(items, 4, async (item: Json) => legacyPhrasal(item) || await generatePhrasal(item));'
+          new='const finalized = await mapLimit(items, 2, async (item: Json) => legacyPhrasal(item) || await generatePhrasal(item));'
+          assert old in s, 'phrasal concurrency target missing'
+          p.write_text(s.replace(old,new,1))
+
+          m=Path('supabase/managed-migrations/20260906034500_english_phrasal_direct_worker.sql')
+          t=m.read_text()
+          assert 'timeout_milliseconds:=180000' in t, 'timeout target missing'
+          m.write_text(t.replace('timeout_milliseconds:=180000','timeout_milliseconds:=300000',1))
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/zz-phrasal-concurrency-timeout.yml
+          git add supabase/functions/english-content-task-bridge/phrasal-generation.ts supabase/managed-migrations/20260906034500_english_phrasal_direct_worker.sql
+          git commit -m "Reduce Phrasal AI burst concurrency"
+          git push origin HEAD:english-phrasal-concurrency-timeout-20260906
