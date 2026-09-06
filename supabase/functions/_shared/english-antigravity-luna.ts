@@ -4,7 +4,7 @@ export const ANTIGRAVITY_AGENT = Deno.env.get("ANTIGRAVITY_AGENT") || "antigravi
 export const ANTIGRAVITY_MODEL = Deno.env.get("ANTIGRAVITY_MODEL") || "gemini-3.6-flash";
 export const LUNA_MODEL = Deno.env.get("LUNA_MODEL") || "gpt-5.6-luna";
 export const GEMINI_RARE_RESCUE_MODEL = Deno.env.get("GEMINI_RARE_RESCUE_MODEL") || "gemini-3.8-flash";
-const ANTIGRAVITY_MAX_TOTAL_TOKENS = Math.max(4_000, Math.min(40_000, Number(Deno.env.get("ANTIGRAVITY_MAX_TOTAL_TOKENS")) || 18_000));
+const ANTIGRAVITY_MAX_TOTAL_TOKENS = Math.max(8_000, Math.min(60_000, Number(Deno.env.get("ANTIGRAVITY_MAX_TOTAL_TOKENS")) || 40_000));
 const TRANSIENT = new Set([429, 500, 502, 503, 504]);
 
 export type HardGates = {
@@ -84,7 +84,7 @@ export async function antigravityJson<T>(instructions:string,input:unknown,opts:
         body:JSON.stringify({
           agent:ANTIGRAVITY_AGENT,
           input:JSON.stringify(input),
-          system_instruction:`${instructions}\n\nWork carefully with high reasoning effort. Use only the supplied assignment as the learning source; do not browse for unrelated facts. Return ONLY one complete valid JSON object and no markdown or commentary.`,
+          system_instruction:`${instructions}\n\nWork carefully with high reasoning effort. This is a self-contained writing task: do not call browser, web, shell, code-execution, or filesystem tools. Use only the supplied assignment as the learning source. Return ONLY one complete valid JSON object and no markdown or commentary.`,
           environment:"remote",
           store:true,
           background:false,
@@ -93,7 +93,7 @@ export async function antigravityJson<T>(instructions:string,input:unknown,opts:
       });
       const payload=await res.json().catch(()=>null);
       if(res.ok){
-        if(payload?.status&&payload.status!=="completed")throw new Error(`ANTIGRAVITY_${String(payload.status).toUpperCase()}`);
+        if(payload?.status&&payload.status!=="completed"){const u=payload?.usage||{};throw new Error(`ANTIGRAVITY_${String(payload.status).toUpperCase()}: total_tokens=${String(u.total_tokens??"unknown")} output_tokens=${String(u.total_output_tokens??"unknown")} thought_tokens=${String(u.total_thought_tokens??"unknown")}`);}
         const text=googleInteractionText(payload);
         if(!text)throw new Error("ANTIGRAVITY_MALFORMED_OUTPUT: no JSON text returned");
         return {data:parseJsonText(text,"ANTIGRAVITY") as T,provider:"antigravity",model:String(payload?.model||ANTIGRAVITY_MODEL)};
