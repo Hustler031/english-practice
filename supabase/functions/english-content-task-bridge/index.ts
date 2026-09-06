@@ -38,12 +38,12 @@ Deno.serve(async(req)=>{
 
   if(action==="ingest"){
     const items=Array.isArray(body?.items)?body.items:null;const toneItems=Array.isArray(body?.toneItems)?body.toneItems:[];
-    if(!items||items.length<25||items.length>30)return json({error:"Hindu ingest requires 25-30 fully generated vocabulary items"},400);
+    if(!items||items.length<1||items.length>30)return json({error:"Hindu ingest requires 1-30 fully generated vocabulary items; normal first submission remains 25-30"},400);
     if(toneItems.length>3)return json({error:"Hindu ingest accepts at most 3 tone/mood items"},400);
     try{return json(await ingestSubmittedHinduItems(db,items,toneItems))}catch(e){return json({ok:false,lane:"hindu",mode:"sheet_ingest",error:errorText(e)},500)}
   }
   if(action==="claim"){const{data,error}=await db.rpc("english_hindu_task_claim");if(error)return json({error:error.message},500);return json(data??{ok:true,count:0})}
   if(action==="check"){const runId=String(body?.runId||""),candidates=Array.isArray(body?.candidates)?body.candidates:null;if(!runId||!candidates||candidates.length<1||candidates.length>60)return json({error:"Hindu runId and 1-60 candidates are required"},400);const{data,error}=await db.rpc("english_hindu_task_check_candidates",{p_run_id:runId,p_candidates:candidates});if(error)return json({error:error.message},500);return json(data??{ok:true,items:[]})}
-  if(action==="apply"){const runId=String(body?.runId||""),items=Array.isArray(body?.items)?body.items:null;if(!runId||!items||items.length>30)return json({error:"Hindu runId and up to 30 items are required"},400);const{data,error}=await db.rpc("english_hindu_task_apply",{p_run_id:runId,p_items:items});if(error)return json({error:error.message},500);return json(data??{ok:true})}
+  if(action==="apply"){const runId=String(body?.runId||""),items=Array.isArray(body?.items)?body.items:null;if(!runId||!items||items.length<1||items.length>30)return json({error:"Hindu runId and 1-30 items are required"},400);const{data,error}=await db.rpc("english_hindu_task_apply",{p_run_id:runId,p_items:items});if(error)return json({error:error.message},500);return json(data??{ok:true})}
   return json({error:"Unknown Hindu action"},400);
 });
