@@ -8,7 +8,7 @@ import { useAuthGuard } from "@/lib/use-auth";
 import { EnglishLoading } from "@/components/english-frame";
 import "./mywords-parity.css";
 
-type Saved={id:string;word:string;meaning:string;context:string;status:string;practiceQuestionId:string;gptStatus:string;gptSource?:string;captureType:string;resolvedType:string;created:string;partOfSpeech?:string;synonyms?:string;antonyms?:string;example?:string;explanation?:string;question?:string;optionA?:string;optionB?:string;optionC?:string;optionD?:string;correctOption?:string};
+type Saved={id:string;word:string;meaning:string;context:string;status:string;practiceQuestionId:string;gptStatus:string;gptSource?:string;captureType:string;resolvedType:string;created:string;partOfSpeech?:string;synonyms?:string;antonyms?:string;example?:string;explanation?:string;question?:string;optionA?:string;optionB?:string;optionC?:string;optionD?:string;correctOption?:string;generatorProvider?:string;generatorModel?:string;criticProvider?:string;criticModel?:string;criticScore?:number|null;criticDecision?:string;generationRepairCount?:number};
 type Stats={saved:number;eligible:number;controlledNew:number;neverRevised:number;due:number;weak:number;difficult:number;starred:number;mastered:number};
 type History={date:string|null;day?:number;label:string;saved:number;eligible:number;controlledNew:number;due:number;weak:number;difficult:number;mastered:number};
 type Hub={currentDay?:number;stats:Stats;available:{smart:number;new:number;weak:number;difficult:number;starred:number;random:number;all:number};sizes:number[];history:History[]};
@@ -18,6 +18,9 @@ const modes=[["🧠","Smart Revision","smart"],["🆕","New","new"],["🔥","Wea
 function shortDate(value:string){const d=new Date(value);return Number.isNaN(d.getTime())?value:d.toLocaleDateString("en-CA",{timeZone:"Asia/Kolkata"});}
 function savedStatus(item:Saved){if(String(item.practiceQuestionId||"").trim())return "In Practice";const g=String(item.gptStatus||"").trim().toLowerCase();if(g==="ready")return "Ready";if(/review|error|fail|invalid/.test(g))return "Needs Review";return "Pending";}
 function isGptUpgraded(item:Saved){return /manual\s+chatgpt\s+upgraded|chatgpt\s+upgraded/i.test(String(item.gptSource||""));}
+function prettyModel(model?:string){const value=String(model||"").trim().toLowerCase();if(value==="gemini-3.8-flash")return "Gemini 3.8 Flash";if(value==="gemini-3.6-flash")return "Gemini 3.6 Flash";if(value==="gpt-5.6-luna")return "Luna";return String(model||"").trim();}
+function generatorLabel(item:Saved){const provider=String(item.generatorProvider||"").trim().toLowerCase();const model=prettyModel(item.generatorModel);if(!provider&&!model)return "";if(provider==="antigravity")return model?`Antigravity (${model})`:"Antigravity";return model||String(item.generatorProvider||"").trim();}
+function criticLabel(item:Saved){const model=prettyModel(item.criticModel);if(model)return model;const provider=String(item.criticProvider||"").trim();return provider?provider[0].toUpperCase()+provider.slice(1):"";}
 
 export default function SavedPage(){
  const ready=useAuthGuard(),router=useRouter();
@@ -79,6 +82,7 @@ function ManageSaved({rows,error,editing,setEditing,onBack,onOpen,onType}:{rows:
 function SavedDetail({item,onBack}:{item:Saved;onBack:()=>void}){
  const options:Array<[string,string|undefined]>=[["A",item.optionA],["B",item.optionB],["C",item.optionC],["D",item.optionD]];const correct=String(item.correctOption||"").trim().toUpperCase().replace(/[^A-D].*$/,"").charAt(0);
  const block=(label:string,value?:string)=>!String(value||"").trim()?null:<div className="myword-detail-block"><small>{label}</small><div>{value}</div></div>;
+ const generatedBy=generatorLabel(item),critic=criticLabel(item),score=item.criticScore==null?null:Number(item.criticScore),showAiMeta=Boolean(generatedBy||critic||Number.isFinite(score));
  return <div className="saved-parity-page saved-detail-page">
   <section className="saved-subhead mywords-detail-head"><button className="btn ghost saved-back" onClick={onBack}>← My Words</button><div><h1>{item.word}</h1><p>GPT enrichment · {savedStatus(item)}{isGptUpgraded(item)?" · GPT Upgraded":""}</p></div></section>
   <article className="myword-detail-card">
@@ -90,6 +94,7 @@ function SavedDetail({item,onBack}:{item:Saved;onBack:()=>void}){
    {block("Synonyms",item.synonyms)}
    {block("Antonyms",item.antonyms)}
    {block("Context",item.context)}
+   {showAiMeta&&<div className="myword-ai-meta" aria-label="AI generation details"><span>AI</span>{generatedBy&&<><i>·</i><span>{generatedBy}</span></>}{critic&&<><i>·</i><span>{critic} critic{Number.isFinite(score)?` ${score}/100`:""}</span></>}</div>}
   </article>
  </div>;
 }
