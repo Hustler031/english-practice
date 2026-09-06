@@ -80,10 +80,34 @@ function openaiOutputText(payload:any){
   return chunks.join("").trim();
 }
 
+async function serviceRpc(name:string,body:Record<string,unknown>={}){
+  const url=String(Deno.env.get("SUPABASE_URL")||"").replace(/\/$/,"");
+  const key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if(!url||!key)throw new Error("AUTH_CONFIG: Supabase service configuration missing for AI budget guard");
+  const {c,timer}=withTimeout(8_000);
+  try{
+    const res=await fetch(`${url}/rest/v1/rpc/${name}`,{
+      method:"POST",signal:c.signal,
+      headers:{apikey:key,Authorization:`Bearer ${key}`,"Content-Type":"application/json"},
+      body:JSON.stringify(body),
+    });
+    const payload=await res.json().catch(()=>null);
+    if(!res.ok)throw new Error(`AI_BUDGET_RPC_${res.status}: ${payload?.message||payload?.error||name}`);
+    return payload;
+  }finally{clearTimeout(timer)}
+}
+async function claimAntigravityBudget(){
+  try{return await serviceRpc("english_claim_antigravity_request_budget")}
+  catch(e){return {allowed:false,route:"gemini",reason:`BUDGET_GUARD_FAIL_CLOSED: ${errorText(e)}`}}
+}
+async function markAntigravityQuotaExhausted(reason:string){
+  try{await serviceRpc("english_mark_antigravity_quota_exhausted",{p_reason:reason.slice(0,800)})}catch{/* fallback still proceeds */}
+}
+
 export async function antigravityJson<T>(instructions:string,input:unknown,opts:{maxAttempts?:number;schema?:unknown}={}):Promise<{data:T;provider:"antigravity";model:string}> {
   const key=Deno.env.get("GEMINI_API_KEY");
   if(!key)throw new Error("AUTH_CONFIG: GEMINI_API_KEY is not configured");
-  const maxAttempts=Math.max(1,Math.min(2,Number(opts.maxAttempts)||2));
+  const maxAttempts=Math.max(1,Math.min(2,Number(opts.maxAttempts)||1));
   for(let attempt=0;attempt<maxAttempts;attempt++){
     const {c,timer}=withTimeout(95_000);
     let retryMs=800*(attempt+1);
@@ -96,16 +120,17 @@ export async function antigravityJson<T>(instructions:string,input:unknown,opts:
           input:JSON.stringify(input),
           system_instruction:`${instructions}\n\nWork carefully with high reasoning effort. This is a self-contained writing task: do not call browser, web, shell, code-execution, or filesystem tools. Use only the supplied assignment as the learning source. Return ONLY one complete valid JSON object and no markdown or commentary.`,
           response_format:opts.schema?{type:"text",mime_type:"application/json",schema:opts.schema}:undefined,
-          environment:"remote",
-          store:true,
-          background:false,
+          environment:"remote",store:true,background:false,
           agent_config:{type:"antigravity",model:ANTIGRAVITY_MODEL,max_total_tokens:String(ANTIGRAVITY_MAX_TOTAL_TOKENS)},
         }),
       });
       const payload=await res.json().catch(()=>null);
       if(!res.ok&&TRANSIENT.has(res.status)&&attempt<maxAttempts-1)retryMs=providerRetryMs(res,payload,retryMs);
       if(res.ok){
-        if(payload?.status&&payload.status!=="completed"){const u=payload?.usage||{};throw new Error(`ANTIGRAVITY_${String(payload.status).toUpperCase()}: total_tokens=${String(u.total_tokens??"unknown")} output_tokens=${String(u.total_output_tokens??"unknown")} thought_tokens=${String(u.total_thought_tokens??"unknown")}`);}
+        if(payload?.status&&payload.status!=="completed"){
+          const u=payload?.usage||{};
+          throw new Error(`ANTIGRAVITY_${String(payload.status).toUpperCase()}: total_tokens=${String(u.total_tokens??"unknown")} output_tokens=${String(u.total_output_tokens??"unknown")} thought_tokens=${String(u.total_thought_tokens??"unknown")}`);
+        }
         const text=googleInteractionText(payload);
         if(!text)throw new Error("ANTIGRAVITY_MALFORMED_OUTPUT: no JSON text returned");
         return {data:parseJsonText(text,"ANTIGRAVITY") as T,provider:"antigravity",model:String(payload?.model||ANTIGRAVITY_MODEL)};
@@ -114,9 +139,8 @@ export async function antigravityJson<T>(instructions:string,input:unknown,opts:
     }catch(e:any){
       if(e?.name==="AbortError"){
         if(attempt===maxAttempts-1)throw new Error("ANTIGRAVITY_TIMEOUT");
-      }else if(!/^ANTIGRAVITY_(429|500|502|503|504):/.test(errorText(e))){
-        throw e;
-      }else if(attempt===maxAttempts-1)throw e;
+      }else if(!/^ANTIGRAVITY_(429|500|502|503|504):/.test(errorText(e))){throw e}
+      else if(attempt===maxAttempts-1)throw e;
     }finally{clearTimeout(timer)}
     await sleep(retryMs);
   }
@@ -132,47 +156,37 @@ export async function lunaJson<T>(instructions:string,input:unknown,schema:unkno
       const res=await fetch("https://api.openai.com/v1/responses",{
         method:"POST",signal:c.signal,
         headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},
-        body:JSON.stringify({
-          model:LUNA_MODEL,
-          reasoning:{effort:"low"},
-          max_output_tokens:1800,
-          instructions,
-          input:JSON.stringify(input),
-          text:{format:{type:"json_schema",name:"english_luna_quality",strict:true,schema}},
-        }),
+        body:JSON.stringify({model:LUNA_MODEL,reasoning:{effort:"low"},max_output_tokens:1800,instructions,input:JSON.stringify(input),text:{format:{type:"json_schema",name:"english_luna_quality",strict:true,schema}}}),
       });
       const payload=await res.json().catch(()=>null);
-      if(res.ok){
-        const text=openaiOutputText(payload);
-        if(!text)throw new Error("LUNA_MALFORMED_OUTPUT: no JSON text returned");
-        return {data:parseJsonText(text,"LUNA") as T,provider:"openai",model:String(payload?.model||LUNA_MODEL)};
-      }
+      if(res.ok){const text=openaiOutputText(payload);if(!text)throw new Error("LUNA_MALFORMED_OUTPUT: no JSON text returned");return {data:parseJsonText(text,"LUNA") as T,provider:"openai",model:String(payload?.model||LUNA_MODEL)}}
       if(!TRANSIENT.has(res.status)||attempt===2)throw new Error(`LUNA_${res.status}: ${payload?.error?.message||"request failed"}`);
     }catch(e:any){
-      if(e?.name==="AbortError"){
-        if(attempt===2)throw new Error("LUNA_TIMEOUT");
-      }else if(!/^LUNA_(429|500|502|503|504):/.test(errorText(e))){
-        throw e;
-      }else if(attempt===2)throw e;
+      if(e?.name==="AbortError"){if(attempt===2)throw new Error("LUNA_TIMEOUT")}
+      else if(!/^LUNA_(429|500|502|503|504):/.test(errorText(e))){throw e}
+      else if(attempt===2)throw e;
     }finally{clearTimeout(timer)}
     await sleep(700*(attempt+1));
   }
   throw new Error("LUNA_RETRY_EXHAUSTED");
 }
 
-export async function geminiRareRescueJson<T>(instructions:string,input:unknown,schema:unknown):Promise<{data:T;provider:"gemini";model:string}> {
+async function geminiJson<T>(instructions:string,input:unknown,schema:unknown,role:"writer"|"rescue"):Promise<{data:T;provider:"gemini";model:string}> {
   const key=Deno.env.get("GEMINI_API_KEY");
   if(!key)throw new Error("AUTH_CONFIG: GEMINI_API_KEY is not configured");
-  const maxAttempts=3;
+  const maxAttempts=2;
   for(let attempt=0;attempt<maxAttempts;attempt++){
-    const {c,timer}=withTimeout(45_000);
+    const {c,timer}=withTimeout(55_000);
     let retryMs=1200*(attempt+1);
     try{
+      const roleInstruction=role==="rescue"
+        ?"You are the rare specialist rescue model. Fix only the remaining critic defects while preserving the assigned concept, sense, family and learner intent."
+        :"You are the fallback writer because the primary Antigravity route is unavailable or budget-protected. Perform the same fixed assignment faithfully; do not broaden scope.";
       const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_RARE_RESCUE_MODEL)}:generateContent`,{
         method:"POST",signal:c.signal,
         headers:{"x-goog-api-key":key,"Content-Type":"application/json"},
         body:JSON.stringify({
-          systemInstruction:{parts:[{text:`${instructions}\nYou are the rare specialist rescue model. Fix only the remaining critic defects while preserving the assigned concept, sense, family and learner intent. Return the complete corrected item.`}]},
+          systemInstruction:{parts:[{text:`${instructions}\n${roleInstruction} Return the complete corrected JSON item only.`}]},
           contents:[{role:"user",parts:[{text:JSON.stringify(input)}]}],
           generationConfig:{responseMimeType:"application/json",responseJsonSchema:schema,thinkingConfig:{thinkingLevel:"high"}},
         }),
@@ -181,31 +195,49 @@ export async function geminiRareRescueJson<T>(instructions:string,input:unknown,
       if(!res.ok&&TRANSIENT.has(res.status)&&attempt<maxAttempts-1)retryMs=providerRetryMs(res,payload,retryMs);
       if(res.ok){
         const text=(payload?.candidates?.[0]?.content?.parts||[]).map((p:any)=>typeof p?.text==="string"&&!p?.thought?p.text:"").join("").trim();
-        if(!text)throw new Error("GEMINI_RESCUE_MALFORMED_OUTPUT");
-        return {data:parseJsonText(text,"GEMINI_RESCUE") as T,provider:"gemini",model:GEMINI_RARE_RESCUE_MODEL};
+        if(!text)throw new Error(`GEMINI_${role.toUpperCase()}_MALFORMED_OUTPUT`);
+        return {data:parseJsonText(text,`GEMINI_${role.toUpperCase()}`) as T,provider:"gemini",model:GEMINI_RARE_RESCUE_MODEL};
       }
-      if(!TRANSIENT.has(res.status)||attempt===maxAttempts-1)throw new Error(`GEMINI_RESCUE_${res.status}: ${payload?.error?.message||"request failed"}`);
+      if(!TRANSIENT.has(res.status)||attempt===maxAttempts-1)throw new Error(`GEMINI_${role.toUpperCase()}_${res.status}: ${payload?.error?.message||"request failed"}`);
     }catch(e:any){
-      if(e?.name==="AbortError"){
-        if(attempt===maxAttempts-1)throw new Error("GEMINI_RESCUE_TIMEOUT");
-      }else if(!/^GEMINI_RESCUE_(429|500|502|503|504):/.test(errorText(e))){
-        throw e;
-      }else if(attempt===maxAttempts-1)throw e;
+      if(e?.name==="AbortError"){if(attempt===maxAttempts-1)throw new Error(`GEMINI_${role.toUpperCase()}_TIMEOUT`)}
+      else if(!new RegExp(`^GEMINI_${role.toUpperCase()}_(429|500|502|503|504):`).test(errorText(e))){throw e}
+      else if(attempt===maxAttempts-1)throw e;
     }finally{clearTimeout(timer)}
     await sleep(retryMs);
   }
-  throw new Error("GEMINI_RESCUE_RETRY_EXHAUSTED");
+  throw new Error(`GEMINI_${role.toUpperCase()}_RETRY_EXHAUSTED`);
+}
+export async function geminiRareRescueJson<T>(instructions:string,input:unknown,schema:unknown){return geminiJson<T>(instructions,input,schema,"rescue")}
+export async function geminiFallbackWriterJson<T>(instructions:string,input:unknown,schema:unknown){return geminiJson<T>(instructions,input,schema,"writer")}
+
+type SmartWriterResult<T>={data:T;provider:string;model:string;antigravityRequests:number;geminiRequests:number;fallback:boolean;fallbackReason:string};
+async function smartWriterJson<T>(instructions:string,input:unknown,schema:unknown):Promise<SmartWriterResult<T>>{
+  const budget=await claimAntigravityBudget();
+  if(budget?.allowed!==true){
+    const g=await geminiFallbackWriterJson<T>(instructions,input,schema);
+    return {...g,antigravityRequests:0,geminiRequests:1,fallback:true,fallbackReason:String(budget?.reason||"ANTIGRAVITY_BUDGET_PROTECTED")};
+  }
+  try{
+    const a=await antigravityJson<T>(instructions,input,{maxAttempts:1,schema});
+    return {...a,antigravityRequests:1,geminiRequests:0,fallback:false,fallbackReason:""};
+  }catch(e){
+    const reason=errorText(e);
+    const eligible=/^ANTIGRAVITY_(429|500|502|503|504):|^ANTIGRAVITY_TIMEOUT$|^ANTIGRAVITY_RETRY_EXHAUSTED$/.test(reason);
+    if(!eligible)throw e;
+    if(/^ANTIGRAVITY_429:/.test(reason))await markAntigravityQuotaExhausted(reason);
+    const g=await geminiFallbackWriterJson<T>(instructions,input,schema);
+    return {...g,antigravityRequests:1,geminiRequests:1,fallback:true,fallbackReason:reason};
+  }
 }
 
-const criticInstructions=`You are Luna, the independent QUALITY CRITIC for one SSC CGL English learning item. Another model wrote the item. Judge only; do not rewrite it. Use low reasoning efficiently but inspect every supplied field. PASS is allowed only when score >=85 and every hard gate is true. REPAIR means the item is fundamentally usable but has specific repairable defects. REJECT means the item is unsafe, concept-drifted, factually/lexically unreliable, structurally incompatible, or fundamentally ambiguous. Verify exactly one defensible answer, correct key, natural English/collocation, learner intent, concept and sense preservation, plausible non-obvious distractors, and explanation consistency. For Phrasal context-fill, verify the intended sense and natural sentence context. For Reverse Recall, the target must remain hidden on the front and the legacy self-assessment contract must be preserved. Return concise issues and one precise repairInstruction; never expose chain-of-thought.`;
+const criticInstructions=`You are Luna, the independent QUALITY CRITIC for one SSC CGL English learning item. Another model wrote the item. Judge only; do not rewrite it. Use low reasoning efficiently but inspect every supplied field. PASS is allowed only when score >=85 and every hard gate is true. REPAIR means the item is fundamentally usable but has specific repairable defects. REJECT means the item has serious defects, but the bounded pipeline may still send your precise issues to a repair writer before giving up. Verify exactly one defensible answer, correct key, natural English/collocation, learner intent, concept and sense preservation, plausible non-obvious distractors, and explanation consistency. For Phrasal context-fill, verify the intended sense and natural sentence context. For Reverse Recall, the target must remain hidden on the front and the legacy self-assessment contract must be preserved. Return concise issues and one precise repairInstruction; never expose chain-of-thought.`;
 
 export async function lunaCritic(item:unknown,context:unknown):Promise<{quality:LunaQuality;provider:"openai";model:string}> {
   const out=await lunaJson<LunaQuality>(criticInstructions,{item,context},lunaQualitySchema);
   return {quality:out.data,provider:out.provider,model:out.model};
 }
-export function lunaPass(q:LunaQuality){
-  return q.score>=85&&q.decision==="PASS"&&Object.values(q.hardGates||{}).every(Boolean);
-}
+export function lunaPass(q:LunaQuality){return q.score>=85&&q.decision==="PASS"&&Object.values(q.hardGates||{}).every(Boolean)}
 
 export function fourOptionCodeGate(item:any,keyField="correctKey"):string[]{
   const issues:string[]=[];
@@ -220,78 +252,85 @@ export function fourOptionCodeGate(item:any,keyField="correctKey"):string[]{
 }
 
 export async function runAntigravityLunaPipeline<T>(args:{
-  instructions:string;
-  input:unknown;
-  schema:unknown;
-  criticContext:unknown;
+  instructions:string; input:unknown; schema:unknown; criticContext:unknown;
   structuralGate:(item:T)=>string[];
-  initialItem?:T;
-  initialGeneratorProvider?:string;
-  initialGeneratorModel?:string;
+  initialItem?:T; initialGeneratorProvider?:string; initialGeneratorModel?:string;
   repairInput?:(original:unknown,current:T,quality:LunaQuality|{decision:"CODE";issues:string[];repairInstruction:string})=>unknown;
 }):Promise<{
   item:T;quality:LunaQuality;repairCount:number;codeRepairCount:number;
   generatorProvider:string;generatorModel:string;criticProvider:string;criticModel:string;
   rareRescue:boolean;writerRequests:number;criticRequests:number;
+  antigravityRequests:number;geminiWriterRequests:number;antigravityFallback:boolean;antigravityFallbackReason:string;
 }> {
-  const mkRepair=(current:T,quality:any)=>args.repairInput
-    ?args.repairInput(args.input,current,quality)
-    :{originalAssignment:args.input,currentItem:current,critic:quality};
-
+  const mkRepair=(current:T,quality:any)=>args.repairInput?args.repairInput(args.input,current,quality):{originalAssignment:args.input,currentItem:current,critic:quality};
   let current:T;
   let finalProvider:string,finalModel:string;
-  let writerRequests=0,criticRequests=0,codeRepairCount=0;
+  let writerRequests=0,criticRequests=0,codeRepairCount=0,antigravityRequests=0,geminiWriterRequests=0;
+  let antigravityFallback=false,antigravityFallbackReason="";
+
+  const write=async(instructions:string,input:unknown)=>{
+    const w=await smartWriterJson<T>(instructions,input,args.schema);
+    writerRequests++;antigravityRequests+=w.antigravityRequests;geminiWriterRequests+=w.geminiRequests;
+    if(w.fallback){antigravityFallback=true;antigravityFallbackReason=antigravityFallbackReason||w.fallbackReason}
+    current=w.data;finalProvider=w.provider;finalModel=w.model;
+  };
+  const result=(quality:LunaQuality,review:any,repairCount:number,rareRescue:boolean)=>({
+    item:current,quality,repairCount,codeRepairCount,generatorProvider:finalProvider,generatorModel:finalModel,
+    criticProvider:review.provider,criticModel:review.model,rareRescue,writerRequests,criticRequests,
+    antigravityRequests,geminiWriterRequests,antigravityFallback,antigravityFallbackReason,
+  });
+  const rescue=async(quality:any)=>{
+    const r=await geminiRareRescueJson<T>(args.instructions,mkRepair(current,quality),args.schema);
+    writerRequests++;geminiWriterRequests++;current=r.data;finalProvider=r.provider;finalModel=r.model;
+  };
+
   if(args.initialItem!==undefined){
-    current=args.initialItem;
-    finalProvider=args.initialGeneratorProvider||"deterministic";
-    finalModel=args.initialGeneratorModel||"canonical_transform";
-  }else{
-    const first=await antigravityJson<T>(args.instructions,args.input,{schema:args.schema});
-    current=first.data;
-    finalProvider=first.provider as string;finalModel=first.model;
-    writerRequests=1;
-  }
+    current=args.initialItem;finalProvider=args.initialGeneratorProvider||"deterministic";finalModel=args.initialGeneratorModel||"canonical_transform";
+  }else await write(args.instructions,args.input);
+
   let codeIssues=args.structuralGate(current);
   if(codeIssues.length){
-    codeRepairCount=1;writerRequests++;
-    const repaired=await antigravityJson<T>(
-      `${args.instructions}\nA deterministic code gate rejected the current item. Fix only these structural defects and return the complete corrected JSON item: ${codeIssues.join("; ")}`,
-      mkRepair(current,{decision:"CODE",issues:codeIssues,repairInstruction:codeIssues.join("; ")}),
-      {maxAttempts:2,schema:args.schema},
-    );
-    current=repaired.data;finalProvider=repaired.provider;finalModel=repaired.model;
+    codeRepairCount=1;
+    await write(`${args.instructions}\nA deterministic code gate rejected the current item. Fix only these structural defects and return the complete corrected JSON item: ${codeIssues.join("; ")}`,mkRepair(current,{decision:"CODE",issues:codeIssues,repairInstruction:codeIssues.join("; ")}));
     codeIssues=args.structuralGate(current);
-    if(codeIssues.length)throw new Error(`CODE_GATE_REJECTED: ${codeIssues.join("; ")}`);
+    if(codeIssues.length){
+      await rescue({decision:"CODE",issues:codeIssues,repairInstruction:codeIssues.join("; ")});
+      codeIssues=args.structuralGate(current);
+      if(codeIssues.length)throw new Error(`CODE_GATE_REJECTED_AFTER_RESCUE: ${codeIssues.join("; ")}`);
+      criticRequests++;
+      const rescuedReview=await lunaCritic(current,args.criticContext);
+      if(!lunaPass(rescuedReview.quality))throw new Error(`QUALITY_REJECTED_AFTER_RESCUE: ${rescuedReview.quality.decision} ${rescuedReview.quality.score} ${rescuedReview.quality.issues.join(" | ")}`);
+      return result(rescuedReview.quality,rescuedReview,2,true);
+    }
   }
 
   criticRequests++;
   let review=await lunaCritic(current,args.criticContext);
-  if(lunaPass(review.quality))return {item:current,quality:review.quality,repairCount:0,codeRepairCount,generatorProvider:finalProvider,generatorModel:finalModel,criticProvider:review.provider,criticModel:review.model,rareRescue:false,writerRequests,criticRequests};
-  if(review.quality.decision==="REJECT")throw new Error(`QUALITY_REJECTED: REJECT ${review.quality.score} ${review.quality.issues.join(" | ")}`);
+  if(lunaPass(review.quality))return result(review.quality,review,0,false);
 
-  // First semantic repair stays with Antigravity.
-  writerRequests++;
-  const repaired=await antigravityJson<T>(
-    `${args.instructions}\nThe independent Luna critic found repairable defects. Make the minimum targeted repair only; preserve everything not implicated by the critic. Return the complete corrected JSON item.`,
-    mkRepair(current,review.quality),
-    {maxAttempts:2,schema:args.schema},
-  );
-  current=repaired.data;finalProvider=repaired.provider;finalModel=repaired.model;
+  // First Luna non-PASS (REPAIR or REJECT) returns to the primary writer route.
+  await write(`${args.instructions}\nThe independent Luna critic found defects. Make the minimum targeted repair only; preserve the fixed concept, sense, family and learner intent. Return the complete corrected JSON item.`,mkRepair(current,review.quality));
   codeIssues=args.structuralGate(current);
-  if(codeIssues.length)throw new Error(`CODE_GATE_REJECTED_AFTER_REPAIR: ${codeIssues.join("; ")}`);
+  if(codeIssues.length){
+    await rescue({decision:"CODE",issues:codeIssues,repairInstruction:codeIssues.join("; ")});
+    codeIssues=args.structuralGate(current);
+    if(codeIssues.length)throw new Error(`CODE_GATE_REJECTED_AFTER_RESCUE: ${codeIssues.join("; ")}`);
+    criticRequests++;
+    const rescuedReview=await lunaCritic(current,args.criticContext);
+    if(!lunaPass(rescuedReview.quality))throw new Error(`QUALITY_REJECTED_AFTER_RESCUE: ${rescuedReview.quality.decision} ${rescuedReview.quality.score} ${rescuedReview.quality.issues.join(" | ")}`);
+    return result(rescuedReview.quality,rescuedReview,2,true);
+  }
+
   criticRequests++;
   review=await lunaCritic(current,args.criticContext);
-  if(lunaPass(review.quality))return {item:current,quality:review.quality,repairCount:1,codeRepairCount,generatorProvider:finalProvider,generatorModel:finalModel,criticProvider:review.provider,criticModel:review.model,rareRescue:false,writerRequests,criticRequests};
-  if(review.quality.decision==="REJECT")throw new Error(`QUALITY_REJECTED: REJECT ${review.quality.score} ${review.quality.issues.join(" | ")}`);
+  if(lunaPass(review.quality))return result(review.quality,review,1,false);
 
-  // Only a second Luna REPAIR reaches the rare Gemini 3.8 Flash HIGH rescue path.
-  writerRequests++;
-  const rescue=await geminiRareRescueJson<T>(args.instructions,mkRepair(current,review.quality),args.schema);
-  current=rescue.data;finalProvider=rescue.provider;finalModel=rescue.model;
+  // A second Luna non-PASS reaches Gemini 3.8 high-reasoning rescue exactly once.
+  await rescue(review.quality);
   codeIssues=args.structuralGate(current);
   if(codeIssues.length)throw new Error(`CODE_GATE_REJECTED_AFTER_RESCUE: ${codeIssues.join("; ")}`);
   criticRequests++;
   review=await lunaCritic(current,args.criticContext);
   if(!lunaPass(review.quality))throw new Error(`QUALITY_REJECTED_AFTER_RESCUE: ${review.quality.decision} ${review.quality.score} ${review.quality.issues.join(" | ")}`);
-  return {item:current,quality:review.quality,repairCount:2,codeRepairCount,generatorProvider:finalProvider,generatorModel:finalModel,criticProvider:review.provider,criticModel:review.model,rareRescue:true,writerRequests,criticRequests};
+  return result(review.quality,review,2,true);
 }
