@@ -32,6 +32,7 @@ import "./daily-analysis.css";
 import "./english-visual-harmony.css";
 import "./english-visual-harmony-inner.css";
 import "./english-learner-rebuild.css";
+import "./sentence-question-render.css";
 
 export const metadata: Metadata = {
   title: "English Mastery",
