@@ -391,7 +391,7 @@ export async function runPhrasalGeneration(db: Db) {
 
     // Central Intelligence owns the 20-slot batch. Reuse structurally valid serviceable cards;
     // AI only fills actual family/content gaps and context-fill slots.
-    const finalized = await mapLimit(items, 4, async (item: Json) => legacyPhrasal(item) || await generatePhrasal(item));
+    const finalized = await mapLimit(items, 2, async (item: Json) => legacyPhrasal(item) || await generatePhrasal(item));
     const contextCount = finalized.filter((x) => x.requestedQuestionFamily === "context_fill").length;
     if (contextCount !== expectedContextCount || contextCount > 6) throw new Error(`PHRASAL_CONTEXT_MIX_REJECTED: Central requested ${expectedContextCount}, finalized ${contextCount}`);
     if (new Set(finalized.map(x => x.conceptId)).size !== 20) throw new Error("PHRASAL_CONCEPT_DUPLICATION: finalized batch does not contain 20 distinct concepts");

@@ -49,7 +49,7 @@ begin
     body:='{"action":"run"}'::jsonb,
     params:='{}'::jsonb,
     headers:=jsonb_build_object('Content-Type','application/json','x-english-context-token',v_token),
-    timeout_milliseconds:=180000
+    timeout_milliseconds:=300000
   ) into req;
   return req;
 end
