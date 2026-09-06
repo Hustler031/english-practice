@@ -123,6 +123,53 @@ function phrasalSchema(family: string, targetWord: string) {
   return schema;
 }
 
+function normalizeContextFillDraft(draft: Json, assignment: Json) {
+  if (String(assignment?.requestedFamily || "").toLowerCase() !== "context_fill") return;
+  const targetWord = String(assignment?.targetWord || "").trim();
+  if (!targetWord) return;
+  draft.word = targetWord;
+  draft.questionType = "Context Fill";
+
+  const keys = ["A", "B", "C", "D"] as const;
+  const key = keys.includes(String(draft?.correctKey || "").toUpperCase() as any)
+    ? String(draft.correctKey).toUpperCase() as "A"|"B"|"C"|"D"
+    : keys[Math.abs(String(assignment?.conceptId || targetWord).split("").reduce((n: number, ch: string) => n + ch.charCodeAt(0), 0)) % 4];
+  const targetNorm = normText(targetWord);
+  const seen = new Set<string>();
+  const distractors: string[] = [];
+  const add = (value: unknown) => {
+    const text = String(value || "").trim();
+    const norm = normText(text);
+    if (!text || !norm || norm === targetNorm || seen.has(norm)) return;
+    seen.add(norm);
+    distractors.push(text);
+  };
+
+  // Keep useful Antigravity distractors first.
+  keys.forEach(k => add(draft?.[`option${k}`]));
+
+  // Canonical bank is a deterministic structural fallback, not a second writer.
+  const reference = assignment?.referenceVariant || {};
+  if (Array.isArray(reference?.options)) reference.options.forEach((x: any) => {
+    const text = String(x?.text || "").trim();
+    if (compactPhrasalTarget(text)) add(text);
+  });
+  keys.forEach(k => {
+    const text = String(reference?.[`option${k}`] || "").trim();
+    if (compactPhrasalTarget(text)) add(text);
+  });
+  String(reference?.related || "").split(/[;,|]/).forEach((text: string) => {
+    if (compactPhrasalTarget(text)) add(text);
+  });
+
+  draft.correctKey = key;
+  let cursor = 0;
+  keys.forEach(k => {
+    if (k === key) draft[`option${k}`] = targetWord;
+    else if (distractors[cursor]) draft[`option${k}`] = distractors[cursor++];
+  });
+}
+
 function phrasalCodeGate(draft: Json, assignment: Json) {
   const issues: string[] = [];
   const requested = String(assignment.requestedFamily || "recognition").toLowerCase();
@@ -260,7 +307,7 @@ async function generatePhrasal(item: Json) {
         ? { front: "meaning/situation cue; target hidden", A: "Yaad tha", B: "Confused", C: "Bhool gaya", D: "", correctKey: "A", questionType: "Reverse Recall Card" }
         : null,
     },
-    structuralGate: (draft: Json) => phrasalCodeGate(draft, assignment),
+    structuralGate: (draft: Json) => { normalizeContextFillDraft(draft, assignment); return phrasalCodeGate(draft, assignment); },
     repairInput: (original, current, quality) => ({
       originalAssignment: original,
       currentItem: current,
