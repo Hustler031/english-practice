@@ -35,6 +35,39 @@ async function recordAudits(db: Db, rows: Json[]) {
   if (error) throw new Error(`AUDIT_FAILED: ${error.message}`);
 }
 
+function ledgerStatus(decision: Json | undefined) {
+  if (!decision) return "submitted";
+  if (decision.status === "published") return "published";
+  if (decision.status === "accepted_retained") return "accepted_retained";
+  if (decision.stage === "structure") return "rejected_structure";
+  if (decision.stage === "central_duplicate_gate") return "rejected_duplicate";
+  return "rejected_quality";
+}
+
+async function persistLedger(db: Db, batchDate: string, runId: string, submitted: Json[], decisions: Map<number, Json>) {
+  const rows = submitted.map((item, index) => {
+    const decision = decisions.get(index);
+    const word = String(item?.word || "").trim();
+    const rejected = String(decision?.status || "").startsWith("rejected");
+    return {
+      batchDate,
+      runId: runId || "",
+      submittedIndex: index,
+      word,
+      normalizedWord: normWord(word) || `invalid${index}`,
+      status: ledgerStatus(decision),
+      payload: item,
+      qualityScore: decision?.score ?? null,
+      criticDecision: decision?.criticDecision ?? null,
+      criticModel: decision?.criticModel ?? null,
+      rejectionStage: rejected ? String(decision?.stage || "") : null,
+      rejectionReason: rejected ? String(decision?.reason || "") : null,
+    };
+  });
+  const { error } = await db.rpc("english_hindu_candidate_backlog_upsert", { p_rows: rows });
+  if (error) throw new Error(`HINDU_LEDGER_FAILED: ${error.message}`);
+}
+
 export async function ingestSubmittedHinduItems(db: Db, submitted: Json[]) {
   if (!Array.isArray(submitted) || submitted.length < 25 || submitted.length > 30) {
     throw new Error("HINDU_SUBMITTED_COUNT: exactly 25-30 fully generated candidate items are required");
@@ -42,13 +75,16 @@ export async function ingestSubmittedHinduItems(db: Db, submitted: Json[]) {
 
   const { data: claim, error: claimError } = await db.rpc("english_hindu_task_claim");
   if (claimError) throw new Error(`HINDU_CLAIM_FAILED: ${claimError.message}`);
+  if (claim?.busy) throw new Error(`HINDU_BUSY: ${String(claim?.runId || "active run")}`);
   if (Number(claim?.count || 0) === 0) {
-    return { ok: true, lane: "hindu", mode: "sheet_ingest", complete: true, submitted: submitted.length, accepted: 0, decisions: [] };
+    return { ok: true, lane: "hindu", mode: "sheet_ingest", complete: true, submitted: submitted.length, accepted: 0, published: 0, retained: 0, rejected: 0, decisions: [] };
   }
 
   const runId = String(claim?.runId || "");
+  const batchDate = String(claim?.date || new Date().toISOString().slice(0, 10));
   const need = Math.min(20, Number(claim?.count || 0));
-  const decisions: Json[] = [];
+  const decisions = new Map<number, Json>();
+  const setDecision = (d: Json) => decisions.set(Number(d.index), d);
 
   try {
     const seen = new Set<string>();
@@ -58,12 +94,12 @@ export async function ingestSubmittedHinduItems(db: Db, submitted: Json[]) {
       const normalized = normWord(word);
       const error = structuralError(item);
       if (!normalized || seen.has(normalized)) {
-        decisions.push({ index, word, status: "rejected", stage: "structure", reason: "duplicate_in_submission" });
+        setDecision({ index, word, status: "rejected", stage: "structure", reason: "duplicate_in_submission" });
         return;
       }
       seen.add(normalized);
       if (error) {
-        decisions.push({ index, word, status: "rejected", stage: "structure", reason: error });
+        setDecision({ index, word, status: "rejected", stage: "structure", reason: error });
         return;
       }
       structurallyClean.push({ item, index });
@@ -84,7 +120,7 @@ export async function ingestSubmittedHinduItems(db: Db, submitted: Json[]) {
     for (const row of structurallyClean) {
       const result = checkMap.get(normWord(String(row.item.word))) as Json | undefined;
       if (result?.duplicate) {
-        decisions.push({ index: row.index, word: row.item.word, status: "rejected", stage: "central_duplicate_gate", reason: "historical_or_family_collision", hits: result.hits || [] });
+        setDecision({ index: row.index, word: row.item.word, status: "rejected", stage: "central_duplicate_gate", reason: "historical_or_family_collision", hits: result.hits || [] });
       } else {
         criticQueue.push(row);
       }
@@ -111,13 +147,13 @@ export async function ingestSubmittedHinduItems(db: Db, submitted: Json[]) {
       settled.forEach((result, groupIndex) => {
         const original = group[groupIndex];
         if (result.status === "rejected") {
-          decisions.push({ index: original.index, word: original.item.word, status: "rejected", stage: "backend_critic", reason: errorText(result.reason) });
+          setDecision({ index: original.index, word: original.item.word, status: "rejected", stage: "backend_critic", reason: errorText(result.reason) });
           return;
         }
         const { item, index, reviewed } = result.value;
         const score = Number(reviewed.quality?.score || 0);
         if (!hardGatesPass(reviewed.quality)) {
-          decisions.push({ index, word: item.word, status: "rejected", stage: "backend_critic", reason: reviewed.quality?.decision || "quality_rejected", score, issues: reviewed.quality?.issues || [], criticModel: reviewed.model });
+          setDecision({ index, word: item.word, status: "rejected", stage: "backend_critic", reason: reviewed.quality?.decision || "quality_rejected", score, issues: reviewed.quality?.issues || [], criticModel: reviewed.model, criticDecision: reviewed.quality?.decision });
           return;
         }
         passed.push({
@@ -138,10 +174,33 @@ export async function ingestSubmittedHinduItems(db: Db, submitted: Json[]) {
     passed.sort((a, b) => b.score - a.score || a.index - b.index);
     const selected = passed.slice(0, need);
     const overflow = passed.slice(need);
-    overflow.forEach((row) => decisions.push({ index: row.index, word: row.item.word, status: "rejected", stage: "central_slot_selection", reason: "daily_capacity", score: row.score }));
+
+    selected.forEach((row) => setDecision({
+      index: row.index,
+      word: row.item.word,
+      status: "accepted_retained",
+      stage: "selected_for_publication",
+      score: row.score,
+      criticModel: row.item.criticModel,
+      criticDecision: row.item.quality?.decision,
+    }));
+    overflow.forEach((row) => setDecision({
+      index: row.index,
+      word: row.item.word,
+      status: "accepted_retained",
+      stage: "retained_overflow",
+      reason: "daily_capacity_retained",
+      score: row.score,
+      criticModel: row.item.criticModel,
+      criticDecision: row.item.quality?.decision,
+    }));
+
+    // Persist every decision before publication so approved items survive even if publication transport fails.
+    await persistLedger(db, batchDate, runId, submitted, decisions);
 
     if (!selected.length) {
       await releaseClaim(db, runId, "No submitted Hindu item passed duplicate + critic gates");
+      const decisionList = [...decisions.values()].sort((a, b) => Number(a.index) - Number(b.index));
       return {
         ok: true,
         lane: "hindu",
@@ -149,10 +208,12 @@ export async function ingestSubmittedHinduItems(db: Db, submitted: Json[]) {
         runId,
         submitted: submitted.length,
         requestedSlots: need,
-        accepted: 0,
-        rejected: decisions.length,
+        accepted: passed.length,
+        published: 0,
+        retained: passed.length,
+        rejected: decisionList.filter((x) => x.status === "rejected").length,
         completeTarget: false,
-        decisions: decisions.sort((a, b) => Number(a.index) - Number(b.index)),
+        decisions: decisionList,
       };
     }
 
@@ -163,9 +224,19 @@ export async function ingestSubmittedHinduItems(db: Db, submitted: Json[]) {
     });
     if (applyError) throw new Error(`HINDU_APPLY_FAILED: ${applyError.message}`);
 
-    selected.forEach((row) => decisions.push({ index: row.index, word: row.item.word, status: "accepted", stage: "published", score: row.score, criticModel: row.item.criticModel }));
+    selected.forEach((row) => setDecision({
+      index: row.index,
+      word: row.item.word,
+      status: "published",
+      stage: "published",
+      score: row.score,
+      criticModel: row.item.criticModel,
+      criticDecision: row.item.quality?.decision,
+    }));
+    await persistLedger(db, batchDate, runId, submitted, decisions);
 
-    await recordAudits(db, selected.map((row) => ({
+    const selectedIndexes = new Set(selected.map((x) => x.index));
+    await recordAudits(db, passed.map((row) => ({
       lane: "hindu",
       entityKey: String(row.item.word),
       generatorProvider: String(row.item.generatorProvider || "chatgpt"),
@@ -175,16 +246,18 @@ export async function ingestSubmittedHinduItems(db: Db, submitted: Json[]) {
       qualityScore: row.item.quality?.score,
       criticDecision: row.item.quality?.decision,
       repairCount: 0,
-      publicationResult: "applied",
+      publicationResult: selectedIndexes.has(row.index) ? "applied" : "retained",
       metadata: {
         mode: "chatgpt_sheet_submission",
         criticOnly: true,
         sourceName: row.item.sourceName,
         sourceUrl: row.item.sourceUrl,
         candidateType: row.item.candidateType || "vocabulary",
+        retainedOverflow: !selectedIndexes.has(row.index),
       },
     })));
 
+    const decisionList = [...decisions.values()].sort((a, b) => Number(a.index) - Number(b.index));
     return {
       ok: true,
       lane: "hindu",
@@ -192,10 +265,12 @@ export async function ingestSubmittedHinduItems(db: Db, submitted: Json[]) {
       runId,
       submitted: submitted.length,
       requestedSlots: need,
-      accepted: selected.length,
-      rejected: decisions.filter((x) => x.status === "rejected").length,
+      accepted: passed.length,
+      published: selected.length,
+      retained: overflow.length,
+      rejected: decisionList.filter((x) => x.status === "rejected").length,
       completeTarget: selected.length === need,
-      decisions: decisions.sort((a, b) => Number(a.index) - Number(b.index)),
+      decisions: decisionList,
       applied,
     };
   } catch (e) {
