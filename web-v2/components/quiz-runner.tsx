@@ -5,6 +5,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { learnerErrorMessage, rpc } from "@/lib/supabase";
 import { makeDisplayOptions, type DisplayOption } from "@/lib/options";
 import { applyActiveQuestionRevisions } from "@/lib/question-revisions";
+import { splitSentenceQuestionForDisplay } from "@/lib/question-display";
 import AddWordSheet from "@/components/add-word-sheet";
 import PauseSheet from "@/components/pause-sheet";
 import QuestionRevisionActions from "@/components/question-revision-actions";
@@ -25,6 +26,7 @@ export default function QuizRunner({ title, backHref, load, module="practice", e
   const q=items[idx];const answer=q?answers[q.id]:undefined;const answeredCount=Object.keys(answers).length;const routingDecisionOpen=!!q&&fastTrackDecision===q.id;
   useEffect(()=>{setIntelOpen(false);setContextOpen(false);setContextNote("");setContextSaved(false);setContextBusy(false);setGuessed(false);},[q?.id]);
   const options=useMemo(()=>{if(!q||isRecallCard(q))return[];const hit=optionCache.current.get(q.id);if(hit)return hit;const made=makeDisplayOptions(q.questionType,q.options||[]);optionCache.current.set(q.id,made);return made;},[q?.id,q?.questionType,q?.options]);
+  const sentenceDisplay=q?splitSentenceQuestionForDisplay(q.question):null;
   const selectedDisplayKey=answer?(options.find(o=>o.canonicalKey===answer.selectedCanonicalKey)?.key||answer.selectedCanonicalKey):"";const recall=isRecallCard(q);const recallShown=!!q&&revealedRecall.has(q.id);
 
   function armQuizBackGuard(){if(typeof window==="undefined")return;const guard=historyGuardId.current;if(!guard||window.history.state?.englishQuizGuard===guard)return;window.history.pushState({...window.history.state,englishQuizGuard:guard},"",window.location.href);}
@@ -50,7 +52,7 @@ export default function QuizRunner({ title, backHref, load, module="practice", e
     <div className="quiz-progress-meta"><span>Question {idx+1} of {items.length}</span><b>{answeredCount} answered</b></div><div className="progress"><span style={{width:`${items.length?(answeredCount/items.length)*100:0}%`}}/></div>
     <section className="quiz-card">
       <div className="quiz-meta"><span className="pill">{q.category||q.topic||"English"}</span><span className="pill">{q.id}</span><LearningSignals status={q.status}/>{fastTrackMode&&<span className="pill">Fast Track</span>}{q.revisionVersion&&<span className="pill">Revision v{q.revisionVersion}</span>}<button className="intel-button" type="button" aria-label="Question intelligence" aria-expanded={intelOpen} onClick={()=>setIntelOpen(true)}>ⓘ</button></div>
-      <div className="question-area"><div className="question">{q.question}</div></div>
+      <div className="question-area">{sentenceDisplay?<div className="sentence-question"><div className="sentence-question-instruction">{sentenceDisplay.instruction}</div><div className="question sentence-question-body">{sentenceDisplay.sentence}</div></div>:<div className="question">{q.question}</div>}</div>
       {recall?<RecallCard q={q} revealed={recallShown} answer={answer} busy={busy} onReveal={revealRecall} onRate={answerCanonical}/>:<div className="options">{options.map(o=>{let cls="option";if(selectedDisplayKey===o.key)cls+=" selected";if(answer&&o.canonicalKey===answer.correctCanonicalKey)cls+=" correct";if(answer&&selectedDisplayKey===o.key&&o.canonicalKey!==answer.correctCanonicalKey)cls+=" wrong";return <button key={o.key} className={cls} onClick={()=>void answerCanonical(o.canonicalKey)} disabled={!!answer||busy}><span className="option-key">{o.key}</span><span>{o.text}</span></button>;})}</div>}
       {error&&<div className="result-wrap"><div className="error-box">{error}</div></div>}
       {answer&&!recall&&<div className="result-wrap"><span className={`answer-cue ${answer.correct?"good-result":"bad-result"}`}>{answer.correct?"✓ Correct":"✕ Incorrect"}</span><Explanation q={q} options={options}/><div className="quiz-ai-actions"><button className="btn ghost" type="button" onClick={()=>setContextOpen(v=>!v)}>Add Context</button><button className={`btn ghost ${guessed?"warn":""}`} type="button" disabled={guessed} onClick={()=>void recordGuessed()}>{guessed?"I Guessed ✓":"I Guessed"}</button><QuestionRevisionActions key={q.id} questionId={q.id}/></div>{contextSaved&&<div className="context-saved">Added to learning context</div>}{contextOpen&&<div className="ai-help-panel"><input value={contextNote} maxLength={600} onChange={e=>setContextNote(e.target.value)} placeholder="Briefly tell me what felt unclear…"/><button className="btn primary" type="button" disabled={contextBusy||!contextNote.trim()} onClick={()=>void saveContextNote()}>{contextBusy?"Saving…":"Save"}</button></div>}</div>}
