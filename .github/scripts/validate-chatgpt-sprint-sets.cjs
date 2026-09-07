@@ -40,6 +40,7 @@ need(worker,'judge EACH QUESTION independently','Luna must decide question-wise'
 need(worker,'enum:["PASS","REPAIR"]','Every Sprint item receives PASS or REPAIR');
 need(worker,'enum:["PASS","REPAIR","REJECT_GLOBAL"]','Whole-set reject is a distinct global-only decision');
 need(worker,'repairPositions','Luna returns exact positions to replace');
+forbid(worker,'uniqueItems:true','Sprint Luna structured-output schema avoids unsupported uniqueItems');
 need(worker,'all PASS positions are frozen','Luna understands good positions are retained');
 need(worker,'noWithinSetSemanticDuplicate','Luna checks semantic overlap');
 need(worker,'noHistoricalRepeat','Luna checks historical freshness');
