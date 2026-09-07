@@ -13,6 +13,7 @@ type Stats={saved:number;eligible:number;controlledNew:number;neverRevised:numbe
 type History={date:string|null;day?:number;label:string;saved:number;eligible:number;controlledNew:number;due:number;weak:number;difficult:number;mastered:number};
 type Hub={currentDay?:number;stats:Stats;available:{smart:number;new:number;weak:number;difficult:number;starred:number;random:number;all:number};sizes:number[];history:History[]};
 type Pick={mode:string;label:string;date?:string|null;count:number};
+type NextTrigger={label:string;title:string};
 const types=["AUTO","V","SM","OWS","PV","IP"];
 const modes=[["🧠","Smart Revision","smart"],["🆕","New","new"],["🔥","Weak","weak"],["⚡","Difficult","difficult"],["⭐","Starred","starred"],["🎲","Random","random"],["▶","Practice All","all"]] as const;
 function shortDate(value:string){const d=new Date(value);return Number.isNaN(d.getTime())?value:d.toLocaleDateString("en-CA",{timeZone:"Asia/Kolkata"});}
@@ -28,6 +29,21 @@ function enrichmentInfo(item:Saved){
   return "AI retry scheduled";
  }
  return "Waiting for AI";
+}
+function useMinuteNow(){const[now,setNow]=useState<number|null>(null);useEffect(()=>{const tick=()=>setNow(Date.now());tick();const timer=window.setInterval(tick,60000);return()=>window.clearInterval(timer);},[]);return now;}
+function nextTriggerInfo(item:Saved,now:number|null):NextTrigger|null{
+ if(String(item.practiceQuestionId||"").trim()||String(item.gptStatus||"").trim().toLowerCase()==="ready")return null;
+ const state=String(item.enrichmentState||"pending").trim().toLowerCase();
+ if(state==="processing")return {label:"Next: running",title:"AI enrichment is running now"};
+ if(state!=="retrying")return {label:"Next: queued",title:"Queued for the next enrichment worker run"};
+ const raw=String(item.enrichmentNextAttempt||"").trim(),at=raw?new Date(raw):null,time=at?.getTime()??NaN;
+ if(!Number.isFinite(time))return {label:"Next: queued",title:"Retry is queued for the next enrichment worker run"};
+ const exact=at!.toLocaleString("en-IN",{timeZone:"Asia/Kolkata",day:"2-digit",month:"short",hour:"numeric",minute:"2-digit",hour12:true});
+ if(now==null)return {label:"Next: scheduled",title:`Earliest retry: ${exact} IST`};
+ const remaining=time-now;
+ if(remaining<=0)return {label:"Next: due",title:`Retry window became due at ${exact} IST; waiting for the next worker run`};
+ const minutes=Math.max(1,Math.ceil(remaining/60000));
+ return {label:`Next: ${minutes}m`,title:`Earliest retry: ${exact} IST`};
 }
 function isGptUpgraded(item:Saved){return /manual\s+chatgpt\s+upgraded|chatgpt\s+upgraded/i.test(String(item.gptSource||""));}
 function prettyModel(model?:string){const value=String(model||"").trim().toLowerCase();if(value==="gemini-3.8-flash")return "Gemini 3.8 Flash";if(value==="gemini-3.6-flash")return "Gemini 3.6 Flash";if(value==="gpt-5.6-luna")return "Luna";return String(model||"").trim();}
@@ -85,22 +101,24 @@ export default function SavedPage(){
 }
 
 function ManageSaved({rows,error,editing,setEditing,onBack,onOpen,onType}:{rows:Saved[];error:string;editing:string|null;setEditing:(id:string|null)=>void;onBack:()=>void;onOpen:(item:Saved)=>void;onType:(id:string,next:string)=>void}){
+ const now=useMinuteNow();
  return <div className="saved-parity-page saved-manage-page">
   <section className="saved-subhead"><button className="btn ghost saved-back" onClick={onBack}>← Back</button><div><h1>My Words</h1><p>Every word you save appears here automatically.</p></div></section>
   {error&&<div className="error-box">{error}</div>}
-  <div className="mywords-final-list">{rows.map(item=>{const aiInfo=enrichmentInfo(item);return <article className="mywords-final-row" key={item.id} onClick={()=>onOpen(item)} role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")onOpen(item)}}><div><b>{item.word}</b><div className={`mywords-final-status status-${savedStatus(item).toLowerCase().replace(/\s+/g,"-")}`} title={item.enrichmentLastError||undefined}>{savedStatus(item)}{isGptUpgraded(item)?" · GPT Upgraded":""}{aiInfo?` · ${aiInfo}`:""} · {shortDate(item.created)}</div>{editing===item.id&&<div className="capture-types myword-types" onClick={e=>e.stopPropagation()}>{types.map(next=><button key={next} className={`capture-type ${item.captureType===next?"selected":""}`} onClick={()=>void onType(item.id,next)}>{next==="IP"?"I/P":next}</button>)}</div>}</div><button className="btn ghost mini" onClick={e=>{e.stopPropagation();setEditing(editing===item.id?null:item.id)}}>Edit</button></article>})}</div>
+  <div className="mywords-final-list">{rows.map(item=>{const aiInfo=enrichmentInfo(item),next=nextTriggerInfo(item,now);return <article className="mywords-final-row" key={item.id} onClick={()=>onOpen(item)} role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")onOpen(item)}}><div><b>{item.word}</b><div className={`mywords-final-status status-${savedStatus(item).toLowerCase().replace(/\s+/g,"-")}`} title={item.enrichmentLastError||undefined}><span>{savedStatus(item)}{isGptUpgraded(item)?" · GPT Upgraded":""}{aiInfo?` · ${aiInfo}`:""} · {shortDate(item.created)}</span>{next&&<span className="saved-next-trigger" title={next.title}>{next.label}</span>}</div>{editing===item.id&&<div className="capture-types myword-types" onClick={e=>e.stopPropagation()}>{types.map(nextType=><button key={nextType} className={`capture-type ${item.captureType===nextType?"selected":""}`} onClick={()=>void onType(item.id,nextType)}>{nextType==="IP"?"I/P":nextType}</button>)}</div>}</div><button className="btn ghost mini" onClick={e=>{e.stopPropagation();setEditing(editing===item.id?null:item.id)}}>Edit</button></article>})}</div>
  </div>;
 }
 
 function SavedDetail({item,onBack}:{item:Saved;onBack:()=>void}){
+ const now=useMinuteNow();
  const options:Array<[string,string|undefined]>=[["A",item.optionA],["B",item.optionB],["C",item.optionC],["D",item.optionD]];const correct=String(item.correctOption||"").trim().toUpperCase().replace(/[^A-D].*$/,"").charAt(0);
  const block=(label:string,value?:string)=>!String(value||"").trim()?null:<div className="myword-detail-block"><small>{label}</small><div>{value}</div></div>;
- const generatedBy=generatorLabel(item),critic=criticLabel(item),score=item.criticScore==null?null:Number(item.criticScore),showAiMeta=Boolean(generatedBy||critic||Number.isFinite(score)),aiInfo=enrichmentInfo(item);
+ const generatedBy=generatorLabel(item),critic=criticLabel(item),score=item.criticScore==null?null:Number(item.criticScore),showAiMeta=Boolean(generatedBy||critic||Number.isFinite(score)),aiInfo=enrichmentInfo(item),next=nextTriggerInfo(item,now);
  return <div className="saved-parity-page saved-detail-page">
-  <section className="saved-subhead mywords-detail-head"><button className="btn ghost saved-back" onClick={onBack}>← My Words</button><div><h1>{item.word}</h1><p>GPT enrichment · {savedStatus(item)}{isGptUpgraded(item)?" · GPT Upgraded":""}{aiInfo?` · ${aiInfo}`:""}</p></div></section>
+  <section className="saved-subhead mywords-detail-head"><button className="btn ghost saved-back" onClick={onBack}>← My Words</button><div><h1>{item.word}</h1><p>GPT enrichment · {savedStatus(item)}{isGptUpgraded(item)?" · GPT Upgraded":""}{aiInfo?` · ${aiInfo}`:""}{next?` · ${next.label}`:""}</p></div></section>
   <article className="myword-detail-card">
    <div><div className="myword-detail-word">{item.word}</div>{(item.partOfSpeech||item.resolvedType)&&<div className="myword-detail-type">{item.partOfSpeech||item.resolvedType}</div>}</div>
-   {aiInfo&&<div className="myword-detail-block"><small>AI enrichment</small><div title={item.enrichmentLastError||undefined}>{aiInfo}{item.enrichmentAttemptCount?` · attempts ${item.enrichmentAttemptCount}`:""}</div></div>}
+   {aiInfo&&<div className="myword-detail-block"><small>AI enrichment</small><div title={item.enrichmentLastError||undefined}>{aiInfo}{item.enrichmentAttemptCount?` · attempts ${item.enrichmentAttemptCount}`:""}{next&&<span className="saved-next-trigger detail-next-trigger" title={next.title}>{next.label}</span>}</div></div>}
    {block("Meaning",item.meaning||item.context)}
    {item.question&&<div className="myword-detail-block"><small>Practice question</small><div className="myword-detail-question">{item.question}</div><div className="myword-detail-options">{options.map(([key,text])=>text?<div key={key} className={`myword-detail-option ${correct===key?"correct":""}`}><b>{key}.</b> {text}</div>:null)}</div></div>}
    {block("Explanation",item.explanation)}
