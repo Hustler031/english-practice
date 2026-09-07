@@ -1,0 +1,33 @@
+name: Validate Saved Enrichment Retry Info
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/functions/english-saved-enrichment-worker/**'
+      - 'supabase/migrations/20260907173500_english_saved_enrichment_retry_info.sql'
+      - 'web-v2/app/english/saved/page.tsx'
+      - '.github/scripts/validate-saved-enrichment-retry-info.cjs'
+      - '.github/workflows/validate-saved-enrichment-retry-info.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/english-saved-enrichment-worker/**'
+      - 'supabase/migrations/20260907173500_english_saved_enrichment_retry_info.sql'
+      - 'web-v2/app/english/saved/page.tsx'
+      - '.github/scripts/validate-saved-enrichment-retry-info.cjs'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Saved enrichment retry contracts
+        run: node .github/scripts/validate-saved-enrichment-retry-info.cjs
+      - name: TypeScript
+        working-directory: web-v2
+        run: |
+          npm ci
+          npm run typecheck
