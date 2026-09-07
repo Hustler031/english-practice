@@ -22,6 +22,8 @@ need(worker,'noHistoricalRepeat','Luna checks historical freshness');
 need(worker,'difficultyCalibration','Luna checks real difficulty calibration');
 need(worker,'reasoning:{effort:"medium"}','Final Luna gate uses bounded medium reasoning');
 need(landing,'Type <b>create sprint</b> in ChatGPT','App tells learner to create set in ChatGPT');
+need(landing,'import ExamPreparationFinal','Luna-passed set reuses the mature timed Sprint runner');
+need(landing,'<ExamPreparationFinal/>','Approved set delegates to existing runner lifecycle');
 forbid(landing,'functions.invoke<SprintCreateResponse>("english-ssc-sprint"','New landing cannot call old generator');
 need(page,'ChatgptSprintSets','Exam page uses ChatGPT set landing');
 need(history,'Previous Sprint Sets','Completed tests are presented as set archive');
