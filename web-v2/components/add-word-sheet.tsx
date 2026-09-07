@@ -5,13 +5,14 @@ import { createPortal } from "react-dom";
 import { learnerErrorMessage, localProductionSafetyMode, supabaseBrowser } from "@/lib/supabase";
 
 const types = ["AUTO", "V", "SM", "OWS", "PV", "IP", "CU"];
+const needs = ["AUTO", "MEANING", "USAGE", "CONFUSION"] as const;
 const SAVE_TIMEOUT_MS = 8_000;
 const SAVED_CACHE_PREFIXES = [
   "ep:v2:rpc-cache:english_get_saved_revision_hub:",
   "ep:v2:rpc-cache:english_get_saved_items:",
 ];
 
-type SaveWordResult = { ok?: boolean; id?: string; duplicate?: boolean; status?: string; gpt_status?: string };
+type SaveWordResult = { ok?: boolean; id?: string; duplicate?: boolean; status?: string; gpt_status?: string; resolved_learning_intent?: string };
 
 function evictSavedCaches() {
   if (typeof window === "undefined") return;
@@ -29,7 +30,7 @@ function sleep(ms: number) { return new Promise(resolve => window.setTimeout(res
 async function saveWordOnce(args: Record<string, unknown>) {
   let timeout: number | null = null;
   try {
-    const request = supabaseBrowser().rpc("english_save_word", args);
+    const request = supabaseBrowser().rpc("english_save_word_with_intent", args);
     const result = await Promise.race([
       request,
       new Promise<never>((_, reject) => {
@@ -45,25 +46,34 @@ async function saveWordOnce(args: Record<string, unknown>) {
   }
 }
 
+function autoNeedHint(word: string, need: string) {
+  if (need === "MEANING") return "Meaning recall";
+  if (need === "USAGE") return "Usage in context";
+  if (need === "CONFUSION") return "Contrast together";
+  const raw = word.trim().toLowerCase();
+  if (/(confus|difference|distinguish|mix[ -]?up|similar\s+words?|versus|\bvs\b)/i.test(raw)) return "Contrast together";
+  if (/(sentence\s*(me|mein)?|use\s+(it\s+)?in\s+(a\s+)?sentence|how\s+to\s+use|usage|use\s*(kro|karo)|example\s+sentence)/i.test(raw)) return "Usage in context";
+  if (/\band\b|[,/;]/i.test(raw)) return "Contrast together";
+  return "Meaning recall";
+}
+
 export default function AddWordSheet({ questionId = "", initialWord = "", questionText = "", source = "Manual capture", label = "＋ Add Word" }: { questionId?: string; initialWord?: string; questionText?: string; source?: string; label?: string }) {
   const [open, setOpen] = useState(false);
   const [word, setWord] = useState("");
   const [type, setType] = useState("AUTO");
+  const [need, setNeed] = useState<(typeof needs)[number]>("AUTO");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  // Match the reliable Apps Script capture flow: quiz capture starts blank,
-  // while a standalone caller may still supply an explicit initial value.
   const defaultWord = questionId ? "" : initialWord;
 
   useEffect(() => {
     if (!open) return;
     setWord(defaultWord);
     setType("AUTO");
+    setNeed("AUTO");
     setMessage("");
-    // Keep the Android-friendly delayed focus, while the transparent/non-blocking
-    // capture surface still leaves the question readable behind the sheet.
     const timer = window.setTimeout(() => inputRef.current?.focus(), 60);
     return () => window.clearTimeout(timer);
   }, [open, defaultWord]);
@@ -90,14 +100,20 @@ export default function AddWordSheet({ questionId = "", initialWord = "", questi
       return;
     }
     setBusy(true); setMessage("");
-    const args = { p_word: word.trim(), p_context: questionText.trim(), p_question_id: questionId, p_capture_type: type, p_module: "web-v2", p_source: source };
+    const args = {
+      p_word: word.trim(),
+      p_context: questionText.trim(),
+      p_question_id: questionId,
+      p_capture_type: type,
+      p_learning_intent: need,
+      p_module: "web-v2",
+      p_source: source,
+    };
     try {
       let saved: SaveWordResult;
       try {
         saved = await saveWordOnce(args);
       } catch (firstError) {
-        // A long-lived study tab can have a stale auth token or transient mobile network gap.
-        // Refresh once, then retry. The backend de-duplicates by saved word, so retry is safe.
         await supabaseBrowser().auth.refreshSession().catch(() => undefined);
         await sleep(250);
         saved = await saveWordOnce(args);
@@ -136,7 +152,16 @@ export default function AddWordSheet({ questionId = "", initialWord = "", questi
           placeholder="Word / doubt / usage point"
           required
         />
-        <div className="capture-types add-word-types" style={{ display: "grid", gridTemplateColumns: "repeat(7,minmax(0,1fr))", gap: 4, flexWrap: "nowrap" }}>{types.map((item) => <button className={`capture-type ${item === type ? "selected" : ""}`} style={{ minWidth: 0, paddingInline: 4 }} type="button" key={item} aria-pressed={item === type} onClick={() => setType(item)}>{item === "IP" ? "I/P" : item}</button>)}</div>
+        <div className="capture-types add-word-types" style={{ display: "grid", gridTemplateColumns: "repeat(7,minmax(0,1fr))", gap: 4, flexWrap: "nowrap" }}>
+          {types.map((item) => <button className={`capture-type ${item === type ? "selected" : ""}`} style={{ minWidth: 0, paddingInline: 4 }} type="button" key={item} aria-pressed={item === type} onClick={() => setType(item)}>{item === "IP" ? "I/P" : item}</button>)}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, opacity: .68, flex: "0 0 auto" }}>Need</span>
+          <div className="capture-types" style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 4, flex: 1 }}>
+            {needs.map((item) => <button className={`capture-type ${item === need ? "selected" : ""}`} style={{ minWidth: 0, paddingInline: 4 }} type="button" key={item} aria-pressed={item === need} onClick={() => setNeed(item)}>{item === "AUTO" ? "AUTO" : item[0] + item.slice(1).toLowerCase()}</button>)}
+          </div>
+        </div>
+        {!!word.trim() && <div style={{ fontSize: 11, opacity: .62, marginTop: -1 }}>Will practice: {autoNeedHint(word, need)}</div>}
         {message && <div className="form-message add-word-message">{message}</div>}
         <button className="btn primary sheet-save add-word-save" disabled={busy || !word.trim()}>{busy ? "Saving…" : "Save"}</button>
       </form>
