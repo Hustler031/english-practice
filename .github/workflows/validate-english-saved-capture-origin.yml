@@ -1,0 +1,24 @@
+name: Validate English Saved Capture Origin
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/20260907213000_english_saved_capture_origin.sql'
+      - '.github/scripts/validate-english-saved-capture-origin.cjs'
+      - '.github/workflows/validate-english-saved-capture-origin.yml'
+  pull_request:
+    paths:
+      - 'supabase/migrations/20260907213000_english_saved_capture_origin.sql'
+      - '.github/scripts/validate-english-saved-capture-origin.cjs'
+      - '.github/workflows/validate-english-saved-capture-origin.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node .github/scripts/validate-english-saved-capture-origin.cjs
