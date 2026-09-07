@@ -1,0 +1,35 @@
+name: Validate English Daily Rollover Safety
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'web-v2/components/daily-rollover-sync.tsx'
+      - 'supabase/migrations/**daily_rollover**.sql'
+      - '.github/scripts/validate-daily-rollover-safety.cjs'
+      - '.github/workflows/validate-english-daily-rollover-safety.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web-v2/package-lock.json
+      - name: Install web dependencies
+        working-directory: web-v2
+        run: npm ci
+      - name: TypeScript
+        working-directory: web-v2
+        run: npm run typecheck
+      - name: Validate Daily rollover contracts
+        run: node .github/scripts/validate-daily-rollover-safety.cjs
