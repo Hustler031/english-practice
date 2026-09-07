@@ -2,9 +2,48 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { rpc } from "@/lib/supabase";
+import { learnerErrorMessage, localProductionSafetyMode, supabaseBrowser } from "@/lib/supabase";
 
 const types = ["AUTO", "V", "SM", "OWS", "PV", "IP"];
+const SAVE_TIMEOUT_MS = 8_000;
+const SAVED_CACHE_PREFIXES = [
+  "ep:v2:rpc-cache:english_get_saved_revision_hub:",
+  "ep:v2:rpc-cache:english_get_saved_items:",
+];
+
+type SaveWordResult = { ok?: boolean; id?: string; duplicate?: boolean; status?: string; gpt_status?: string };
+
+function evictSavedCaches() {
+  if (typeof window === "undefined") return;
+  const removals: string[] = [];
+  for (let i = 0; i < window.localStorage.length; i++) {
+    const key = window.localStorage.key(i);
+    if (key && SAVED_CACHE_PREFIXES.some(prefix => key.startsWith(prefix))) removals.push(key);
+  }
+  removals.forEach(key => window.localStorage.removeItem(key));
+  try { window.dispatchEvent(new CustomEvent("ep:saved-word-saved")); } catch { /* best effort */ }
+}
+
+function sleep(ms: number) { return new Promise(resolve => window.setTimeout(resolve, ms)); }
+
+async function saveWordOnce(args: Record<string, unknown>) {
+  let timeout: number | null = null;
+  try {
+    const request = supabaseBrowser().rpc("english_save_word", args);
+    const result = await Promise.race([
+      request,
+      new Promise<never>((_, reject) => {
+        timeout = window.setTimeout(() => reject(new Error("Save timed out. Retrying…")), SAVE_TIMEOUT_MS);
+      }),
+    ]);
+    if (result.error) throw result.error;
+    const data = result.data as SaveWordResult | null;
+    if (!data?.ok) throw new Error("Word was not saved. Please retry.");
+    return data;
+  } finally {
+    if (timeout !== null) window.clearTimeout(timeout);
+  }
+}
 
 export default function AddWordSheet({ questionId = "", initialWord = "", questionText = "", source = "Manual capture", label = "＋ Add Word" }: { questionId?: string; initialWord?: string; questionText?: string; source?: string; label?: string }) {
   const [open, setOpen] = useState(false);
@@ -46,13 +85,29 @@ export default function AddWordSheet({ questionId = "", initialWord = "", questi
   async function save(event: FormEvent) {
     event.preventDefault();
     if (!word.trim()) return;
+    if (localProductionSafetyMode()) {
+      setMessage("Local Safe is read-only. Open the production app to save this word.");
+      return;
+    }
     setBusy(true); setMessage("");
+    const args = { p_word: word.trim(), p_context: questionText.trim(), p_question_id: questionId, p_capture_type: type, p_module: "web-v2", p_source: source };
     try {
-      await rpc("english_save_word", { p_word: word.trim(), p_context: questionText.trim(), p_question_id: questionId, p_capture_type: type, p_module: "web-v2", p_source: source });
-      setMessage("Saved ✓");
-      setTimeout(closeSheet, 260);
-    } catch (error: any) { setMessage(error.message || "Could not save"); }
-    finally { setBusy(false); }
+      let saved: SaveWordResult;
+      try {
+        saved = await saveWordOnce(args);
+      } catch (firstError) {
+        // A long-lived study tab can have a stale auth token or transient mobile network gap.
+        // Refresh once, then retry. The backend de-duplicates by saved word, so retry is safe.
+        await supabaseBrowser().auth.refreshSession().catch(() => undefined);
+        await sleep(250);
+        saved = await saveWordOnce(args);
+      }
+      evictSavedCaches();
+      setMessage(saved.duplicate ? "Already saved · updated ✓" : "Saved ✓");
+      setTimeout(closeSheet, 420);
+    } catch (error: any) {
+      setMessage(learnerErrorMessage(error, "Could not save. Your entry is still here — tap Save again."));
+    } finally { setBusy(false); }
   }
 
   const sheet = open && typeof document !== "undefined" ? createPortal(
