@@ -424,8 +424,58 @@ function QuestionMap({session,idx,answers,visited,review,answered,visitedUnanswe
 }
 
 function SprintResultView({session,diagnosis,analyzing,error,onExit}:{session:SprintSession;diagnosis:Diagnosis[];analyzing:boolean;error:string;onExit:()=>void}){
-  const result=session.result;const maxMarks=result?.maxMarks??session.questionCount*2;const diagnosisMap=new Map(diagnosis.map(x=>[x.position,x]));
-  return <main className="sprint-result-clean"><header className="module-compact-head"><button className="compact-back" type="button" onClick={onExit}>← Exam Prep</button><div className="compact-head-copy"><strong>Sprint Result</strong><span>{modeMeta[(session.mode as Mode)]?.label||session.mode}</span></div><span/></header><section className="result-score-hero"><span>Score</span><strong>{result?.score??0}<small>/{maxMarks}</small></strong><p>{(result?.score??0)>=45&&session.mode==="standard"?"45+ target reached":"Review the misses, then move on."}</p></section><div className="result-mini-grid"><MiniMetric label="Correct" value={result?.correct??0}/><MiniMetric label="Wrong" value={result?.wrong??0}/><MiniMetric label="Unanswered" value={result?.unanswered??0}/><MiniMetric label="Accuracy" value={`${result?.accuracy??0}%`}/></div>{analyzing&&<p className="analysis-loading">GPT is classifying the misses…</p>}{error&&<div className="compact-error">{error}</div>}<section className="result-review-list"><h2>Review</h2>{session.items.map(x=>{const d=diagnosisMap.get(x.position);return <article key={x.position} className={x.selectedKey===x.correctKey?"correct":"missed"}><div className="result-question-head"><span>Q{x.position} · {pretty(x.category)}</span><b>{x.selectedKey===x.correctKey?"Correct":"Review"}</b></div><h3>{x.question}</h3><div className="answer-review"><p><span>Your answer</span><b>{optionText(x.options,x.selectedKey)||"Unanswered"}</b></p><p><span>Correct answer</span><b>{optionText(x.options,x.correctKey)||x.correctKey||"—"}</b></p></div>{x.explanation&&<p className="result-explanation">{x.explanation}</p>}{d&&<div className="diagnosis-line"><b>{d.diagnosis}</b><span>{d.action}</span>{d.confusedWith&&<small>{d.confusedWith}</small>}{d.rationale&&<p>{d.rationale}</p>}</div>}</article>})}</section><button className="btn primary result-done" type="button" onClick={onExit}>Done</button></main>;
+  const result=session.result;
+  const maxMarks=result?.maxMarks??session.questionCount*2;
+  const diagnosisMap=new Map(diagnosis.map(x=>[x.position,x]));
+  const[banked,setBanked]=useState<Set<number>>(()=>new Set());
+  const[bankBusy,setBankBusy]=useState<Set<number>>(()=>new Set());
+  const[bankError,setBankError]=useState("");
+
+  useEffect(()=>{
+    let live=true;
+    void rpc<{ok:boolean;items?:Array<{position:number}>}>("english_get_sprint_bank_marks",{p_session_id:session.sessionId})
+      .then(out=>{if(live)setBanked(new Set((out.items||[]).map(x=>Number(x.position)).filter(Number.isFinite)));})
+      .catch(()=>{});
+    return()=>{live=false};
+  },[session.sessionId]);
+
+  async function saveToBank(position:number){
+    if(banked.has(position)||bankBusy.has(position))return;
+    if(localProductionSafetyMode()){setBankError("Save to Bank is disabled in Local Safe.");return;}
+    setBankError("");
+    setBankBusy(prev=>{const next=new Set(prev);next.add(position);return next;});
+    try{
+      const out=await rpc<{ok:boolean;saved:boolean;questionId?:string|null}>("english_set_sprint_bank_mark",{p_session_id:session.sessionId,p_position:position,p_saved:true});
+      if(!out?.ok||out.saved!==true)throw new Error("Could not save this question to the bank.");
+      setBanked(prev=>{const next=new Set(prev);next.add(position);return next;});
+    }catch(e:any){setBankError(learnerErrorMessage(e,"Could not save this question to the bank."));}
+    finally{setBankBusy(prev=>{const next=new Set(prev);next.delete(position);return next;});}
+  }
+
+  return <main className="sprint-result-clean">
+    <header className="module-compact-head"><button className="compact-back" type="button" onClick={onExit}>← Exam Prep</button><div className="compact-head-copy"><strong>Sprint Result</strong><span>{modeMeta[(session.mode as Mode)]?.label||session.mode}</span></div><span/></header>
+    <section className="result-score-hero"><span>Score</span><strong>{result?.score??0}<small>/{maxMarks}</small></strong><p>{(result?.score??0)>=45&&session.mode==="standard"?"45+ target reached":"Review the misses, then move on."}</p></section>
+    <div className="result-mini-grid"><MiniMetric label="Correct" value={result?.correct??0}/><MiniMetric label="Wrong" value={result?.wrong??0}/><MiniMetric label="Unanswered" value={result?.unanswered??0}/><MiniMetric label="Accuracy" value={`${result?.accuracy??0}%`}/></div>
+    {analyzing&&<p className="analysis-loading">GPT is classifying the misses…</p>}
+    {error&&<div className="compact-error">{error}</div>}
+    {bankError&&<div className="compact-error">{bankError}</div>}
+    <section className="result-review-list"><h2>Review</h2>{session.items.map(x=>{
+      const d=diagnosisMap.get(x.position);
+      const saved=banked.has(x.position);
+      const busy=bankBusy.has(x.position);
+      return <article key={x.position} className={x.selectedKey===x.correctKey?"correct":"missed"}>
+        <div className="result-question-head"><span>Q{x.position} · {pretty(x.category)}</span><b>{x.selectedKey===x.correctKey?"Correct":"Review"}</b></div>
+        <div style={{display:"flex",justifyContent:"flex-end",marginTop:6}}>
+          <button type="button" aria-pressed={saved} disabled={saved||busy} onClick={()=>void saveToBank(x.position)} style={{border:"1px solid currentColor",borderRadius:999,background:"transparent",color:"inherit",fontSize:11,fontWeight:800,lineHeight:1.2,padding:"5px 9px",opacity:busy?0.55:saved?0.72:0.86}}>{saved?"✓ In Bank":busy?"Saving…":"＋ Save to Bank"}</button>
+        </div>
+        <h3>{x.question}</h3>
+        <div className="answer-review"><p><span>Your answer</span><b>{optionText(x.options,x.selectedKey)||"Unanswered"}</b></p><p><span>Correct answer</span><b>{optionText(x.options,x.correctKey)||x.correctKey||"—"}</b></p></div>
+        {x.explanation&&<p className="result-explanation">{x.explanation}</p>}
+        {d&&<div className="diagnosis-line"><b>{d.diagnosis}</b><span>{d.action}</span>{d.confusedWith&&<small>{d.confusedWith}</small>}{d.rationale&&<p>{d.rationale}</p>}</div>}
+      </article>;
+    })}</section>
+    <button className="btn primary result-done" type="button" onClick={onExit}>Done</button>
+  </main>;
 }
 
 function MiniMetric({label,value}:{label:string;value:string|number}){return <div className="mini-metric"><span>{label}</span><strong>{value}</strong></div>}
