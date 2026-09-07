@@ -35,8 +35,13 @@ export default function DailyRolloverSync({ children }: Readonly<{ children: Rea
       }
       if (inFlight.current) {
         const batchDate = await inFlight.current;
-        if (initial && active) setBootReady(true);
-        return batchDate;
+        if (batchDate || !initial) {
+          if (initial && active) setBootReady(true);
+          return batchDate;
+        }
+        // A concurrent initial attempt may have started before Supabase restored the
+        // persisted session. Fall through and retry now instead of treating the empty
+        // result as a successful rollover check.
       }
       if (!initial && Date.now() - lastSyncAt.current < MIN_SYNC_GAP_MS) return lastBatchDate.current;
 
@@ -95,6 +100,27 @@ export default function DailyRolloverSync({ children }: Readonly<{ children: Rea
       if (active) setBootReady(true);
     });
 
+    // The layout can mount before Supabase emits INITIAL_SESSION. If that first
+    // getSession() returns empty, retry as soon as auth restoration finishes. This is
+    // the key fail-safe that prevents an effectively-complete old Daily from sticking
+    // on Home until focus/heartbeat happens later.
+    const supabase = supabaseBrowser();
+    const { data: authSub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!active || !session || lastSyncAt.current > 0) return;
+      if (event === "INITIAL_SESSION" || event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
+        void sync(true);
+      }
+    });
+
+    // Also cover transient bootstrap/network ordering where no auth event is emitted
+    // after this component subscribes. These are bounded one-shot retries, not a loop.
+    const bootRetry1 = window.setTimeout(() => {
+      if (active && lastSyncAt.current === 0) void sync(true);
+    }, 1500);
+    const bootRetry2 = window.setTimeout(() => {
+      if (active && lastSyncAt.current === 0) void sync(true);
+    }, 5000);
+
     const onWake = () => {
       if (document.visibilityState === "visible") {
         evictDailyResumeCache();
@@ -110,6 +136,9 @@ export default function DailyRolloverSync({ children }: Readonly<{ children: Rea
 
     return () => {
       active = false;
+      authSub.subscription.unsubscribe();
+      window.clearTimeout(bootRetry1);
+      window.clearTimeout(bootRetry2);
       window.removeEventListener("focus", onWake);
       document.removeEventListener("visibilitychange", onWake);
       window.clearInterval(heartbeat);
