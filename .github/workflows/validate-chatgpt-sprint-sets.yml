@@ -1,0 +1,39 @@
+name: Validate ChatGPT Sprint Sets
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'web-v2/app/english/exam/**'
+      - 'web-v2/components/chatgpt-sprint-sets*'
+      - 'web-v2/components/sprint-report-history.tsx'
+      - 'supabase/functions/english-sprint-critic-worker/**'
+      - 'supabase/migrations/**chatgpt_sprint_sets.sql'
+      - '.github/scripts/validate-chatgpt-sprint-sets.cjs'
+      - '.github/workflows/validate-chatgpt-sprint-sets.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web-v2/package-lock.json
+      - name: Install web dependencies
+        working-directory: web-v2
+        run: npm ci
+      - name: TypeScript
+        working-directory: web-v2
+        run: npm run typecheck
+      - name: Production build
+        working-directory: web-v2
+        run: npm run build
+      - name: ChatGPT Sprint set contracts
+        run: node .github/scripts/validate-chatgpt-sprint-sets.cjs

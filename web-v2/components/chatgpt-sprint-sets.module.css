@@ -1,0 +1,77 @@
+.activeShell{
+  display:block;
+}
+
+.setBanner{
+  margin:0 auto 10px;
+  width:min(100%,980px);
+  padding:12px 16px;
+  border:1px solid var(--border,#2c3747);
+  border-radius:16px;
+  background:var(--surface,#151b24);
+  display:grid;
+  grid-template-columns:auto 1fr;
+  gap:2px 12px;
+  align-items:center;
+}
+
+.setBanner span{
+  grid-column:1;
+  font-size:11px;
+  letter-spacing:.08em;
+  font-weight:800;
+  opacity:.72;
+}
+
+.setBanner strong{
+  grid-column:1;
+  font-size:20px;
+}
+
+.setBanner small{
+  grid-column:2;
+  grid-row:1 / span 2;
+  align-self:center;
+  opacity:.78;
+}
+
+.chatInstruction{
+  min-width:230px;
+  max-width:360px;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  text-align:right;
+}
+
+.chatInstruction strong{font-size:14px}
+.chatInstruction span{font-size:12px;opacity:.78;line-height:1.35}
+
+.activeShell :global(.exam-launch-card),
+.activeShell :global(.exam-more-row){
+  display:none;
+}
+
+.activeShell[data-status="ready"] :global(.resume-sprint-strip .btn.primary){
+  font-size:0;
+}
+.activeShell[data-status="ready"] :global(.resume-sprint-strip .btn.primary)::after{
+  content:"Start Now";
+  font-size:14px;
+}
+
+@media (max-width:640px){
+  .setBanner{
+    grid-template-columns:1fr;
+    padding:11px 13px;
+  }
+  .setBanner span,.setBanner strong,.setBanner small{
+    grid-column:1;
+    grid-row:auto;
+  }
+  .chatInstruction{
+    min-width:0;
+    max-width:none;
+    text-align:left;
+  }
+}
