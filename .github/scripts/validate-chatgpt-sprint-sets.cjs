@@ -39,7 +39,7 @@ need(repair,"'repairPositions'",'Repair positions are exposed in Sprint state');
 need(scoreFix,"v_score numeric:=coalesce((p_report->>'score')::numeric,0)",'Luna report score uses an unambiguous local variable');
 need(scoreFix,"'lunaCriticScore',v_score",'Publication metadata uses the unambiguous Luna score variable');
 need(scoreFix,'max(ss.set_no)','Set number aggregation is explicitly qualified');
-forbid(scoreFix,'score numeric:=','Ambiguous score local variable cannot regress');
+forbid(scoreFix,'\n  score numeric:=','Ambiguous score local variable cannot regress');
 need(worker,'Audit the complete 25-question set together in ONE pass','Luna sees the full set together');
 need(worker,'judge EACH QUESTION independently','Luna must decide question-wise');
 need(worker,'enum:["PASS","REPAIR"]','Every Sprint item receives PASS or REPAIR');
