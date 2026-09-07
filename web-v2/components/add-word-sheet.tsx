@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { learnerErrorMessage, localProductionSafetyMode, supabaseBrowser } from "@/lib/supabase";
 
-const types = ["AUTO", "V", "SM", "OWS", "PV", "IP"];
+const types = ["AUTO", "V", "SM", "OWS", "PV", "IP", "CU"];
 const SAVE_TIMEOUT_MS = 8_000;
 const SAVED_CACHE_PREFIXES = [
   "ep:v2:rpc-cache:english_get_saved_revision_hub:",
@@ -136,7 +136,7 @@ export default function AddWordSheet({ questionId = "", initialWord = "", questi
           placeholder="Word / doubt / usage point"
           required
         />
-        <div className="capture-types add-word-types">{types.map((item) => <button className={`capture-type ${item === type ? "selected" : ""}`} type="button" key={item} aria-pressed={item === type} onClick={() => setType(item)}>{item === "IP" ? "I/P" : item}</button>)}</div>
+        <div className="capture-types add-word-types" style={{ display: "grid", gridTemplateColumns: "repeat(7,minmax(0,1fr))", gap: 4, flexWrap: "nowrap" }}>{types.map((item) => <button className={`capture-type ${item === type ? "selected" : ""}`} style={{ minWidth: 0, paddingInline: 4 }} type="button" key={item} aria-pressed={item === type} onClick={() => setType(item)}>{item === "IP" ? "I/P" : item}</button>)}</div>
         {message && <div className="form-message add-word-message">{message}</div>}
         <button className="btn primary sheet-save add-word-save" disabled={busy || !word.trim()}>{busy ? "Saving…" : "Save"}</button>
       </form>
