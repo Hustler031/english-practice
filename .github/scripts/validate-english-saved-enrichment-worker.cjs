@@ -15,6 +15,7 @@ const captureFamilyMigration = fs.readFileSync(path.join(root, 'supabase/migrati
 const autoCategoryMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20260907212000_english_saved_auto_category_integrity.sql'),'utf8');
 const authoritativeAutoMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20260907211500_english_saved_authoritative_auto_and_worker_timeout.sql'),'utf8');
 const resourceRecoveryMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20260907212500_english_saved_worker_resource_recovery.sql'),'utf8');
+const learningIntentMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20260907214500_english_saved_learning_intent.sql'),'utf8');
 
 function need(text, needle, label) { if (!text.includes(needle)) throw new Error(`Missing ${label}: ${needle}`); }
 function forbid(text, needle, label) { if (text.includes(needle)) throw new Error(`Forbidden ${label}: ${needle}`); }
@@ -37,6 +38,7 @@ need(helper, 'reasoning:{effort:"low"}', 'Luna low reasoning');
 need(helper, 'gemini-3.8-flash', 'rare second-repair rescue');
 need(helper, 'thinkingConfig:{thinkingLevel:"high"}', 'rare rescue high reasoning');
 need(helper, 'A second Luna non-PASS reaches Gemini 3.8 high-reasoning rescue exactly once.', 'second Luna non-PASS rescue rule');
+need(worker, 'gemini-3.5-flash', 'secondary availability fallback');
 need(worker, 'runAntigravityLunaPipeline<any>', 'Saved writer/critic pipeline');
 need(worker, 'items.map((item:any)=>enrichOne(item))', 'each claimed Saved item is processed independently');
 need(worker, 'requestMode:"one_item_per_generation_request"', 'Saved audit records one-item request mode');
@@ -47,14 +49,14 @@ need(worker, 'fourOptionCodeGate', 'Saved deterministic option gate');
 
 // Capture type is learner/storage intent. AUTO is immutable and resolvedType owns family selection.
 need(worker, 'captureType is storage/user intent', 'Saved capture-type ownership instruction');
-need(worker, 'NEVER infer, replace, or upgrade captureType', 'AI cannot reclassify capture type');
+need(worker, 'NEVER infer, replace or upgrade it', 'AI cannot reclassify capture type');
 need(worker, 'function requiredFamily(item:any)', 'effective family resolver');
 need(worker, 'if(capture!=="AUTO")return capture', 'explicit capture remains authoritative');
 need(worker, 'data.captureType=original', 'all capture types including AUTO are preserved');
 need(worker, 'AUTO is never replaced by AI', 'AUTO mutation rejection');
 need(worker, 'requiredQuestionFamily:family', 'critic receives backend-resolved authoritative family');
-need(worker, 'SM = spelling-mistake practice and MUST produce a spelling-family MCQ', 'writer receives authoritative SM instruction');
-need(worker, 'CU = grammar/usage/confusable-rule practice', 'writer receives CU instruction');
+need(worker, 'SM=spelling-mistake practice', 'writer receives authoritative SM instruction');
+need(worker, 'CU=grammar/usage/confusable-rule', 'writer receives CU instruction');
 need(worker, 'SM requires a spelling-family MCQ', 'SM deterministic family gate');
 need(worker, 'V requires semantic vocabulary practice', 'V deterministic anti-spelling gate');
 need(worker, 'CU requires a grammar/usage rule or distinction', 'CU deterministic family gate');
@@ -64,6 +66,27 @@ forbid(worker, 'enrichBatch', 'Saved generation batching');
 forbid(worker, 'chunks(items', 'Saved batching helper use');
 forbid(worker, 'GROQ_API_KEY', 'Saved direct Groq dependency');
 forbid(worker, 'criticAndEscalate', 'Saved legacy Groq escalation helper');
+
+// Learning intent is independent from category and authoritative before provider calls.
+need(learningIntentMigration, 'add column if not exists learning_intent', 'learning-intent column');
+need(learningIntentMigration, "('AUTO','MEANING','USAGE','CONFUSION')", 'learning-intent enum');
+need(learningIntentMigration, 'learning_intent_origin', 'learning-intent provenance');
+need(learningIntentMigration, 'resolve_saved_learning_intent_authoritative', 'authoritative intent resolver');
+need(learningIntentMigration, 'english_save_word_with_intent', 'atomic save + intent RPC');
+need(learningIntentMigration, "v_requested_intent='AUTO' and v_existing_intent in ('MEANING','USAGE','CONFUSION')", 'duplicate AUTO preserves explicit Need');
+need(learningIntentMigration, '"requiredLearningIntent"', 'maintenance batch sends effective Need');
+need(worker, 'requiredLearningIntent is also authoritative', 'writer obeys backend Need');
+need(worker, 'function requiredLearningIntent(item:any)', 'worker effective Need reader');
+need(worker, 'bare vocabulary target', 'bare target meaning-recall rule');
+need(worker, 'test them TOGETHER in ONE MCQ', 'multi-word cluster stays combined');
+need(worker, 'three defensible mappings/usages and one subtle defect', 'hard cluster distractor rule');
+need(worker, 'hard SSC-level revision', 'hard Saved difficulty rule');
+need(worker, 'Explain ALL FOUR options explicitly', 'all-option explanation rule');
+need(worker, 'explanation must explicitly explain all four options A, B, C and D', 'deterministic explanation coverage gate');
+need(worker, 'bare V + MEANING must directly test lexical meaning/recall', 'bare V anti-sentence gate');
+need(worker, 'CONFUSION must test the supplied targets together', 'combined cluster deterministic gate');
+need(worker, 'hardDistractors:true', 'critic receives hard distractor requirement');
+need(worker, 'explainAllOptions:true', 'critic receives all-option explanation requirement');
 
 // Original DB category gate remains, while newer migrations make AUTO immutable
 // and resolve its generation family before provider calls.
@@ -79,9 +102,9 @@ need(autoCategoryMigration, "then 'CU'", 'AUTO can resolve to CU');
 need(autoCategoryMigration, 'AI payload cannot mutate saved capture type', 'DB rejects AI capture mutation');
 need(autoCategoryMigration, "v_family:=case when v_capture='AUTO' then v_resolved else v_capture end", 'DB apply uses resolved family for AUTO');
 need(autoCategoryMigration, "v_requested_capture='AUTO' and v_existing_capture in ('V','SM','OWS','PV','IP','CU')", 'duplicate AUTO cannot erase explicit learner category');
-need(autoCategoryMigration, "lower(btrim(s.word))='successive'", 'known Successive corruption repair');
+need(autoCategoryMigration, "lower(btrim(s.word))='successive'", 'historical Successive migration remains auditable');
 
-// AUTO classification source is learner text + origin topic only. Generated enrichment cannot feed it.
+// AUTO category source is learner text + origin topic only. Generated enrichment cannot feed it.
 need(authoritativeAutoMigration, 'english.resolve_saved_type_authoritative', 'authoritative AUTO resolver helper');
 need(authoritativeAutoMigration, "p_word,\n    '',", 'generated meaning excluded from authoritative resolver');
 need(authoritativeAutoMigration, "'',\n    '',\n    ''", 'generated POS/question/explanation excluded from authoritative resolver');
@@ -150,4 +173,4 @@ need(exactApplyMigration, "if lower(v_status)='ready' then", 'Ready re-promotion
 need(exactApplyMigration, 'v_promoted:=public.english_promote_saved_item(v_saved_id)', 'exact promotion after enrichment');
 need(exactApplyMigration, 'grant execute on function english.maintenance_apply_saved_enrichment(jsonb) to service_role', 'maintenance apply service-role boundary');
 
-console.log('English Saved Antigravity HIGH writer + Luna LOW one-item critic + authoritative AUTO source + max-3 concurrency + 546 recovery: PASS');
+console.log('English Saved Antigravity HIGH writer + Luna LOW critic + category/Need authority + hard combined revision + max-3 concurrency: PASS');
