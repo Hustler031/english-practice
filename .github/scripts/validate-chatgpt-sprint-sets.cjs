@@ -5,6 +5,7 @@ const guard=fs.readFileSync(path.join(root,'supabase/migrations/20260907064950_e
 const migration=fs.readFileSync(path.join(root,'supabase/migrations/20260907065000_english_chatgpt_sprint_sets.sql'),'utf8');
 const acl=fs.readFileSync(path.join(root,'supabase/migrations/20260907070000_english_chatgpt_sprint_state_acl.sql'),'utf8');
 const repair=fs.readFileSync(path.join(root,'supabase/migrations/20260907071000_english_sprint_questionwise_luna_repair.sql'),'utf8');
+const scoreFix=fs.readFileSync(path.join(root,'supabase/migrations/20260907072000_english_sprint_critic_apply_score_fix.sql'),'utf8');
 const worker=fs.readFileSync(path.join(root,'supabase/functions/english-sprint-critic-worker/index.ts'),'utf8');
 const landing=fs.readFileSync(path.join(root,'web-v2/components/chatgpt-sprint-sets.tsx'),'utf8');
 const history=fs.readFileSync(path.join(root,'web-v2/components/sprint-report-history.tsx'),'utf8');
@@ -35,11 +36,16 @@ need(repair,"critic_status='queued'",'Successful targeted repair queues a fresh 
 need(repair,"critic_status in ('queued','error')",'Retry scheduler only retries transport-ready states');
 need(repair,"critic_status='processing'",'Only stale processing claims may be retried');
 need(repair,"'repairPositions'",'Repair positions are exposed in Sprint state');
+need(scoreFix,"v_score numeric:=coalesce((p_report->>'score')::numeric,0)",'Luna report score uses an unambiguous local variable');
+need(scoreFix,"'lunaCriticScore',v_score",'Publication metadata uses the unambiguous Luna score variable');
+need(scoreFix,'max(ss.set_no)','Set number aggregation is explicitly qualified');
+forbid(scoreFix,'\n  score numeric:=','Ambiguous score local variable cannot regress');
 need(worker,'Audit the complete 25-question set together in ONE pass','Luna sees the full set together');
 need(worker,'judge EACH QUESTION independently','Luna must decide question-wise');
 need(worker,'enum:["PASS","REPAIR"]','Every Sprint item receives PASS or REPAIR');
 need(worker,'enum:["PASS","REPAIR","REJECT_GLOBAL"]','Whole-set reject is a distinct global-only decision');
 need(worker,'repairPositions','Luna returns exact positions to replace');
+forbid(worker,'uniqueItems:true','Sprint Luna structured-output schema avoids unsupported uniqueItems');
 need(worker,'all PASS positions are frozen','Luna understands good positions are retained');
 need(worker,'noWithinSetSemanticDuplicate','Luna checks semantic overlap');
 need(worker,'noHistoricalRepeat','Luna checks historical freshness');
