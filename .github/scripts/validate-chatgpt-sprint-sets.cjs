@@ -1,6 +1,7 @@
 const fs=require('fs');
 const path=require('path');
 const root=path.join(__dirname,'../..');
+const guard=fs.readFileSync(path.join(root,'supabase/migrations/20260907064950_english_sprint_defer_trigger_guard.sql'),'utf8');
 const migration=fs.readFileSync(path.join(root,'supabase/migrations/20260907065000_english_chatgpt_sprint_sets.sql'),'utf8');
 const worker=fs.readFileSync(path.join(root,'supabase/functions/english-sprint-critic-worker/index.ts'),'utf8');
 const landing=fs.readFileSync(path.join(root,'web-v2/components/chatgpt-sprint-sets.tsx'),'utf8');
@@ -9,6 +10,8 @@ const page=fs.readFileSync(path.join(root,'web-v2/app/english/exam/page.tsx'),'u
 let bad=0;
 const need=(s,x,m)=>s.includes(x)?console.log('✓ '+m):(bad++,console.error('✗ '+m));
 const forbid=(s,x,m)=>!s.includes(x)?console.log('✓ '+m):(bad++,console.error('✗ '+m));
+need(guard,"new.status='in_progress'",'Legacy defer trigger only promotes old in-progress inserts');
+need(guard,"startImmediately','true'))='false'",'Legacy deferred-start behavior remains supported');
 need(migration,'english.stage_chatgpt_sprint','ChatGPT staging owner exists');
 need(migration,'sprint_self_critic_passes','ChatGPT self-critic is a hard gate');
 need(migration,"status='critic_pending'",'Staged sets cannot start before Luna');
