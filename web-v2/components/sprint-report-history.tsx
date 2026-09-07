@@ -4,18 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { learnerErrorMessage, rpc, subscribeRpcFresh } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
 
-type Mode="standard"|"weakness"|"trap"|"mistakes";
 type Filter="all"|"correct"|"wrong"|"unanswered";
-type Recent={sessionId:string;mode:string;score:number;maxMarks?:number;questionCount?:number;correct:number;wrong:number;unanswered:number;accuracy:number;durationSeconds:number;completedAt:string};
-type RecentPayload={ok:boolean;days?:number;items?:Recent[];error?:string};
-type ExamFallback={ok?:boolean;recentSprints?:Recent[]};
+type Recent={sessionId:string;setNo?:number|null;mode:string;score:number;maxMarks?:number;questionCount?:number;correct:number;wrong:number;unanswered:number;accuracy:number;durationSeconds:number;completedAt:string};
+type RecentPayload={ok:boolean;items?:Recent[];error?:string};
 type SprintOption={key:string;text:string};
 type Diagnosis={position:number;diagnosis:string;action:string;confusedWith?:string;rationale?:string};
 type SprintItem={position:number;category:string;questionType:string;question:string;options:SprintOption[];selectedKey?:string|null;timeSeconds?:number;correctKey?:string;explanation?:string;diagnosis?:string|null;action?:string|null;confusedWith?:string|null};
 type SprintResult={score:number;maxMarks?:number;correct:number;wrong:number;unanswered:number;accuracy:number;durationSeconds:number;analysis?:{items?:Diagnosis[]}};
-type SprintSession={ok:boolean;sessionId:string;mode:string;status:string;startedAt:string;completedAt?:string|null;questionCount:number;items:SprintItem[];result?:SprintResult|null;error?:string};
-
-const modeLabel:Record<Mode,string>={standard:"SSC Standard",weakness:"Weakness Sprint",trap:"Trap Sprint",mistakes:"Previous Mistakes"};
+type SprintSession={ok:boolean;sessionId:string;setNo?:number|null;mode:string;status:string;startedAt:string;completedAt?:string|null;questionCount:number;items:SprintItem[];result?:SprintResult|null;error?:string};
 
 export default function SprintReportHistory(){
   const ready=useAuthGuard();
@@ -24,50 +20,32 @@ export default function SprintReportHistory(){
   const[opening,setOpening]=useState("");
   const[session,setSession]=useState<SprintSession|null>(null);
   const[error,setError]=useState("");
-  const[expanded,setExpanded]=useState(true);
+  const[expanded,setExpanded]=useState(false);
 
   const load=useCallback(async()=>{
     if(!ready)return;
     setLoading(true);
     try{
-      let rows:Recent[]=[];
-      try{
-        const recent=await rpc<RecentPayload>("english_get_recent_sprint_reports",{p_days:5});
-        if(recent?.ok)rows=Array.isArray(recent.items)?recent.items:[];
-        else throw new Error(recent?.error||"Recent Sprint reports unavailable");
-      }catch{
-        const fallback=await rpc<ExamFallback>("english_get_exam_preparation");
-        rows=Array.isArray(fallback?.recentSprints)?fallback.recentSprints:[];
-      }
-      setReports(rows);
-      setError("");
-    }catch(e:any){setError(learnerErrorMessage(e,"Could not load recent Sprint reports."));}
+      const recent=await rpc<RecentPayload>("english_get_recent_sprint_reports",{p_days:3650});
+      if(!recent?.ok)throw new Error(recent?.error||"Sprint archive unavailable");
+      setReports(Array.isArray(recent.items)?recent.items:[]);setError("");
+    }catch(e:any){setError(learnerErrorMessage(e,"Could not load Sprint archive."));}
     finally{setLoading(false)}
   },[ready]);
 
   useEffect(()=>{if(ready)void load()},[ready,load]);
-
   useEffect(()=>{
     if(!ready)return;
-    const stopRecent=subscribeRpcFresh<RecentPayload>("english_get_recent_sprint_reports",{p_days:5},fresh=>{
-      if(!fresh?.ok)return;
-      setReports(Array.isArray(fresh.items)?fresh.items:[]);setLoading(false);setError("");
+    return subscribeRpcFresh<RecentPayload>("english_get_recent_sprint_reports",{p_days:3650},fresh=>{
+      if(!fresh?.ok)return;setReports(Array.isArray(fresh.items)?fresh.items:[]);setLoading(false);setError("");
     });
-    const stopFallback=subscribeRpcFresh<ExamFallback>("english_get_exam_preparation",undefined,fresh=>{
-      if(Array.isArray(fresh?.recentSprints))setReports(fresh.recentSprints);
-    });
-    return()=>{stopRecent();stopFallback()};
   },[ready]);
-
   useEffect(()=>{
     if(!ready||typeof document==="undefined")return;
-    const observer=new MutationObserver(()=>{
-      if(!document.body.classList.contains("english-sprint-mode"))void load();
-    });
+    const observer=new MutationObserver(()=>{if(!document.body.classList.contains("english-sprint-mode"))void load()});
     observer.observe(document.body,{attributes:true,attributeFilter:["class"]});
     return()=>observer.disconnect();
   },[ready,load]);
-
   useEffect(()=>{
     if(!session||typeof document==="undefined")return;
     document.body.classList.add("english-sprint-report-mode");
@@ -78,118 +56,96 @@ export default function SprintReportHistory(){
     setOpening(report.sessionId);setError("");
     try{
       const out=await rpc<SprintSession>("english_get_sprint_session",{p_session_id:report.sessionId});
-      if(!out?.ok||out.status!=="completed")throw new Error(out?.error||"Completed Sprint report not found");
-      setSession({...out,completedAt:out.completedAt||report.completedAt});
-    }catch(e:any){setError(learnerErrorMessage(e,"Could not open this Sprint report."));}
+      if(!out?.ok||out.status!=="completed")throw new Error(out?.error||"Completed Sprint set not found");
+      setSession({...out,setNo:out.setNo??report.setNo,completedAt:out.completedAt||report.completedAt});
+    }catch(e:any){setError(learnerErrorMessage(e,"Could not open this Sprint set."));}
     finally{setOpening("")}
   }
 
   if(!ready)return null;
   return <>
-    <section className={`sprint-report-history ${expanded?"is-expanded":"is-collapsed"}`} aria-label="Recent Sprint reports">
+    <section className={`sprint-report-history ${expanded?"is-expanded":"is-collapsed"}`} aria-label="Sprint set archive">
       <header>
-        <div><strong>Sprint Reports</strong><span>Completed attempts stay reviewable for 5 days</span></div>
-        <button className="sprint-section-collapse" type="button" aria-expanded={expanded} aria-label={`${expanded?"Collapse":"Expand"} Sprint Reports`} onClick={()=>setExpanded(x=>!x)}><b>5 days</b><i>{expanded?"⌃":"⌄"}</i></button>
+        <div><strong>Previous Sprint Sets</strong><span>Permanent archive · set number + date + full question review</span></div>
+        <button className="sprint-section-collapse" type="button" aria-expanded={expanded} aria-label={`${expanded?"Collapse":"Expand"} previous Sprint sets`} onClick={()=>setExpanded(x=>!x)}><b>{reports.length} sets</b><i>{expanded?"⌃":"⌄"}</i></button>
       </header>
       {expanded&&<>
         {error&&<div className="compact-error sprint-report-error" role="alert">{error}</div>}
-        {loading&&!reports.length?<div className="sprint-report-skeleton" aria-label="Loading recent reports"><i/><i/><i/></div>:
-        reports.length?<div className="sprint-history-list">{reports.map((report,index)=>{
-          const day=reportDayLabel(report.completedAt);
-          const title=day==="Today"&&index===0?"Today's Sprint":day;
-          return <button type="button" key={report.sessionId} className="sprint-history-row" disabled={opening===report.sessionId} onClick={()=>void openReport(report)}>
-            <span className="sprint-history-copy"><strong>{title}</strong><small>{labelMode(report.mode)} · {reportClock(report.completedAt)} · {formatTime(report.durationSeconds)}</small><em><i className="correct"/> {report.correct} correct <i className="wrong"/> {report.wrong} wrong {report.unanswered>0&&<><i className="unanswered"/> {report.unanswered} blank</>}</em></span>
-            <span className="sprint-history-score"><b>{formatScore(report.score)}</b><small>/{report.maxMarks??modeMaxMarks(report.mode,report.questionCount)}</small><i>›</i></span>
+        {loading&&!reports.length?<div className="sprint-report-skeleton" aria-label="Loading Sprint archive"><i/><i/><i/></div>:
+        reports.length?<div className="sprint-history-list">{reports.map((report,index)=>
+          <button type="button" key={report.sessionId} className="sprint-history-row" disabled={opening===report.sessionId} onClick={()=>void openReport(report)}>
+            <span className="sprint-history-copy">
+              <strong>Set {report.setNo??reports.length-index}</strong>
+              <small>{fullDate(report.completedAt)} · {reportClock(report.completedAt)} · {formatTime(report.durationSeconds)}</small>
+              <em><i className="correct"/> {report.correct} correct <i className="wrong"/> {report.wrong} incorrect <i className="unanswered"/> {report.unanswered} skipped</em>
+            </span>
+            <span className="sprint-history-score"><b>{formatScore(report.score)}</b><small>/{report.maxMarks??50}</small><i>View Questions ›</i></span>
           </button>
-        })}</div>:<p className="sprint-history-empty">No completed Sprint in the last 5 days yet.</p>}
+        )}</div>:<p className="sprint-history-empty">No completed Sprint set yet.</p>}
       </>}
     </section>
-    {session&&<SprintReportOverlay session={session} onClose={()=>{setSession(null);void load()}}/>}
+    {session&&<SetQuestionReview session={session} onClose={()=>{setSession(null);void load()}}/>}
   </>;
 }
 
-function SprintReportOverlay({session,onClose}:{session:SprintSession;onClose:()=>void}){
-  const[selectedPosition,setSelectedPosition]=useState<number|null>(null);
+function SetQuestionReview({session,onClose}:{session:SprintSession;onClose:()=>void}){
   const[filter,setFilter]=useState<Filter>("all");
+  const[index,setIndex]=useState(0);
   const diagnosis=useMemo(()=>Array.isArray(session.result?.analysis?.items)?session.result!.analysis!.items!:[],[session.result?.analysis]);
   const diagnosisMap=useMemo(()=>new Map(diagnosis.map(x=>[x.position,x])),[diagnosis]);
-  const diagnosisCounts=useMemo(()=>{
-    const counts=new Map<string,number>();
-    for(const item of diagnosis)counts.set(item.diagnosis,(counts.get(item.diagnosis)||0)+1);
-    return [...counts.entries()].sort((a,b)=>b[1]-a[1]);
-  },[diagnosis]);
-  const filteredItems=useMemo(()=>filter==="all"?session.items:session.items.filter(item=>itemStatus(item)===filter),[filter,session.items]);
-  const selectedIndex=selectedPosition==null?-1:filteredItems.findIndex(x=>x.position===selectedPosition);
-  const selectedItem=selectedIndex>=0?filteredItems[selectedIndex]:null;
+  const filtered=useMemo(()=>filter==="all"?session.items:session.items.filter(x=>itemStatus(x)===filter),[filter,session.items]);
+  const safeIndex=Math.min(Math.max(0,index),Math.max(0,filtered.length-1));
+  const item=filtered[safeIndex]||null;
   const result=session.result;
-  const maxMarks=result?.maxMarks??session.questionCount*2;
 
-  if(selectedItem)return <div className="sprint-report-overlay"><ReviewQuestion item={selectedItem} diagnosis={diagnosisFor(selectedItem,diagnosisMap)} index={selectedIndex} count={session.items.length} onBack={()=>setSelectedPosition(null)} onPrev={()=>selectedIndex>0&&setSelectedPosition(filteredItems[selectedIndex-1].position)} onNext={()=>selectedIndex<filteredItems.length-1&&setSelectedPosition(filteredItems[selectedIndex+1].position)}/></div>;
+  function choose(next:Exclude<Filter,"all">){
+    setFilter(current=>current===next?"all":next);setIndex(0);
+  }
 
-  return <div className="sprint-report-overlay"><main className="sprint-report-page">
-    <header className="module-compact-head sprint-report-head"><button className="compact-back" type="button" onClick={onClose}>← Exam Prep</button><div className="compact-head-copy"><strong>Sprint Report</strong><span>{reportDayLabel(session.completedAt||session.startedAt)} · {labelMode(session.mode)}</span></div><span/></header>
+  return <div className="sprint-report-overlay"><main className="sprint-report-question-page">
+    <header className="module-compact-head">
+      <button className="compact-back" type="button" onClick={onClose}>← Sets</button>
+      <div className="compact-head-copy"><strong>Set {session.setNo??"—"}</strong><span>{fullDate(session.completedAt||session.startedAt)} · {formatScore(result?.score??0)}/{result?.maxMarks??50}</span></div>
+      <span/>
+    </header>
 
-    <section className={`sprint-report-hero ${session.mode==="standard"&&(result?.score??0)>=45?"goal":""}`}><span>Score</span><strong>{formatScore(result?.score??0)}<small>/{maxMarks}</small></strong><p>{session.mode==="standard"&&(result?.score??0)>=45?"45+ target reached":"Use the question review to recover lost marks."}</p></section>
-
-    <section className="sprint-report-metrics" aria-label="Sprint result summary">
-      <ReportMetric tone="correct" label="Correct" value={result?.correct??0}/>
-      <ReportMetric tone="wrong" label="Wrong" value={result?.wrong??0}/>
-      <ReportMetric tone="unanswered" label="Unanswered" value={result?.unanswered??0}/>
-      <ReportMetric tone="accuracy" label="Accuracy" value={`${result?.accuracy??0}%`}/>
-      <ReportMetric tone="time" label="Time" value={formatTime(result?.durationSeconds??0)}/>
+    <section className="sprint-report-filter-bar" aria-label="Filter reviewed questions">
+      <FilterChip tone="correct" label="Correct" count={result?.correct??session.items.filter(x=>itemStatus(x)==="correct").length} active={filter==="correct"} onClick={()=>choose("correct")}/>
+      <FilterChip tone="wrong" label="Incorrect" count={result?.wrong??session.items.filter(x=>itemStatus(x)==="wrong").length} active={filter==="wrong"} onClick={()=>choose("wrong")}/>
+      <FilterChip tone="unanswered" label="Skipped" count={result?.unanswered??session.items.filter(x=>itemStatus(x)==="unanswered").length} active={filter==="unanswered"} onClick={()=>choose("unanswered")}/>
     </section>
 
-    <section className="sprint-report-filter-bar" aria-label="Filter Sprint questions by result">
-      <FilterChip label="All" count={session.items.length} active={filter==="all"} onClick={()=>setFilter("all")}/>
-      <FilterChip tone="correct" label="Correct" count={result?.correct??session.items.filter(x=>itemStatus(x)==="correct").length} active={filter==="correct"} onClick={()=>setFilter("correct")}/>
-      <FilterChip tone="wrong" label="Wrong" count={result?.wrong??session.items.filter(x=>itemStatus(x)==="wrong").length} active={filter==="wrong"} onClick={()=>setFilter("wrong")}/>
-      <FilterChip tone="unanswered" label="Unanswered" count={result?.unanswered??session.items.filter(x=>itemStatus(x)==="unanswered").length} active={filter==="unanswered"} onClick={()=>setFilter("unanswered")}/>
-    </section>
-
-    <section className="sprint-diagnostic-summary"><header><strong>Performance signals</strong><span>{diagnosisCounts.length?"From saved mistake analysis":"No diagnostic flags saved"}</span></header>{diagnosisCounts.length?<div>{diagnosisCounts.map(([name,count])=><span key={name} className={`diagnostic-chip ${diagnosisTone(name)}`}><b>{count}</b>{name}</span>)}</div>:<p>Correct / wrong / unanswered evidence is still fully available below.</p>}</section>
-
-    <section className="sprint-report-question-list"><header><strong>{filter==="all"?"Questions":`${statusLabel(filter)} Questions`}</strong><span>{filteredItems.length} shown · tap any question to review it like the quiz</span></header>{filteredItems.length?filteredItems.map(item=>{
-      const status=itemStatus(item);const d=diagnosisFor(item,diagnosisMap);
-      return <button type="button" key={item.position} className={`sprint-report-question-row ${status}`} onClick={()=>setSelectedPosition(item.position)}>
-        <span className="report-q-number">Q{item.position}</span><span className="report-q-copy"><strong>{item.question}</strong><small>{pretty(item.category)}{Number(item.timeSeconds)>0?` · ${formatQuestionTime(Number(item.timeSeconds))}`:""}{d?` · ${d.diagnosis}`:""}</small></span><span className="report-q-state">{statusLabel(status)}<i>›</i></span>
-      </button>
-    }):<p className="sprint-report-filter-empty">No {filter} questions in this Sprint.</p>}</section>
+    {item?<>
+      <section className="sprint-review-question-card">
+        <div className="question-eyebrow"><span>{pretty(item.category)}</span><span>Q {item.position} · {statusLabel(itemStatus(item))}</span></div>
+        <h1>{item.question}</h1>
+        <div className="sprint-review-options">{item.options.map(option=>{
+          const isCorrect=option.key===item.correctKey;const isSelected=option.key===item.selectedKey;
+          const state=isCorrect&&isSelected?"selected-correct":isCorrect?"correct":isSelected?"selected-wrong":"";
+          return <div key={option.key} className={state}><span>{option.key}</span><b>{option.text}</b>{isCorrect&&isSelected?<em>Your answer · Correct</em>:isCorrect?<em>Correct answer</em>:isSelected?<em>Your answer</em>:null}</div>
+        })}</div>
+      </section>
+      <section className="sprint-review-answer-row"><div className={itemStatus(item)}><span>Your answer</span><b>{optionText(item.options,item.selectedKey)||"Skipped"}</b></div><div className="correct"><span>Correct answer</span><b>{optionText(item.options,item.correctKey)||item.correctKey||"—"}</b></div></section>
+      {item.explanation&&<section className="sprint-review-explanation"><strong>Explanation</strong><p>{item.explanation}</p></section>}
+      {diagnosisFor(item,diagnosisMap)&&<DiagnosisBox diagnosis={diagnosisFor(item,diagnosisMap)!}/>} 
+      <nav className="sprint-review-nav">
+        <button type="button" disabled={safeIndex===0} onClick={()=>setIndex(x=>Math.max(0,x-1))}>← Previous</button>
+        <button type="button" className="back-report" onClick={()=>{setFilter("all");setIndex(0)}}>{filter==="all"?`All ${session.items.length}`:"Show All"}</button>
+        <button type="button" disabled={safeIndex>=filtered.length-1} onClick={()=>setIndex(x=>Math.min(filtered.length-1,x+1))}>Next →</button>
+      </nav>
+    </>:<p className="sprint-report-filter-empty">No questions in this result group. Tap the active filter again to show all.</p>}
   </main></div>;
 }
 
-function ReviewQuestion({item,diagnosis,index,count,onBack,onPrev,onNext}:{item:SprintItem;diagnosis?:Diagnosis;index:number;count:number;onBack:()=>void;onPrev:()=>void;onNext:()=>void}){
-  const status=itemStatus(item);
-  return <main className="sprint-report-question-page">
-    <header className="module-compact-head"><button className="compact-back" type="button" onClick={onBack}>← Report</button><div className="compact-head-copy"><strong>Question {item.position}</strong><span>{pretty(item.category)} · {statusLabel(status)}{Number(item.timeSeconds)>0?` · ${formatQuestionTime(Number(item.timeSeconds))}`:""}</span></div><span/></header>
-    <section className="sprint-review-question-card">
-      <div className="question-eyebrow"><span>{pretty(item.category)}</span><span>Q {item.position}/{count}</span></div>
-      <h1>{item.question}</h1>
-      <div className="sprint-review-options">{item.options.map(option=>{
-        const isCorrect=option.key===item.correctKey;const isSelected=option.key===item.selectedKey;
-        const state=isCorrect&&isSelected?"selected-correct":isCorrect?"correct":isSelected?"selected-wrong":"";
-        return <div key={option.key} className={state}><span>{option.key}</span><b>{option.text}</b>{isCorrect&&isSelected?<em>Your answer · Correct</em>:isCorrect?<em>Correct answer</em>:isSelected?<em>Your answer</em>:null}</div>
-      })}</div>
-    </section>
-    <section className="sprint-review-answer-row"><div className={status}><span>Your answer</span><b>{optionText(item.options,item.selectedKey)||"Unanswered"}</b></div><div className="correct"><span>Correct answer</span><b>{optionText(item.options,item.correctKey)||item.correctKey||"—"}</b></div></section>
-    {item.explanation&&<section className="sprint-review-explanation"><strong>Explanation</strong><p>{item.explanation}</p></section>}
-    {diagnosis&&<section className={`sprint-review-diagnosis ${diagnosisTone(diagnosis.diagnosis)}`}><div><strong>{diagnosis.diagnosis}</strong><span>{diagnosis.action}</span></div>{diagnosis.confusedWith&&<small>Confused with: {diagnosis.confusedWith}</small>}{diagnosis.rationale&&<p>{diagnosis.rationale}</p>}</section>}
-    <nav className="sprint-review-nav"><button type="button" disabled={index===0} onClick={onPrev}>← Previous</button><button type="button" className="back-report" onClick={onBack}>Back to Report</button><button type="button" disabled={index===count-1} onClick={onNext}>Next →</button></nav>
-  </main>;
-}
-
-function ReportMetric({tone,label,value}:{tone:string;label:string;value:string|number}){return <div className={`sprint-report-metric ${tone}`}><span>{label}</span><strong>{value}</strong></div>}
-function FilterChip({tone="all",label,count,active,onClick}:{tone?:string;label:string;count:number;active:boolean;onClick:()=>void}){return <button type="button" className={`sprint-report-filter-chip ${tone} ${active?"active":""}`} aria-pressed={active} onClick={onClick}><span>{label}</span><b>{count}</b></button>}
+function DiagnosisBox({diagnosis}:{diagnosis:Diagnosis}){return <section className={`sprint-review-diagnosis ${diagnosisTone(diagnosis.diagnosis)}`}><div><strong>{diagnosis.diagnosis}</strong><span>{diagnosis.action}</span></div>{diagnosis.confusedWith&&<small>Confused with: {diagnosis.confusedWith}</small>}{diagnosis.rationale&&<p>{diagnosis.rationale}</p>}</section>}
+function FilterChip({tone,label,count,active,onClick}:{tone:string;label:string;count:number;active:boolean;onClick:()=>void}){return <button type="button" className={`sprint-report-filter-chip ${tone} ${active?"active":""}`} aria-pressed={active} onClick={onClick}><span>{label}</span><b>{count}</b></button>}
 function diagnosisFor(item:SprintItem,map:Map<number,Diagnosis>){const saved=map.get(item.position);if(saved)return saved;if(!item.diagnosis)return undefined;return {position:item.position,diagnosis:item.diagnosis,action:item.action||"Review",confusedWith:item.confusedWith||undefined}}
 function itemStatus(item:SprintItem){if(!item.selectedKey)return "unanswered";return item.selectedKey===item.correctKey?"correct":"wrong"}
-function statusLabel(status:string){return status==="correct"?"Correct":status==="wrong"?"Wrong":status==="unanswered"?"Unanswered":"All"}
+function statusLabel(status:string){return status==="correct"?"Correct":status==="wrong"?"Incorrect":"Skipped"}
 function diagnosisTone(name:string){return /careless|misread|time pressure/i.test(name)?"execution":/confusion|distractor/i.test(name)?"confusion":/knowledge|rule/i.test(name)?"learning":"neutral"}
-function labelMode(mode:string){return modeLabel[mode as Mode]||pretty(mode)}
-function modeMaxMarks(mode:string,count?:number){const fallback=mode==="standard"?25:mode==="mistakes"?10:15;return (count??fallback)*2}
 function formatScore(value:number){const n=Number(value||0);return n.toFixed(Number.isInteger(n)?0:1)}
 function formatTime(seconds:number){const safe=Math.max(0,Math.round(Number(seconds)||0));return `${String(Math.floor(safe/60)).padStart(2,"0")}:${String(safe%60).padStart(2,"0")}`}
-function formatQuestionTime(seconds:number){const safe=Math.max(0,Math.round(seconds||0));return safe>=60?`${Math.floor(safe/60)}m ${safe%60}s`:`${safe}s`}
 function optionText(options:SprintOption[]|undefined,key:string|null|undefined){if(!key)return "";const found=options?.find(x=>x.key===key);return found?`${found.key}. ${found.text}`:key}
 function pretty(value:string){return String(value||"").replaceAll("_"," ").replace(/\b\w/g,c=>c.toUpperCase())}
-function indiaDayKey(value:Date){return new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Kolkata",year:"numeric",month:"2-digit",day:"2-digit"}).format(value)}
-function reportDayLabel(value:string){const date=new Date(value);const now=new Date();if(indiaDayKey(date)===indiaDayKey(now))return "Today";const yesterday=new Date(now.getTime()-86400000);if(indiaDayKey(date)===indiaDayKey(yesterday))return "Yesterday";return new Intl.DateTimeFormat("en-IN",{timeZone:"Asia/Kolkata",day:"numeric",month:"short"}).format(date)}
+function fullDate(value:string){return new Intl.DateTimeFormat("en-IN",{timeZone:"Asia/Kolkata",day:"2-digit",month:"short",year:"numeric"}).format(new Date(value))}
 function reportClock(value:string){return new Intl.DateTimeFormat("en-IN",{timeZone:"Asia/Kolkata",hour:"numeric",minute:"2-digit",hour12:true}).format(new Date(value))}
