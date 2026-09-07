@@ -32,7 +32,7 @@ need(helper, 'gpt-5.6-luna', 'Luna critic model');
 need(helper, 'reasoning:{effort:"low"}', 'Luna low reasoning');
 need(helper, 'gemini-3.8-flash', 'rare second-repair rescue');
 need(helper, 'thinkingConfig:{thinkingLevel:"high"}', 'rare rescue high reasoning');
-need(helper, 'Only a second Luna REPAIR reaches the rare Gemini 3.8 Flash HIGH rescue path.', 'second Luna repair rescue rule');
+need(helper, 'A second Luna non-PASS reaches Gemini 3.8 high-reasoning rescue exactly once.', 'second Luna non-PASS rescue rule');
 need(worker, 'runAntigravityLunaPipeline<any>', 'Saved writer/critic pipeline');
 need(worker, 'items.map((item:any)=>enrichOne(item))', 'each claimed Saved item is processed independently');
 need(worker, 'requestMode:"one_item_per_generation_request"', 'Saved audit records one-item request mode');
