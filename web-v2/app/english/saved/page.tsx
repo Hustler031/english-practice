@@ -8,7 +8,7 @@ import { useAuthGuard } from "@/lib/use-auth";
 import { EnglishLoading } from "@/components/english-frame";
 import "./mywords-parity.css";
 
-type Saved={id:string;word:string;meaning:string;context:string;status:string;practiceQuestionId:string;gptStatus:string;gptSource?:string;captureType:string;resolvedType:string;created:string;partOfSpeech?:string;synonyms?:string;antonyms?:string;example?:string;explanation?:string;question?:string;optionA?:string;optionB?:string;optionC?:string;optionD?:string;correctOption?:string;generatorProvider?:string;generatorModel?:string;criticProvider?:string;criticModel?:string;criticScore?:number|null;criticDecision?:string;generationRepairCount?:number};
+type Saved={id:string;word:string;meaning:string;context:string;status:string;practiceQuestionId:string;gptStatus:string;gptSource?:string;captureType:string;resolvedType:string;created:string;partOfSpeech?:string;synonyms?:string;antonyms?:string;example?:string;explanation?:string;question?:string;optionA?:string;optionB?:string;optionC?:string;optionD?:string;correctOption?:string;generatorProvider?:string;generatorModel?:string;criticProvider?:string;criticModel?:string;criticScore?:number|null;criticDecision?:string;generationRepairCount?:number;enrichmentState?:string;enrichmentAttemptCount?:number;enrichmentLastAttempt?:string|null;enrichmentLastError?:string;enrichmentNextAttempt?:string|null};
 type Stats={saved:number;eligible:number;controlledNew:number;neverRevised:number;due:number;weak:number;difficult:number;starred:number;mastered:number};
 type History={date:string|null;day?:number;label:string;saved:number;eligible:number;controlledNew:number;due:number;weak:number;difficult:number;mastered:number};
 type Hub={currentDay?:number;stats:Stats;available:{smart:number;new:number;weak:number;difficult:number;starred:number;random:number;all:number};sizes:number[];history:History[]};
@@ -17,6 +17,18 @@ const types=["AUTO","V","SM","OWS","PV","IP"];
 const modes=[["🧠","Smart Revision","smart"],["🆕","New","new"],["🔥","Weak","weak"],["⚡","Difficult","difficult"],["⭐","Starred","starred"],["🎲","Random","random"],["▶","Practice All","all"]] as const;
 function shortDate(value:string){const d=new Date(value);return Number.isNaN(d.getTime())?value:d.toLocaleDateString("en-CA",{timeZone:"Asia/Kolkata"});}
 function savedStatus(item:Saved){if(String(item.practiceQuestionId||"").trim())return "In Practice";const g=String(item.gptStatus||"").trim().toLowerCase();if(g==="ready")return "Ready";if(/review|error|fail|invalid/.test(g))return "Needs Review";return "Pending";}
+function enrichmentInfo(item:Saved){
+ if(String(item.practiceQuestionId||"").trim()||String(item.gptStatus||"").trim().toLowerCase()==="ready")return "";
+ const state=String(item.enrichmentState||"pending").trim().toLowerCase();
+ const attempts=Math.max(0,Number(item.enrichmentAttemptCount||0));
+ if(state==="processing")return attempts>1?`AI retrying now · attempt ${attempts}`:"AI enrichment running";
+ if(state==="retrying"){
+  const issue=String(item.enrichmentLastError||"");
+  if(/503|429|high demand|temporar|timeout|timed out/i.test(issue))return "AI temporarily busy · auto retry scheduled";
+  return "AI retry scheduled";
+ }
+ return "Waiting for AI";
+}
 function isGptUpgraded(item:Saved){return /manual\s+chatgpt\s+upgraded|chatgpt\s+upgraded/i.test(String(item.gptSource||""));}
 function prettyModel(model?:string){const value=String(model||"").trim().toLowerCase();if(value==="gemini-3.8-flash")return "Gemini 3.8 Flash";if(value==="gemini-3.6-flash")return "Gemini 3.6 Flash";if(value==="gpt-5.6-luna")return "Luna";return String(model||"").trim();}
 function generatorLabel(item:Saved){const provider=String(item.generatorProvider||"").trim().toLowerCase();const model=prettyModel(item.generatorModel);if(!provider&&!model)return "";if(provider==="antigravity")return model?`Antigravity (${model})`:"Antigravity";return model||String(item.generatorProvider||"").trim();}
@@ -36,6 +48,7 @@ export default function SavedPage(){
  async function refreshHub(){setHub(await rpc<Hub>("english_get_saved_revision_hub"));}
  async function refreshRows(){setRows(await rpc<Saved[]>("english_get_saved_items"));}
  useEffect(()=>{if(!ready)return;const offHub=subscribeRpcFresh<Hub>("english_get_saved_revision_hub",undefined,setHub);const offRows=subscribeRpcFresh<Saved[]>("english_get_saved_items",undefined,setRows);refreshHub().catch((e:any)=>setError(e.message));return()=>{offHub();offRows();};},[ready]);
+ useEffect(()=>{if(!ready||!manage)return;const timer=window.setInterval(()=>void refreshRows().catch(()=>{}),12000);return()=>window.clearInterval(timer);},[ready,manage]);
  const load=useCallback(()=>{if(!pick)return Promise.resolve([]);if(pick.date)return rpc<any[]>("english_get_saved_history_batch",{p_date:pick.date,p_mode:pick.mode,p_count:pick.count});return rpc<any[]>("english_get_saved_revision_batch",{p_mode:pick.mode,p_count:pick.count});},[pick]);
  async function openManage(){setManage(true);setDetail(null);if(!rows.length)try{await refreshRows();}catch(e:any){setError(e.message);}}
  async function changeType(id:string,next:string){setRows(a=>a.map(x=>x.id===id?{...x,captureType:next}:x));try{await rpc("english_set_saved_item_type",{p_saved_id:id,p_capture_type:next});await refreshRows();}catch(e:any){setError(e.message);await refreshRows();}}
@@ -75,18 +88,19 @@ function ManageSaved({rows,error,editing,setEditing,onBack,onOpen,onType}:{rows:
  return <div className="saved-parity-page saved-manage-page">
   <section className="saved-subhead"><button className="btn ghost saved-back" onClick={onBack}>← Back</button><div><h1>My Words</h1><p>Every word you save appears here automatically.</p></div></section>
   {error&&<div className="error-box">{error}</div>}
-  <div className="mywords-final-list">{rows.map(item=><article className="mywords-final-row" key={item.id} onClick={()=>onOpen(item)} role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")onOpen(item)}}><div><b>{item.word}</b><div className={`mywords-final-status status-${savedStatus(item).toLowerCase().replace(/\s+/g,"-")}`}>{savedStatus(item)}{isGptUpgraded(item)?" · GPT Upgraded":""} · {shortDate(item.created)}</div>{editing===item.id&&<div className="capture-types myword-types" onClick={e=>e.stopPropagation()}>{types.map(next=><button key={next} className={`capture-type ${item.captureType===next?"selected":""}`} onClick={()=>void onType(item.id,next)}>{next==="IP"?"I/P":next}</button>)}</div>}</div><button className="btn ghost mini" onClick={e=>{e.stopPropagation();setEditing(editing===item.id?null:item.id)}}>Edit</button></article>)}</div>
+  <div className="mywords-final-list">{rows.map(item=>{const aiInfo=enrichmentInfo(item);return <article className="mywords-final-row" key={item.id} onClick={()=>onOpen(item)} role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")onOpen(item)}}><div><b>{item.word}</b><div className={`mywords-final-status status-${savedStatus(item).toLowerCase().replace(/\s+/g,"-")}`} title={item.enrichmentLastError||undefined}>{savedStatus(item)}{isGptUpgraded(item)?" · GPT Upgraded":""}{aiInfo?` · ${aiInfo}`:""} · {shortDate(item.created)}</div>{editing===item.id&&<div className="capture-types myword-types" onClick={e=>e.stopPropagation()}>{types.map(next=><button key={next} className={`capture-type ${item.captureType===next?"selected":""}`} onClick={()=>void onType(item.id,next)}>{next==="IP"?"I/P":next}</button>)}</div>}</div><button className="btn ghost mini" onClick={e=>{e.stopPropagation();setEditing(editing===item.id?null:item.id)}}>Edit</button></article>})}</div>
  </div>;
 }
 
 function SavedDetail({item,onBack}:{item:Saved;onBack:()=>void}){
  const options:Array<[string,string|undefined]>=[["A",item.optionA],["B",item.optionB],["C",item.optionC],["D",item.optionD]];const correct=String(item.correctOption||"").trim().toUpperCase().replace(/[^A-D].*$/,"").charAt(0);
  const block=(label:string,value?:string)=>!String(value||"").trim()?null:<div className="myword-detail-block"><small>{label}</small><div>{value}</div></div>;
- const generatedBy=generatorLabel(item),critic=criticLabel(item),score=item.criticScore==null?null:Number(item.criticScore),showAiMeta=Boolean(generatedBy||critic||Number.isFinite(score));
+ const generatedBy=generatorLabel(item),critic=criticLabel(item),score=item.criticScore==null?null:Number(item.criticScore),showAiMeta=Boolean(generatedBy||critic||Number.isFinite(score)),aiInfo=enrichmentInfo(item);
  return <div className="saved-parity-page saved-detail-page">
-  <section className="saved-subhead mywords-detail-head"><button className="btn ghost saved-back" onClick={onBack}>← My Words</button><div><h1>{item.word}</h1><p>GPT enrichment · {savedStatus(item)}{isGptUpgraded(item)?" · GPT Upgraded":""}</p></div></section>
+  <section className="saved-subhead mywords-detail-head"><button className="btn ghost saved-back" onClick={onBack}>← My Words</button><div><h1>{item.word}</h1><p>GPT enrichment · {savedStatus(item)}{isGptUpgraded(item)?" · GPT Upgraded":""}{aiInfo?` · ${aiInfo}`:""}</p></div></section>
   <article className="myword-detail-card">
    <div><div className="myword-detail-word">{item.word}</div>{(item.partOfSpeech||item.resolvedType)&&<div className="myword-detail-type">{item.partOfSpeech||item.resolvedType}</div>}</div>
+   {aiInfo&&<div className="myword-detail-block"><small>AI enrichment</small><div title={item.enrichmentLastError||undefined}>{aiInfo}{item.enrichmentAttemptCount?` · attempts ${item.enrichmentAttemptCount}`:""}</div></div>}
    {block("Meaning",item.meaning||item.context)}
    {item.question&&<div className="myword-detail-block"><small>Practice question</small><div className="myword-detail-question">{item.question}</div><div className="myword-detail-options">{options.map(([key,text])=>text?<div key={key} className={`myword-detail-option ${correct===key?"correct":""}`}><b>{key}.</b> {text}</div>:null)}</div></div>}
    {block("Explanation",item.explanation)}
