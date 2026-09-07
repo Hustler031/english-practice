@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { learnerErrorMessage, rpc, subscribeRpcFresh } from "@/lib/supabase";
+import { learnerErrorMessage, localProductionSafetyMode, rpc, subscribeRpcFresh } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
 
 type Filter="all"|"correct"|"wrong"|"unanswered";
@@ -91,15 +91,42 @@ export default function SprintReportHistory(){
 function SetQuestionReview({session,onClose}:{session:SprintSession;onClose:()=>void}){
   const[filter,setFilter]=useState<Filter>("all");
   const[index,setIndex]=useState(0);
+  const[banked,setBanked]=useState<Set<number>>(()=>new Set());
+  const[bankBusy,setBankBusy]=useState<Set<number>>(()=>new Set());
+  const[bankError,setBankError]=useState("");
   const diagnosis=useMemo(()=>Array.isArray(session.result?.analysis?.items)?session.result!.analysis!.items!:[],[session.result?.analysis]);
   const diagnosisMap=useMemo(()=>new Map(diagnosis.map(x=>[x.position,x])),[diagnosis]);
   const filtered=useMemo(()=>filter==="all"?session.items:session.items.filter(x=>itemStatus(x)===filter),[filter,session.items]);
   const safeIndex=Math.min(Math.max(0,index),Math.max(0,filtered.length-1));
   const item=filtered[safeIndex]||null;
   const result=session.result;
+  const currentSaved=item?banked.has(item.position):false;
+  const currentBusy=item?bankBusy.has(item.position):false;
+
+  useEffect(()=>{
+    let live=true;
+    setBanked(new Set());setBankError("");
+    void rpc<{ok:boolean;items?:Array<{position:number}>}>("english_get_sprint_bank_marks",{p_session_id:session.sessionId})
+      .then(out=>{if(live)setBanked(new Set((out.items||[]).map(x=>Number(x.position)).filter(Number.isFinite)));})
+      .catch(()=>{});
+    return()=>{live=false};
+  },[session.sessionId]);
 
   function choose(next:Exclude<Filter,"all">){
     setFilter(current=>current===next?"all":next);setIndex(0);
+  }
+
+  async function saveToBank(position:number){
+    if(banked.has(position)||bankBusy.has(position))return;
+    if(localProductionSafetyMode()){setBankError("Save to Bank is disabled in Local Safe.");return;}
+    setBankError("");
+    setBankBusy(prev=>{const next=new Set(prev);next.add(position);return next;});
+    try{
+      const out=await rpc<{ok:boolean;saved:boolean;questionId?:string|null}>("english_set_sprint_bank_mark",{p_session_id:session.sessionId,p_position:position,p_saved:true});
+      if(!out?.ok||out.saved!==true)throw new Error("Could not save this question to the bank.");
+      setBanked(prev=>{const next=new Set(prev);next.add(position);return next;});
+    }catch(e:any){setBankError(learnerErrorMessage(e,"Could not save this question to the bank."));}
+    finally{setBankBusy(prev=>{const next=new Set(prev);next.delete(position);return next;});}
   }
 
   return <div className="sprint-report-overlay"><main className="sprint-report-question-page">
@@ -115,9 +142,17 @@ function SetQuestionReview({session,onClose}:{session:SprintSession;onClose:()=>
       <FilterChip tone="unanswered" label="Skipped" count={result?.unanswered??session.items.filter(x=>itemStatus(x)==="unanswered").length} active={filter==="unanswered"} onClick={()=>choose("unanswered")}/>
     </section>
 
+    {bankError&&<div className="compact-error sprint-report-error" role="alert">{bankError}</div>}
+
     {item?<>
       <section className="sprint-review-question-card">
-        <div className="question-eyebrow"><span>{pretty(item.category)}</span><span>Q {item.position} · {statusLabel(itemStatus(item))}</span></div>
+        <div className="question-eyebrow">
+          <span>{pretty(item.category)}</span>
+          <span style={{display:"inline-flex",alignItems:"center",gap:8}}>
+            Q {item.position} · {statusLabel(itemStatus(item))}
+            <button type="button" aria-label={currentSaved?"Saved to bank":"Save question to bank"} aria-pressed={currentSaved} disabled={currentSaved||currentBusy} onClick={()=>void saveToBank(item.position)} style={{border:"1px solid currentColor",borderRadius:999,background:"transparent",color:"inherit",fontSize:10,fontWeight:800,lineHeight:1.1,padding:"4px 7px",opacity:currentBusy?0.55:currentSaved?0.72:0.88,whiteSpace:"nowrap"}}>{currentSaved?"✓ Bank":currentBusy?"Saving…":"＋ Bank"}</button>
+          </span>
+        </div>
         <h1>{item.question}</h1>
         <div className="sprint-review-options">{item.options.map(option=>{
           const isCorrect=option.key===item.correctKey;const isSelected=option.key===item.selectedKey;
