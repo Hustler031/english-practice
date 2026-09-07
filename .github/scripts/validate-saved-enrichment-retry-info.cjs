@@ -1,0 +1,22 @@
+const fs=require('fs');
+const path=require('path');
+const root=path.join(__dirname,'../..');
+const worker=fs.readFileSync(path.join(root,'supabase/functions/english-saved-enrichment-worker/index.ts'),'utf8');
+const migration=fs.readFileSync(path.join(root,'supabase/migrations/20260907173500_english_saved_enrichment_retry_info.sql'),'utf8');
+const page=fs.readFileSync(path.join(root,'web-v2/app/english/saved/page.tsx'),'utf8');
+let bad=0;
+const need=(s,x,m)=>s.includes(x)?console.log('✓ '+m):(bad++,console.error('✗ '+m));
+need(worker,'GEMINI_WRITER|GEMINI_RESCUE','Gemini rescue outages reach the secondary fallback');
+need(worker,'gemini36ReviewedFallback(item,input,originalCapture,reason)','Secondary fallback remains Luna-reviewed');
+need(migration,'saved_enrichment_item_state','Per-word enrichment telemetry exists');
+need(migration,"state='processing'",'Worker claim marks items processing');
+need(migration,"state='retrying'",'Failed items enter retry state');
+need(migration,"next_attempt_at=now()+interval '10 minutes'",'Provider failures get bounded retry backoff');
+need(migration,"not (coalesce(es.state,'')='retrying'",'Cooling-down failures are excluded from claims');
+need(migration,"'enrichmentLastError'",'Saved read model exposes last enrichment issue');
+need(migration,"'enrichmentAttemptCount'",'Saved read model exposes attempt count');
+need(page,'AI temporarily busy · auto retry scheduled','UI explains temporary provider failure');
+need(page,'AI retrying now · attempt','UI exposes active retries');
+need(page,'enrichmentLastError','UI keeps technical issue available as detail/title');
+if(bad){console.error(`\nSaved enrichment retry contracts failed with ${bad} defect(s).`);process.exit(1)}
+console.log('\n✅ Saved enrichment retry contracts passed.');

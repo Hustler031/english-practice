@@ -146,8 +146,8 @@ async function enrichOne(item:any){
     return readyOutput(item,reviewed.item,reviewed);
   }catch(e){
     const reason=errorText(e);
-    // Gemini 3.6 is a final writer availability fallback, not a quality-gate bypass.
-    if(!/^GEMINI_WRITER_(429|500|502|503|504):|^GEMINI_WRITER_TIMEOUT$|^GEMINI_WRITER_RETRY_EXHAUSTED$|^GEMINI_WRITER_MALFORMED_OUTPUT$/.test(reason))throw e;
+    // Gemini 3.6 is the final availability fallback for both fallback-writer and rare-rescue outages.
+    if(!/^(?:GEMINI_WRITER|GEMINI_RESCUE)_(?:429|500|502|503|504):|^(?:GEMINI_WRITER|GEMINI_RESCUE)_(?:TIMEOUT|RETRY_EXHAUSTED|MALFORMED_OUTPUT)$/.test(reason))throw e;
     return await gemini36ReviewedFallback(item,input,originalCapture,reason);
   }
 }
