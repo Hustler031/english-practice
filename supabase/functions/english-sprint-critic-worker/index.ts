@@ -40,7 +40,7 @@ const reportSchema={
     summary:{type:"string",maxLength:900},
     setChecks:{type:"object",additionalProperties:false,required:[...checkNames],properties:Object.fromEntries(checkNames.map(k=>[k,{type:"boolean"}]))},
     itemVerdicts:{type:"array",minItems:25,maxItems:25,items:itemVerdict},
-    repairPositions:{type:"array",maxItems:25,uniqueItems:true,items:{type:"integer",minimum:1,maximum:25}},
+    repairPositions:{type:"array",maxItems:25,items:{type:"integer",minimum:1,maximum:25}},
     issues:{type:"array",maxItems:35,items:issue},
   },
 };
