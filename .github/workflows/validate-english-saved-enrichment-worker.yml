@@ -5,15 +5,21 @@ on:
     branches: [main, english-saved-enrichment-worker-fix-20260905, fix-saved-enrichment-chatgpt-bridge-20260905, fix-saved-enrichment-private-transport-20260905]
     paths:
       - 'supabase/functions/english-saved-enrichment-worker/**'
+      - 'supabase/functions/_shared/english-antigravity-luna.ts'
       - 'supabase/functions/english-saved-enrichment-bridge/**'
       - 'supabase/managed-migrations/**english_saved_enrichment**.sql'
+      - 'supabase/migrations/20260907214500_english_saved_learning_intent.sql'
+      - 'web-v2/components/add-word-sheet.tsx'
       - '.github/scripts/validate-english-saved-enrichment-worker.cjs'
       - '.github/workflows/validate-english-saved-enrichment-worker.yml'
   pull_request:
     paths:
       - 'supabase/functions/english-saved-enrichment-worker/**'
+      - 'supabase/functions/_shared/english-antigravity-luna.ts'
       - 'supabase/functions/english-saved-enrichment-bridge/**'
       - 'supabase/managed-migrations/**english_saved_enrichment**.sql'
+      - 'supabase/migrations/20260907214500_english_saved_learning_intent.sql'
+      - 'web-v2/components/add-word-sheet.tsx'
       - '.github/scripts/validate-english-saved-enrichment-worker.cjs'
       - '.github/workflows/validate-english-saved-enrichment-worker.yml'
   workflow_dispatch:
