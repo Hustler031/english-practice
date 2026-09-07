@@ -17,7 +17,7 @@ const sleep=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms));
 const TRANSIENT=new Set([429,500,502,503,504]);
 const SAVED_TYPES=["AUTO","V","SM","OWS","PV","IP","CU"] as const;
 const RESOLVED_TYPES=["V","SM","OWS","PV","IP","CU"] as const;
-const GEMINI_SECONDARY_FALLBACK_MODEL=Deno.env.get("GEMINI_SECONDARY_FALLBACK_MODEL")||"gemini-3.6-flash";
+const GEMINI_SECONDARY_FALLBACK_MODEL=Deno.env.get("GEMINI_SECONDARY_FALLBACK_MODEL")||"gemini-3.5-flash";
 function parseJsonText(text:string,label:string){
   let raw=String(text||"").trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/i,"").trim();
   try{return JSON.parse(raw)}catch{}
@@ -153,7 +153,7 @@ async function gemini36ReviewedFallback(item:any,input:any,originalCapture:strin
     review=await lunaCritic(current,criticContext);criticRequests++;
   }
   if(!lunaPass(review.quality))throw new Error(`GEMINI36_QUALITY_REJECTED: score=${Number(review.quality?.score||0)} decision=${String(review.quality?.decision||"")}`);
-  if(!validateReady(item,current))throw new Error("CODE_GATE_REJECTED: final Gemini 3.6 Saved item is incomplete, wrong-family, or not Ready");
+  if(!validateReady(item,current))throw new Error("CODE_GATE_REJECTED: final secondary Gemini Saved item is incomplete, wrong-family, or not Ready");
   return readyOutput(item,current,{
     generatorProvider:"gemini",generatorModel:GEMINI_SECONDARY_FALLBACK_MODEL,criticProvider:review.provider,criticModel:review.model,
     repairCount,quality:review.quality,rareRescue:false,writerRequests,criticRequests,codeRepairCount,
@@ -177,7 +177,7 @@ async function enrichOne(item:any){
     return readyOutput(item,reviewed.item,reviewed);
   }catch(e){
     const reason=errorText(e);
-    // Gemini 3.6 is the final availability fallback for both fallback-writer and rare-rescue outages.
+    // Gemini 3.5 is the final availability fallback for both fallback-writer and rare-rescue outages.
     if(!/^(?:GEMINI_WRITER|GEMINI_RESCUE)_(?:429|500|502|503|504):|^(?:GEMINI_WRITER|GEMINI_RESCUE)_(?:TIMEOUT|RETRY_EXHAUSTED|MALFORMED_OUTPUT)$/.test(reason))throw e;
     return await gemini36ReviewedFallback(item,input,originalCapture,reason);
   }
