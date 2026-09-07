@@ -23,13 +23,13 @@ export default function ChatgptSprintSets(){
   const[error,setError]=useState("");
 
   const refresh=useCallback(async()=>{
-    const [setState,exam]=await Promise.all([
+    const [stateResult,exam]=await Promise.all([
       supabaseBrowser().rpc("english_get_chatgpt_sprint_state"),
       supabaseBrowser().rpc("english_get_exam_preparation"),
     ]);
-    if(setState.error)throw setState.error;
+    if(stateResult.error)throw stateResult.error;
     if(exam.error)throw exam.error;
-    setState(setState.data as SetState);setData(exam.data as ExamData);setError("");
+    setState(stateResult.data as SetState);setData(exam.data as ExamData);setError("");
   },[]);
 
   useEffect(()=>{if(ready)void refresh().catch(e=>setError(learnerErrorMessage(e,"Could not load Sprint sets.")))},[ready,refresh]);
