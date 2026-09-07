@@ -3,6 +3,7 @@ const path=require('path');
 const root=path.join(__dirname,'../..');
 const guard=fs.readFileSync(path.join(root,'supabase/migrations/20260907064950_english_sprint_defer_trigger_guard.sql'),'utf8');
 const migration=fs.readFileSync(path.join(root,'supabase/migrations/20260907065000_english_chatgpt_sprint_sets.sql'),'utf8');
+const acl=fs.readFileSync(path.join(root,'supabase/migrations/20260907070000_english_chatgpt_sprint_state_acl.sql'),'utf8');
 const worker=fs.readFileSync(path.join(root,'supabase/functions/english-sprint-critic-worker/index.ts'),'utf8');
 const landing=fs.readFileSync(path.join(root,'web-v2/components/chatgpt-sprint-sets.tsx'),'utf8');
 const history=fs.readFileSync(path.join(root,'web-v2/components/sprint-report-history.tsx'),'utf8');
@@ -19,6 +20,10 @@ need(migration,"status='ready',set_no=v_set",'Set number is assigned only after 
 need(migration,'Historical Sprint question repetition rejected','Historical exact replay is rejected');
 need(migration,"Sprint creation now happens in ChatGPT",'Old app-side generation RPC is retired');
 need(migration,"'*/10 * * * *'",'Luna transport retry safety-net is scheduled');
+need(acl,'revoke all on function public.english_get_chatgpt_sprint_state() from public','Sprint state RPC revokes implicit PUBLIC execution');
+need(acl,'revoke execute on function public.english_get_chatgpt_sprint_state() from anon','Sprint state RPC is unavailable anonymously');
+need(acl,'grant execute on function public.english_get_chatgpt_sprint_state() to authenticated','Signed-in learner keeps Sprint state access');
+need(acl,'grant execute on function public.english_get_chatgpt_sprint_state() to service_role','Service worker keeps Sprint state access');
 need(worker,'Audit the complete 25-question set together in ONE pass','Luna sees the full set together');
 need(worker,'noWithinSetSemanticDuplicate','Luna checks semantic overlap');
 need(worker,'noHistoricalRepeat','Luna checks historical freshness');
