@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 
 import { localProductionSafetyMode, supabaseBrowser } from "@/lib/supabase";
 
@@ -13,6 +14,7 @@ function evictDailyResumeCache() {
 }
 
 export default function DailyRolloverSync({ children }: Readonly<{ children: ReactNode }>) {
+  const pathname = usePathname();
   const [bootReady, setBootReady] = useState(false);
   const lastSyncAt = useRef(0);
   const lastBatchDate = useRef("");
@@ -53,8 +55,14 @@ export default function DailyRolloverSync({ children }: Readonly<{ children: Rea
         const previousBatchDate = lastBatchDate.current;
         if (batchDate) lastBatchDate.current = batchDate;
 
-        // Home is intentionally read-only. Refresh its card only after the live
-        // rollover owner has completed, preserving the Local Safe mutation boundary.
+        // The only route that must wait for the live rollover owner is /english/daily.
+        // Release that route as soon as rollover itself is complete; the Home refresh
+        // below is informational and must never extend the Daily boot gate.
+        if (initial && active) setBootReady(true);
+
+        // Home is intentionally read-only. Refresh its card after the live rollover
+        // owner completes, but do this in the background so Home and other English
+        // routes can render immediately instead of showing an empty shell.
         const { data: home, error: homeError } = await supabaseBrowser().rpc("english_get_home_snapshot");
         if (!homeError && home && active) {
           window.dispatchEvent(new CustomEvent("ep:v2-rpc-fresh", {
@@ -80,9 +88,9 @@ export default function DailyRolloverSync({ children }: Readonly<{ children: Rea
       return batchDate;
     };
 
-    // Children are held until this first live check completes. That guarantees a
-    // Daily page cannot run its own cache-first effect before stale resume data is
-    // evicted and the current IST-day rollover has been attempted.
+    // Start rollover immediately, but do not blank the entire English app while it
+    // runs. Only /english/daily is gated because that route can consume the day-
+    // sensitive resume payload. Home and every other route render at once.
     void sync(true).catch(() => {
       if (active) setBootReady(true);
     });
@@ -108,5 +116,10 @@ export default function DailyRolloverSync({ children }: Readonly<{ children: Rea
     };
   }, []);
 
-  return bootReady ? <>{children}</> : null;
+  const blockDailyBoot = pathname === "/english/daily" && !bootReady;
+  if (blockDailyBoot) {
+    return <div className="loading-shell" role="status" aria-live="polite"><i/><i/><i/><span>Preparing today’s Daily…</span></div>;
+  }
+
+  return <>{children}</>;
 }
