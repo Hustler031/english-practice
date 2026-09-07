@@ -14,6 +14,7 @@ const exactApplyMigration = fs.readFileSync(path.join(root, 'supabase/managed-mi
 const captureFamilyMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20260907190500_english_saved_capture_family_contract.sql'),'utf8');
 const autoCategoryMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20260907212000_english_saved_auto_category_integrity.sql'),'utf8');
 const authoritativeAutoMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20260907211500_english_saved_authoritative_auto_and_worker_timeout.sql'),'utf8');
+const resourceRecoveryMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20260907212500_english_saved_worker_resource_recovery.sql'),'utf8');
 
 function need(text, needle, label) { if (!text.includes(needle)) throw new Error(`Missing ${label}: ${needle}`); }
 function forbid(text, needle, label) { if (text.includes(needle)) throw new Error(`Forbidden ${label}: ${needle}`); }
@@ -29,7 +30,7 @@ need(worker, 'luna_critic_v1', 'Luna rollout flag');
 forbid(worker, '.from("saved_items")', 'worker direct saved_items write');
 forbid(worker, ".from('saved_items')", 'worker direct saved_items write');
 
-// One Saved item per writer/critic call; no batch generation.
+// One Saved item per writer/critic call; no generation batching inside a provider call.
 need(helper, 'antigravity-preview-05-2026', 'Antigravity writer agent');
 need(helper, 'gpt-5.6-luna', 'Luna critic model');
 need(helper, 'reasoning:{effort:"low"}', 'Luna low reasoning');
@@ -70,7 +71,7 @@ need(captureFamilyMigration, "if v_capture='SM' then", 'DB SM category gate');
 need(captureFamilyMigration, 'generated question is not spelling-family', 'DB rejects wrong-family SM');
 need(captureFamilyMigration, "set gpt_status='Needs Enrichment',practice_question_id=null", 'category change invalidates old enrichment');
 need(captureFamilyMigration, "t.capture_type='SM'", 'existing malformed SM repair scan');
-need(captureFamilyMigration, 'english.kick_saved_enrichment_worker(10)', 'immediate malformed SM repair kick');
+need(captureFamilyMigration, 'english.kick_saved_enrichment_worker(10)', 'historical malformed SM repair kick retained');
 
 need(autoCategoryMigration, "('AUTO','V','SM','OWS','PV','IP','CU')", 'CU accepted alongside Saved capture types');
 need(autoCategoryMigration, "when capture in ('V','SM','OWS','PV','IP','CU') then capture", 'explicit category deterministic precedence');
@@ -88,6 +89,16 @@ need(authoritativeAutoMigration, 'english.resolve_saved_type_authoritative(coale
 need(authoritativeAutoMigration, 'v_resolved:=english.resolve_saved_type_authoritative(coalesce(t.capture_type,\'AUTO\'),s.word,s.context,v_origin_topic)', 'enrichment apply preserves authoritative family');
 need(authoritativeAutoMigration, 'timeout_milliseconds:=300000', 'Saved worker scheduler has five-minute HTTP budget');
 forbid(authoritativeAutoMigration, 'timeout_milliseconds:=65000', 'legacy 65-second Saved worker timeout');
+
+// Resource safety: no caller can fan out more than three Saved AI items.
+need(resourceRecoveryMigration, 'least(3,coalesce(p_limit,3))', 'Saved claim/kick concurrency ceiling');
+need(resourceRecoveryMigration, 'timeout_milliseconds:=300000', 'bounded Saved HTTP runtime remains five minutes');
+need(resourceRecoveryMigration, 'h.status_code=546', 'terminal Edge resource-limit detection');
+need(resourceRecoveryMigration, "last_error='WORKER_RESOURCE_LIMIT'", 'resource-limit failure is surfaced');
+need(resourceRecoveryMigration, "set state='pending',lease_id=null", 'resource-limit items return to pending');
+need(resourceRecoveryMigration, "select english.kick_saved_enrichment_worker(3);", 'bounded follow-up worker kick');
+need(resourceRecoveryMigration, "cron.schedule('english-saved-enrichment','7 * * * *'", 'hourly safety-net cadence preserved');
+forbid(resourceRecoveryMigration, 'least(10,coalesce(p_limit,10))', 'legacy ten-item concurrency fanout');
 
 // Zero pending must exit before any item provider invocation.
 const zeroGuard = 'if(!items.length)return reply({ok:true,claimed:0,processed:0,failed:0,initialAntigravityRequests:0';
@@ -119,7 +130,7 @@ forbid(bridge, 'api.openai.com', 'OpenAI network use in dormant bridge');
 // Recurring production ownership stays with the Supabase worker.
 need(hybridScheduler, "jobname='english-saved-enrichment'", 'recurring job identity');
 need(hybridScheduler, "'7 * * * *'", 'hourly Saved schedule');
-need(hybridScheduler, 'english.kick_saved_enrichment_worker(10)', 'hourly worker invocation');
+need(hybridScheduler, 'english.kick_saved_enrichment_worker(10)', 'historical scheduler definition remains auditable');
 need(hybridScheduler, 'cron.unschedule', 'idempotent scheduler replacement');
 
 // Recovery and exact promotion invariants remain unchanged.
@@ -139,4 +150,4 @@ need(exactApplyMigration, "if lower(v_status)='ready' then", 'Ready re-promotion
 need(exactApplyMigration, 'v_promoted:=public.english_promote_saved_item(v_saved_id)', 'exact promotion after enrichment');
 need(exactApplyMigration, 'grant execute on function english.maintenance_apply_saved_enrichment(jsonb) to service_role', 'maintenance apply service-role boundary');
 
-console.log('English Saved Antigravity HIGH writer + Luna LOW one-item critic + authoritative AUTO source + 300s scheduler budget: PASS');
+console.log('English Saved Antigravity HIGH writer + Luna LOW one-item critic + authoritative AUTO source + max-3 concurrency + 546 recovery: PASS');
