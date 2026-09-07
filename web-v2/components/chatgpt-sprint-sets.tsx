@@ -11,6 +11,7 @@ import styles from "./chatgpt-sprint-sets.module.css";
 type SetState={
   ok:boolean;active?:boolean;sessionId?:string|null;status?:string;setNo?:number|null;
   criticStatus?:string|null;criticAttempts?:number;criticError?:string|null;criticScore?:number|null;
+  repairPositions?:number[];repairRound?:number;
   createdAt?:string|null;preparedBy?:string|null;error?:string;
 };
 type Readiness={lastSprint:number|null;fiveSprintAverage:number|null;goalStreak:number};
@@ -57,7 +58,10 @@ export default function ChatgptSprintSets(){
 
   const r=data?.readiness;
   const pending=state?.status==="critic_pending";
+  const repairNeeded=pending&&state?.criticStatus==="repair_needed";
+  const reviewing=pending&&!repairNeeded;
   const rejected=state?.status==="critic_failed";
+  const repairPositions=Array.isArray(state?.repairPositions)?state.repairPositions:[];
   return <section className="exam-clean-page">
     <header className="module-compact-head">
       <Link className="compact-back" href="/english">← Home</Link>
@@ -67,24 +71,33 @@ export default function ChatgptSprintSets(){
 
     {error&&<div className="compact-error" role="alert">{error}</div>}
 
-    {pending&&<section className="resume-sprint-strip">
-      <div><span>FINAL QUALITY GATE</span><strong>Luna is checking the full 25-question set</strong><small>Historical repeats, semantic duplicates, answer validity, SSC level, difficulty and distractors are checked together.</small></div>
+    {reviewing&&<section className="resume-sprint-strip">
+      <div><span>FINAL QUALITY GATE</span><strong>Luna is checking all 25 questions together</strong><small>Each question gets PASS or REPAIR; cross-question repeats, SSC level, answers and distractors are still checked with full-set context.</small></div>
       <button className="btn primary" type="button" disabled>Reviewing…</button>
     </section>}
 
+    {repairNeeded&&<section className="resume-sprint-strip">
+      <div>
+        <span>TARGETED REPAIR · ROUND {state?.repairRound??0}</span>
+        <strong>Luna flagged {repairPositions.length||"some"} question{repairPositions.length===1?"":"s"} only</strong>
+        <small>{repairPositions.length?`Repair Q${repairPositions.join(", Q")}. Passed questions stay frozen; ChatGPT replaces only these positions, then Luna rechecks the complete set.`:"ChatGPT will replace only the flagged positions; passed questions stay frozen."}</small>
+      </div>
+      <button className="btn primary" type="button" disabled>Refining…</button>
+    </section>}
+
     {rejected&&<div className="compact-error" role="alert">
-      Luna rejected the last draft{state.criticScore!=null?` (${Number(state.criticScore).toFixed(0)}/100)`:""}. {state.criticError||"Prepare a cleaner set."}
+      Luna found a non-isolatable set defect{state.criticScore!=null?` (${Number(state.criticScore).toFixed(0)}/100)`:""}. {state.criticError||"Prepare a replacement set."}
     </div>}
 
     <section className="exam-launch-card">
       <div className="exam-launch-title">
-        <span>CHATGPT → SELF-CRITIC → LUNA</span>
+        <span>CHATGPT → SELF-CRITIC → LUNA → TARGETED REPAIR</span>
         <h1>25 Questions · 15 Minutes</h1>
         <p>50 marks · −0.50 wrong · no Reading Comprehension</p>
       </div>
       <div className={styles.chatInstruction}>
-        <strong>{pending?"Set is being reviewed":rejected?"Create a replacement set":"Create the next set in ChatGPT"}</strong>
-        <span>Type <b>create sprint</b> in ChatGPT. The app never generates the question set itself.</span>
+        <strong>{repairNeeded?"Only Luna-flagged questions need refinement":reviewing?"Set is being reviewed":rejected?"Create a replacement set":"Create the next set in ChatGPT"}</strong>
+        <span>Type <b>create sprint</b> in ChatGPT. Good questions are retained; only Luna-flagged positions are regenerated before final PASS.</span>
       </div>
     </section>
 
@@ -94,7 +107,7 @@ export default function ChatgptSprintSets(){
       <MiniMetric label="45+ Streak" value={r?.goalStreak??0}/>
     </section>
 
-    <p className="exam-clean-note">A set becomes startable only after both ChatGPT self-review and the independent Luna full-set gate pass.</p>
+    <p className="exam-clean-note">A set becomes startable only after ChatGPT self-review and a final Luna full-set PASS. Isolated defects trigger question-wise repair, not whole-set rejection.</p>
   </section>;
 }
 
