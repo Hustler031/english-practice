@@ -11,6 +11,7 @@ const hybridScheduler = fs.readFileSync(path.join(root, 'supabase/managed-migrat
 const recoveryMigration = fs.readFileSync(path.join(root, 'supabase/managed-migrations/20260905090000_english_saved_ready_incomplete_recovery.sql'),'utf8');
 const exactPromotionMigration = fs.readFileSync(path.join(root, 'supabase/managed-migrations/20260905173500_english_saved_enrichment_exact_promotion.sql'),'utf8');
 const exactApplyMigration = fs.readFileSync(path.join(root, 'supabase/managed-migrations/20260905174200_english_saved_enrichment_exact_apply.sql'),'utf8');
+const captureFamilyMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20260907190500_english_saved_capture_family_contract.sql'),'utf8');
 
 function need(text, needle, label) { if (!text.includes(needle)) throw new Error(`Missing ${label}: ${needle}`); }
 function forbid(text, needle, label) { if (text.includes(needle)) throw new Error(`Forbidden ${label}: ${needle}`); }
@@ -41,10 +42,20 @@ need(worker, 'criticReasoning:"low"', 'Saved critic reasoning audit');
 need(worker, 'rareRescueModel:GEMINI_RARE_RESCUE_MODEL', 'Saved rare rescue audit');
 need(worker, 'fourOptionCodeGate', 'Saved deterministic option gate');
 need(worker, 'explicit captureType', 'Saved explicit capture-type preservation gate');
+need(worker, 'SM requires a spelling-family MCQ', 'SM deterministic family gate');
+need(worker, 'requiredQuestionFamily:originalCapture', 'critic receives authoritative family');
+need(worker, 'SM = spelling-mistake practice and MUST produce a spelling-family MCQ', 'writer receives authoritative SM instruction');
 forbid(worker, 'enrichBatch', 'Saved generation batching');
 forbid(worker, 'chunks(items', 'Saved batching helper use');
 forbid(worker, 'GROQ_API_KEY', 'Saved direct Groq dependency');
 forbid(worker, 'criticAndEscalate', 'Saved legacy Groq escalation helper');
+
+// Database repeats the category check so no model can publish a mislabeled SM item.
+need(captureFamilyMigration, "if v_capture='SM' then", 'DB SM category gate');
+need(captureFamilyMigration, 'generated question is not spelling-family', 'DB rejects wrong-family SM');
+need(captureFamilyMigration, "set gpt_status='Needs Enrichment',practice_question_id=null", 'category change invalidates old enrichment');
+need(captureFamilyMigration, "t.capture_type='SM'", 'existing malformed SM repair scan');
+need(captureFamilyMigration, 'english.kick_saved_enrichment_worker(10)', 'immediate malformed SM repair kick');
 
 // Zero pending must exit before any item provider invocation.
 const zeroGuard = 'if(!items.length)return reply({ok:true,claimed:0,processed:0,failed:0,initialAntigravityRequests:0';
@@ -96,4 +107,4 @@ need(exactApplyMigration, "if lower(v_status)='ready' then", 'Ready re-promotion
 need(exactApplyMigration, 'v_promoted:=public.english_promote_saved_item(v_saved_id)', 'exact promotion after enrichment');
 need(exactApplyMigration, 'grant execute on function english.maintenance_apply_saved_enrichment(jsonb) to service_role', 'maintenance apply service-role boundary');
 
-console.log('English Saved Antigravity HIGH writer + Luna LOW one-item critic contract: PASS');
+console.log('English Saved Antigravity HIGH writer + Luna LOW one-item critic + authoritative capture-family contract: PASS');
