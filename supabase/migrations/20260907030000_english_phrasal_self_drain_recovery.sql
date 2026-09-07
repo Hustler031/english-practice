@@ -124,6 +124,11 @@ begin
 end
 $function$;
 
+revoke all on function english.kick_phrasal_recovery_if_needed() from public;
+revoke all on function english.kick_phrasal_recovery_if_needed() from anon;
+revoke all on function english.kick_phrasal_recovery_if_needed() from authenticated;
+grant execute on function english.kick_phrasal_recovery_if_needed() to service_role;
+
 -- :07 Asia/Kolkata every hour (minute 37 UTC). Normal successful batches
 -- self-drain, so this is only a bounded recovery safety net.
 do $do$
