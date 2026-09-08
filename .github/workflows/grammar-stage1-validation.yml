@@ -11,6 +11,9 @@ on:
       - 'supabase/functions/english-content-task-bridge/**'
       - 'web-v2/data/grammar-*'
       - 'web-v2/scripts/validate-grammar-stage1.mjs'
+      - '.github/scripts/validate-english-content-chatgpt-bridge.cjs'
+      - '.github/scripts/validate-english-grammar-stage1.sql'
+      - '.github/workflows/validate-english-content-chatgpt-bridge.yml'
       - '.github/workflows/grammar-stage1-validation.yml'
   workflow_dispatch:
 
@@ -18,18 +21,71 @@ permissions:
   contents: read
 
 jobs:
-  validate:
+  source-contract:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
       - name: Fetch main boundary
         run: git fetch origin main --depth=1
       - name: Validate Grammar Stage 1 architecture
         run: node web-v2/scripts/validate-grammar-stage1.mjs
+      - name: Validate normal shared ChatGPT bridge contracts
+        run: node .github/scripts/validate-english-content-chatgpt-bridge.cjs
+      - name: Type-check shared content Edge Function
+        run: deno check supabase/functions/english-content-task-bridge/index.ts
       - name: Show scoped diff
         run: |
           echo 'Changed files vs main:'
           git diff --name-only origin/main...HEAD
+
+  grammar-postgres-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: english_grammar_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d english_grammar_ci"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Execute Grammar migrations and adaptive exact-20 behavior contracts
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d english_grammar_ci -v ON_ERROR_STOP=1 -f .github/scripts/validate-english-grammar-stage1.sql
+
+  web-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    defaults:
+      run:
+        working-directory: web-v2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web-v2/package-lock.json
+      - run: npm ci
+      - name: TypeScript boundary
+        run: npm run typecheck
+      - name: Production build boundary
+        run: npm run build
