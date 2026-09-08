@@ -259,7 +259,7 @@ async function enrichOne(item:any){
     return readyOutput(item,reviewed.item,reviewed);
   }catch(e){
     const reason=errorText(e);
-    if(!/^(?:GEMINI_WRITER|GEMINI_RESCUE)_(?:429|500|502|503|504):|^(?:GEMINI_WRITER|GEMINI_RESCUE)_(?:TIMEOUT|RETRY_EXHAUSTED|MALFORMED_OUTPUT)$/.test(reason))throw e;
+    if(!/^(?:GEMINI_WRITER|GEMINI_RESCUE)_MALFORMED_OUTPUT$/.test(reason))throw e;
     return await gemini36ReviewedFallback(item,input,originalCapture,reason);
   }
 }
