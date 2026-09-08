@@ -11,64 +11,6 @@ const cors={
 };
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
 const errorText=(e:unknown)=>e instanceof Error?e.message:String(e||"Unknown Phrasal worker error");
-const normText=(v:string)=>String(v||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
-const compactPhrasalTarget=(v:string)=>{
-  const s=String(v||"").trim();
-  if(!s||s.length>80)return false;
-  const words=s.replace(/[\/|]+/g," ").match(/[A-Za-z]+(?:'[A-Za-z]+)?/g)||[];
-  return words.length>=2&&words.length<=6;
-};
-const referenceOption=(reference:any,key:"A"|"B"|"C"|"D")=>{
-  const hit=Array.isArray(reference?.options)?reference.options.find((x:any)=>String(x?.key||"").toUpperCase()===key):null;
-  return String(hit?.text??reference?.[`option${key}`]??"").trim();
-};
-const referenceCorrectOption=(reference:any)=>{
-  const key=String(reference?.correctKey||reference?.correct||"").toUpperCase() as "A"|"B"|"C"|"D";
-  return ["A","B","C","D"].includes(key)?referenceOption(reference,key):"";
-};
-function fallbackTarget(item:any,reference:any,conceptId:string){
-  const raw=String(reference?.word||item?.word||"").trim();
-  if(compactPhrasalTarget(raw))return raw;
-  const idMatch=String(conceptId||"").match(/^(?:PV_|phrasal_)(.+)$/i);
-  if(idMatch){const fromId=idMatch[1].replace(/_/g," ").trim();if(compactPhrasalTarget(fromId))return fromId;}
-  const keyed=referenceCorrectOption(reference),question=String(reference?.question||item?.question||"");
-  if(/phrasal verb|which pair|_{2,}|=\s*\?/i.test(question)&&compactPhrasalTarget(keyed))return keyed;
-  return "";
-}
-function availabilityFallbackFromCanonical(item:any,cause:string){
-  const conceptId=String(item?.phrasalConceptId||item?.conceptId||"");
-  const originalRequested=String(item?.requestedQuestionFamily||item?.missingFamily||item?.phrasalQuestionFamily||"recognition").toLowerCase();
-  const reference=Object.keys(item?.referenceVariant||{}).length?item.referenceVariant:item;
-  const referenceId=String(reference?.id||reference?.questionId||"");
-  const referenceFamily=Array.isArray(item?.availableVariants)
-    ?String(item.availableVariants.find((x:any)=>String(x?.questionId||x?.id||"")===referenceId)?.family||"").toLowerCase()
-    :"";
-  const fallbackFamily=String(referenceFamily||item?.legacyFamily||item?.phrasalQuestionFamily||"recognition").toLowerCase();
-  const targetWord=fallbackTarget(item,reference,conceptId);
-  const question=String(reference?.question||"").trim(),explanation=String(reference?.explanation||"").trim();
-  const correctKey=String(reference?.correctKey||reference?.correct||"").toUpperCase();
-  const optionA=referenceOption(reference,"A"),optionB=referenceOption(reference,"B"),optionC=referenceOption(reference,"C"),optionD=referenceOption(reference,"D");
-  if(!conceptId||!targetWord||!question||!explanation||!["A","B","C","D"].includes(correctKey))return null;
-  if(fallbackFamily==="recall"){
-    if(String(reference?.questionType||"")!=="Reverse Recall Card"||optionA!=="Yaad tha"||optionB!=="Confused"||optionC!=="Bhool gaya"||optionD!==""||correctKey!=="A")return null;
-    if(normText(question).includes(normText(targetWord)))return null;
-  }else if(!optionA||!optionB||!optionC||!optionD){return null;}
-  return {
-    word:targetWord,
-    senseKey:String(item?.senseKey||"legacy_default"),
-    senseGloss:String(item?.senseGloss||referenceCorrectOption(reference)||"").trim(),
-    question,questionType:String(reference?.questionType||"").trim(),optionA,optionB,optionC,optionD,correctKey,
-    explanation,tip:String(reference?.tip||""),usageNote:String(reference?.usageNote||""),example:String(reference?.example||reference?.exampleSentence||""),
-    memoryAid:String(reference?.memoryAid||""),related:String(reference?.related||reference?.relatedWords||""),difficulty:["Medium","Hard"].includes(String(reference?.difficulty||item?.difficulty||""))?String(reference?.difficulty||item?.difficulty):"Medium",
-    sourcePage:String(reference?.sourcePage||""),sourceUrl:String(reference?.sourceUrl||""),conceptId,
-    requestedQuestionFamily:fallbackFamily,questionFamily:fallbackFamily,legacyFamily:fallbackFamily,family:fallbackFamily,
-    baseQuestionId:String(reference?.id||reference?.questionId||item?.id||item?.questionId||""),contentGap:false,
-    availabilityFallback:true,originalRequestedQuestionFamily:originalRequested,availabilityFallbackReason:String(cause||"AI generation unavailable").slice(0,600),
-    generatorProvider:"legacy_bank",generatorModel:"canonical_bank_availability_fallback",criticProvider:null,criticModel:null,quality:null,
-    repairCount:0,codeRepairCount:0,rareRescue:false,writerRequests:0,criticRequests:0,antigravityRequests:0,geminiWriterRequests:0,
-    antigravityFallback:false,antigravityFallbackReason:"",variantFingerprint:"",variantKey:"",
-  };
-}
 
 async function authorize(req:Request,db:any){
   const privateToken=String(req.headers.get("x-english-context-token")||"").trim();
@@ -151,16 +93,12 @@ Deno.serve(async(req)=>{
     if(!runId||!slotNo||!item)throw new Error("PHRASAL_SLOT_CLAIM_INVALID");
 
     let finalized:any;
-    let generationError="";
     try{finalized=await finalizeSinglePhrasalItem(item)}
     catch(e){
-      generationError=errorText(e);
-      finalized=availabilityFallbackFromCanonical(item,generationError);
-      if(!finalized){
-        const {data:failed,error:storeError}=await db.rpc("english_phrasal_single_slot_store",{p_run_id:runId,p_slot_no:slotNo,p_item:null,p_error:generationError.slice(0,1200)});
-        if(storeError)throw new Error(`${generationError} | CHECKPOINT_FAIL_FAILED: ${storeError.message}`);
-        return json({ok:false,lane:"phrasal",singleSlot:true,runId,slotNo,conceptId:claim?.conceptId,requestedFamily:claim?.requestedFamily,checkpoint:failed,error:generationError,trigger:caller.mode},500);
-      }
+      const message=errorText(e);
+      const {data:failed,error:storeError}=await db.rpc("english_phrasal_single_slot_store",{p_run_id:runId,p_slot_no:slotNo,p_item:null,p_error:message.slice(0,1200)});
+      if(storeError)throw new Error(`${message} | CHECKPOINT_FAIL_FAILED: ${storeError.message}`);
+      return json({ok:false,lane:"phrasal",singleSlot:true,runId,slotNo,conceptId:claim?.conceptId,requestedFamily:claim?.requestedFamily,checkpoint:failed,error:message,trigger:caller.mode},500);
     }
 
     const {data:stored,error:storeError}=await db.rpc("english_phrasal_single_slot_store",{p_run_id:runId,p_slot_no:slotNo,p_item:finalized,p_error:null});
@@ -169,7 +107,6 @@ Deno.serve(async(req)=>{
     return json({
       ok:true,lane:"phrasal",singleSlot:true,runId,slotNo,conceptId:claim?.conceptId,requestedFamily:claim?.requestedFamily,
       checkpoint:stored,generatorProvider:finalized?.generatorProvider,generatorModel:finalized?.generatorModel,qualityScore:finalized?.quality?.score??null,
-      availabilityFallback:finalized?.availabilityFallback===true,availabilityFallbackReason:finalized?.availabilityFallbackReason||null,generationError:generationError||null,
       writerRequests:Number(finalized?.writerRequests||0),antigravityRequests:Number(finalized?.antigravityRequests||0),geminiWriterRequests:Number(finalized?.geminiWriterRequests||0),
       antigravityFallback:finalized?.antigravityFallback===true,rareRescue:finalized?.rareRescue===true,criticRequests:Number(finalized?.criticRequests||0),
       ...(publish||{}),trigger:caller.mode,
