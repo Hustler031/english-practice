@@ -40,6 +40,17 @@ async function featureEnabled(db:any,flag:string){
   }
   throw new Error(`FEATURE_READ_FAILED: ${lastError||"unknown error"}`);
 }
+async function claimSaved(db:any,token:string,limit:number){
+  let data:any=null,error:any=null;
+  for(let attempt=0;attempt<3;attempt++){
+    const out=await db.rpc("english_saved_enrichment_worker_claim",{p_token:token,p_limit:limit});
+    data=out.data;error=out.error;
+    if(!error)return {data,error:null};
+    if(!/statement timeout/i.test(String(error.message||error))||attempt===2)return {data,error};
+    await sleep(300*(attempt+1));
+  }
+  return {data,error};
+}
 
 const enrichmentSchema:any={
   type:"object",additionalProperties:false,
@@ -282,7 +293,7 @@ Deno.serve(async req=>{
   }catch(e){return reply({error:errorText(e)},500)}
   let body:any={};try{body=await req.json()}catch{body={}}
   const limit=Math.max(1,Math.min(10,Number(body?.limit)||10)),started=Date.now();
-  const {data:claim,error:claimError}=await db.rpc("english_saved_enrichment_worker_claim",{p_token:token,p_limit:limit});
+  const {data:claim,error:claimError}=await claimSaved(db,token,limit);
   if(claimError)return reply({error:claimError.message},/unauthorized/i.test(claimError.message)?401:500);
   if(claim?.busy)return reply({ok:true,busy:true,claimed:0,processed:0,failed:0,elapsedMs:Date.now()-started});
   const leaseId=String(claim?.leaseId||""),items=Array.isArray(claim?.items)?claim.items:[];
