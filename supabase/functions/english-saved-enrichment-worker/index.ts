@@ -316,9 +316,9 @@ async function enrichOne(db:any,item:any,forceModel:string|null=null){
 
   for(let i=0;i<tiers.length;i++){
     const tier=tiers[i];
-    const tierInput=i===0&&!previousFeedback
-      ? input
-      : {originalAssignment:input,previousCandidate:current,feedback:previousFeedback};
+    const tierInput=previousFeedback
+      ? {originalAssignment:input,previousCandidate:current,feedback:previousFeedback}
+      : input;
     const tierInstructions=previousFeedback
       ? `${baseInstructions}\nA previous writer did not pass validation. Fix only the listed feedback while keeping all valid content.`
       : baseInstructions;
@@ -331,7 +331,9 @@ async function enrichOne(db:any,item:any,forceModel:string|null=null){
     }catch(e){
       const err=classifyError(e);
       trace.push({provider:tier.provider,model:tier.model,status:"provider_error",error:err.slice(0,500)});
-      previousFeedback={providerError:err};
+      // Provider availability/quota is routing information, not content-quality feedback.
+      // Preserve any prior code/Luna repair context; if none exists, the next model gets
+      // the clean original assignment rather than a bogus "repair provider error" prompt.
       continue;
     }
 
