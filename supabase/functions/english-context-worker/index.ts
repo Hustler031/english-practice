@@ -8,7 +8,7 @@ const cors = {
 };
 const MODEL = "gpt-5.6-luna";
 const OPENAI_URL = "https://api.openai.com/v1/responses";
-const AI_TIMEOUT = 18000;
+const AI_TIMEOUT = 25000;
 
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -208,8 +208,9 @@ Deno.serve(async (req) => {
     }
   };
 
-  // Learning Intelligence owns diagnosis and bank-first transfer fallback only.
-  if (Date.now() - started < 25000) {
+  // Keep the combined request inside the pg_net 75s budget. If diagnosis work
+  // already consumed meaningful time, leave transfer generation for the next tick.
+  if (Date.now() - started < 12000) {
     await processTransfers();
     if (transferClaimed > 0) {
       nonContextLane = "transfer";
