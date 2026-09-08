@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   ANTIGRAVITY_AGENT, ANTIGRAVITY_MODEL, LUNA_MODEL, GEMINI_RARE_RESCUE_MODEL,
-  fourOptionCodeGate, runAntigravityLunaPipeline, lunaCritic, lunaPass, antigravityJson,
+  fourOptionCodeGate, lunaCritic, lunaPass, antigravityJson, geminiFallbackWriterJson,
 } from "../_shared/english-antigravity-luna.ts";
 
 // Scheduler-only worker. Auth remains the existing private English runtime token.
@@ -10,7 +10,7 @@ const reply=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status
 const errorText=(e:unknown)=>e instanceof Error?e.message:String(e||"Unknown saved enrichment worker error");
 const classifyError=(e:unknown)=>{
   const text=errorText(e);
-  if(/(?:ANTIGRAVITY|LUNA|GEMINI_RESCUE|AI)_TIMEOUT|AbortError|timed?\s*out/i.test(text))return `AI_TIMEOUT: ${text}`;
+  if(/(?:ANTIGRAVITY|LUNA|GEMINI_WRITER|AI)_TIMEOUT|AbortError|timed?\s*out/i.test(text))return `AI_TIMEOUT: ${text}`;
   return text;
 };
 const sleep=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -142,12 +142,8 @@ function familyIssues(item:any,data:any){
     const signal=`${question} ${explanation}`;
     if(!/(grammar|usage|noun|verb|subject|agreement|singular|plural|article|determiner|pronoun|preposition|tense|voice|narration|reported|conditional|modifier|parallel|countable|uncountable|correct\s+usage|error|distinction|confus)/i.test(signal))issues.push("CU requires a grammar/usage rule or distinction to be tested explicitly");
   }
-  if(simpleBareVocab(item)&&/(fill\s+in\s+the\s+blank|complete\s+the\s+sentence|given\s+sentence|underlined\s+word\s+in)/i.test(question)){
-    issues.push("bare V + MEANING must directly test lexical meaning/recall; do not recycle it as a sentence-use question");
-  }
-  if(intent==="CONFUSION"&&/(most\s+appropriate\s+(synonym|antonym)\s+of\s+the\s+given\s+word|synonym\s+of\s+the\s+given\s+word)/i.test(question)){
-    issues.push("CONFUSION must test the supplied targets together, not reduce the task to one-word synonym recall");
-  }
+  if(simpleBareVocab(item)&&/(fill\s+in\s+the\s+blank|complete\s+the\s+sentence|given\s+sentence|underlined\s+word\s+in)/i.test(question))issues.push("bare V + MEANING must directly test lexical meaning/recall; do not recycle it as a sentence-use question");
+  if(intent==="CONFUSION"&&/(most\s+appropriate\s+(synonym|antonym)\s+of\s+the\s+given\s+word|synonym\s+of\s+the\s+given\s+word)/i.test(question))issues.push("CONFUSION must test the supplied targets together, not reduce the task to one-word synonym recall");
   if(explanation&&!explicitOptionCoverage(explanation))issues.push("explanation must explicitly explain all four options A, B, C and D");
   return issues;
 }
@@ -155,8 +151,7 @@ function savedCodeGate(item:any,data:any){
   const issues=fourOptionCodeGate(data,"correctOption");
   if(!String(data?.meaning||"").trim())issues.push("meaning/rule is blank");
   if(data?.gptStatus!=="Ready")issues.push("gptStatus must be Ready");
-  const capture=String(data?.captureType||"").toUpperCase();
-  const original=normalizedCapture(item);
+  const capture=String(data?.captureType||"").toUpperCase(),original=normalizedCapture(item);
   if(!(SAVED_TYPES as readonly string[]).includes(capture))issues.push("captureType is invalid");
   if(capture!==original)issues.push(`captureType ${original} must be preserved exactly; AUTO is never replaced by AI`);
   issues.push(...familyIssues(item,data));
@@ -171,74 +166,79 @@ function readyOutput(item:any,data:any,reviewed:any){
     source:`Supabase English AI My Saved enrichment · ${reviewed.generatorProvider}/${reviewed.generatorModel} · ${reviewed.criticModel}`,
     gptStatus:"Ready",captureType:capture,requiredQuestionFamily:family,requiredLearningIntent:requiredIntent,
     generatorProvider:reviewed.generatorProvider,generatorModel:reviewed.generatorModel,criticProvider:reviewed.criticProvider,criticModel:reviewed.criticModel,
-    repairCount:reviewed.repairCount,quality:reviewed.quality,rareRescue:reviewed.rareRescue,writerRequests:reviewed.writerRequests,criticRequests:reviewed.criticRequests,codeRepairCount:reviewed.codeRepairCount,
+    repairCount:reviewed.repairCount,quality:reviewed.quality,rareRescue:false,writerRequests:reviewed.writerRequests,criticRequests:reviewed.criticRequests,codeRepairCount:reviewed.codeRepairCount,
+    antigravityRequests:reviewed.antigravityRequests,geminiWriterRequests:reviewed.geminiWriterRequests,antigravityFallback:reviewed.antigravityFallback,antigravityFallbackReason:reviewed.antigravityFallbackReason,
   };
 }
 
-async function claimPrimaryRecoveryBudget(db:any){
-  const {data,error}=await db.rpc("english_claim_antigravity_request_budget");
-  if(error)throw new Error(`AI_BUDGET_RPC_FAILED: temporarily unavailable: ${String(error.message||error)}`);
-  if(data?.allowed!==true){
-    const reason=String(data?.reason||"Antigravity recovery budget unavailable");
-    throw new Error(`ANTIGRAVITY_RECOVERY_DEFERRED: temporarily unavailable: ${reason}`);
+type WriterResult={data:any;provider:string;model:string;antigravityRequests:number;geminiWriterRequests:number;antigravityFallback:boolean;antigravityFallbackReason:string};
+async function budgetedWriter(db:any,writerInstructions:string,input:any):Promise<WriterResult>{
+  const {data:budget,error:budgetError}=await db.rpc("english_claim_antigravity_request_budget");
+  if(budgetError)throw new Error(`AI_BUDGET_RPC_FAILED: temporarily unavailable: ${String(budgetError.message||budgetError)}`);
+  if(budget?.allowed!==true){
+    const reason=String(budget?.reason||"Antigravity budget protected");
+    if(String(budget?.route||"").toLowerCase()==="retry")throw new Error(`ANTIGRAVITY_COOLDOWN: temporarily unavailable: ${reason}`);
+    const g=await geminiFallbackWriterJson<any>(writerInstructions,input,enrichmentSchema);
+    return {data:g.data,provider:g.provider,model:g.model,antigravityRequests:0,geminiWriterRequests:1,antigravityFallback:true,antigravityFallbackReason:reason};
   }
-}
-
-async function primaryAntigravityReviewedRecovery(db:any,item:any,input:any,originalCapture:string,upstreamError:string){
-  await claimPrimaryRecoveryBudget(db);
-  const family=requiredFamily(item),requiredIntent=requiredLearningIntent(item);
-  const criticContext={
-    lane:"saved",rawLearnerRequest:input.rawSavedRequest,captureType:originalCapture,resolvedType:input.resolvedType,
-    requiredQuestionFamily:family,requiredLearningIntent:requiredIntent,hardDistractors:true,explainAllOptions:true,
-    clusterMustStayCombined:requiredIntent==="CONFUSION",upstreamWriterFailure:upstreamError,
-    recoveryRoute:"antigravity_after_gemini_rescue_unavailable",
-  };
-  const recovered=await antigravityJson<any>(
-    `${instructions}\nThe rare Gemini rescue route was temporarily unavailable. Produce one fresh final candidate using the original fixed assignment. Preserve the family and learning intent exactly, satisfy every deterministic requirement, and explain all four options.`,
-    input,
-    {maxAttempts:1,schema:enrichmentSchema},
-  );
-  const current=recovered.data;
-  preserveCapture(item,current);
-  const codeIssues=savedCodeGate(item,current);
-  if(codeIssues.length)throw new Error(`PRIMARY_RECOVERY_CODE_REJECTED: ${codeIssues.join("; ")}`);
-  const review=await lunaCritic(current,criticContext);
-  if(!lunaPass(review.quality))throw new Error(`PRIMARY_RECOVERY_QUALITY_REJECTED: score=${Number(review.quality?.score||0)} decision=${String(review.quality?.decision||"")} ${review.quality.issues.join(" | ")}`);
-  if(!validateReady(item,current))throw new Error("PRIMARY_RECOVERY_CODE_REJECTED: final Saved item is incomplete, wrong-family, wrong-intent, or not Ready");
-  return readyOutput(item,current,{
-    generatorProvider:recovered.provider,generatorModel:recovered.model,criticProvider:review.provider,criticModel:review.model,
-    repairCount:1,quality:review.quality,rareRescue:false,writerRequests:1,criticRequests:1,codeRepairCount:0,
-  });
+  try{
+    const a=await antigravityJson<any>(writerInstructions,input,{maxAttempts:1,schema:enrichmentSchema});
+    return {data:a.data,provider:a.provider,model:a.model,antigravityRequests:1,geminiWriterRequests:0,antigravityFallback:false,antigravityFallbackReason:""};
+  }catch(e){
+    const reason=errorText(e);
+    if(/^ANTIGRAVITY_429:/.test(reason)){
+      const {data:circuit}=await db.rpc("english_mark_antigravity_quota_exhausted",{p_reason:reason.slice(0,800)});
+      if(String(circuit?.route||"").toLowerCase()==="retry")throw e;
+      const g=await geminiFallbackWriterJson<any>(writerInstructions,input,enrichmentSchema);
+      return {data:g.data,provider:g.provider,model:g.model,antigravityRequests:1,geminiWriterRequests:1,antigravityFallback:true,antigravityFallbackReason:reason};
+    }
+    if(/^ANTIGRAVITY_(500|502|503|504):/.test(reason)||/^ANTIGRAVITY_(TIMEOUT|RETRY_EXHAUSTED)$/.test(reason)){
+      const g=await geminiFallbackWriterJson<any>(writerInstructions,input,enrichmentSchema);
+      return {data:g.data,provider:g.provider,model:g.model,antigravityRequests:1,geminiWriterRequests:1,antigravityFallback:true,antigravityFallbackReason:reason};
+    }
+    throw e;
+  }
 }
 
 async function enrichOne(db:any,item:any){
-  const input=assignment(item);
-  const originalCapture=normalizedCapture(item);
-  const family=requiredFamily(item),requiredIntent=requiredLearningIntent(item);
-  try{
-    const reviewed=await runAntigravityLunaPipeline<any>({
-      instructions,input,schema:enrichmentSchema,
-      criticContext:{
-        lane:"saved",rawLearnerRequest:input.rawSavedRequest,captureType:originalCapture,resolvedType:input.resolvedType,
-        requiredQuestionFamily:family,requiredLearningIntent:requiredIntent,hardDistractors:true,explainAllOptions:true,
-        clusterMustStayCombined:requiredIntent==="CONFUSION"
-      },
-      structuralGate:(draft:any)=>{preserveCapture(item,draft);return savedCodeGate(item,draft)},
-      repairInput:(original,current,quality)=>({
-        originalAssignment:original,currentItem:current,
-        critic:{decision:quality.decision,issues:quality.issues,repairInstruction:quality.repairInstruction},
-        fixedRequirements:{requiredQuestionFamily:family,requiredLearningIntent:requiredIntent,hardDistractors:true,explainAllOptions:true,clusterMustStayCombined:requiredIntent==="CONFUSION"}
-      }),
-    });
-    preserveCapture(item,reviewed.item);
-    if(!validateReady(item,reviewed.item))throw new Error("CODE_GATE_REJECTED: final Saved item is incomplete, wrong-family, wrong-intent, or not Ready");
-    return readyOutput(item,reviewed.item,reviewed);
-  }catch(e){
-    const reason=errorText(e);
-    const scarceRescueFailure=/^(?:GEMINI_WRITER|GEMINI_RESCUE)_(?:429|500|502|503|504):|^(?:GEMINI_WRITER|GEMINI_RESCUE)_(?:TIMEOUT|RETRY_EXHAUSTED|MALFORMED_OUTPUT)$/.test(reason);
-    if(!scarceRescueFailure)throw e;
-    return await primaryAntigravityReviewedRecovery(db,item,input,originalCapture,reason);
+  const input=assignment(item),originalCapture=normalizedCapture(item),family=requiredFamily(item),requiredIntent=requiredLearningIntent(item);
+  const criticContext={lane:"saved",rawLearnerRequest:input.rawSavedRequest,captureType:originalCapture,resolvedType:input.resolvedType,requiredQuestionFamily:family,requiredLearningIntent:requiredIntent,hardDistractors:true,explainAllOptions:true,clusterMustStayCombined:requiredIntent==="CONFUSION"};
+  let writerRequests=0,criticRequests=0,codeRepairCount=0,repairCount=0,antigravityRequests=0,geminiWriterRequests=0;
+  let antigravityFallback=false,antigravityFallbackReason="";
+  let current:any,finalProvider="",finalModel="";
+
+  const write=async(writerInstructions:string,writerInput:any)=>{
+    const w=await budgetedWriter(db,writerInstructions,writerInput);
+    writerRequests++;antigravityRequests+=w.antigravityRequests;geminiWriterRequests+=w.geminiWriterRequests;
+    if(w.antigravityFallback){antigravityFallback=true;antigravityFallbackReason=antigravityFallbackReason||w.antigravityFallbackReason}
+    current=w.data;finalProvider=w.provider;finalModel=w.model;preserveCapture(item,current);
+  };
+  const repairPayload=(quality:any)=>({originalAssignment:input,currentItem:current,critic:quality,fixedRequirements:{requiredQuestionFamily:family,requiredLearningIntent:requiredIntent,hardDistractors:true,explainAllOptions:true,clusterMustStayCombined:requiredIntent==="CONFUSION"}});
+
+  await write(instructions,input);
+  let codeIssues=savedCodeGate(item,current);
+  if(codeIssues.length){
+    codeRepairCount=1;repairCount=1;
+    await write(`${instructions}\nA deterministic code gate rejected the first candidate. Make the minimum repair only. Fix: ${codeIssues.join("; ")}`,repairPayload({decision:"CODE",issues:codeIssues,repairInstruction:codeIssues.join("; ")}));
+    codeIssues=savedCodeGate(item,current);
+    if(codeIssues.length)throw new Error(`SAVED_RETRY_REQUIRED: temporarily unavailable: code gate still failed after the bounded primary repair: ${codeIssues.join("; ")}`);
   }
+
+  criticRequests++;
+  let review=await lunaCritic(current,criticContext);
+  if(!lunaPass(review.quality)){
+    if(repairCount>=1)throw new Error(`SAVED_RETRY_REQUIRED: temporarily unavailable: critic still requires repair after the bounded writer repair; score=${Number(review.quality?.score||0)} decision=${String(review.quality?.decision||"")}`);
+    repairCount=1;
+    await write(`${instructions}\nThe independent Luna critic found defects. Make the minimum targeted repair only; preserve the fixed concept, family, learning intent and all valid content.`,repairPayload({decision:review.quality.decision,issues:review.quality.issues,repairInstruction:review.quality.repairInstruction}));
+    codeIssues=savedCodeGate(item,current);
+    if(codeIssues.length)throw new Error(`SAVED_RETRY_REQUIRED: temporarily unavailable: repaired item failed deterministic gate: ${codeIssues.join("; ")}`);
+    criticRequests++;
+    review=await lunaCritic(current,criticContext);
+    if(!lunaPass(review.quality))throw new Error(`SAVED_RETRY_REQUIRED: temporarily unavailable: second critic non-PASS; score=${Number(review.quality?.score||0)} decision=${String(review.quality?.decision||"")}`);
+  }
+
+  if(!validateReady(item,current))throw new Error("CODE_GATE_REJECTED: final Saved item is incomplete, wrong-family, wrong-intent, or not Ready");
+  return readyOutput(item,current,{generatorProvider:finalProvider,generatorModel:finalModel,criticProvider:review.provider,criticModel:review.model,repairCount,quality:review.quality,writerRequests,criticRequests,codeRepairCount,antigravityRequests,geminiWriterRequests,antigravityFallback,antigravityFallbackReason});
 }
 
 Deno.serve(async req=>{
@@ -256,7 +256,7 @@ Deno.serve(async req=>{
   if(claimError)return reply({error:claimError.message},/unauthorized/i.test(claimError.message)?401:500);
   if(claim?.busy)return reply({ok:true,busy:true,claimed:0,processed:0,failed:0,elapsedMs:Date.now()-started});
   const leaseId=String(claim?.leaseId||""),items=Array.isArray(claim?.items)?claim.items:[];
-  if(!items.length)return reply({ok:true,claimed:0,processed:0,failed:0,initialAntigravityRequests:0,elapsedMs:Date.now()-started});
+  if(!items.length)return reply({ok:true,claimed:0,processed:0,failed:0,elapsedMs:Date.now()-started});
   if(!leaseId)return reply({error:"Saved enrichment worker claim returned items without a lease"},500);
 
   const settled=await Promise.allSettled(items.map((item:any)=>enrichOne(db,item)));
@@ -268,15 +268,8 @@ Deno.serve(async req=>{
       const {error}=await db.rpc("english_saved_enrichment_worker_apply",{p_token:token,p_lease_id:leaseId,p_items:completed});
       if(error)throw new Error(`APPLY_FAILED: ${error.message}`);
       const auditPayload=completed.map(x=>({
-        lane:"saved",entityKey:x.savedId,generatorProvider:String(x.generatorProvider||"antigravity"),generatorModel:String(x.generatorModel||ANTIGRAVITY_MODEL),
-        criticProvider:String(x.criticProvider||"openai"),criticModel:String(x.criticModel||LUNA_MODEL),qualityScore:Number(x?.quality?.score||0),criticDecision:String(x?.quality?.decision||""),repairCount:Number(x?.repairCount||0),questionFamily:String(x.requiredQuestionFamily||""),publicationResult:"applied",
-        metadata:{
-          requestMode:"single_flight_one_item",writer:String(x.generatorProvider||"antigravity"),writerReasoning:"high",
-          antigravityAgent:ANTIGRAVITY_AGENT,antigravityModel:ANTIGRAVITY_MODEL,critic:"luna",criticReasoning:"low",lunaModel:LUNA_MODEL,
-          rareRescueModel:GEMINI_RARE_RESCUE_MODEL,rareRescue:x.rareRescue===true,
-          writerRequests:Number(x.writerRequests||1),criticRequests:Number(x.criticRequests||1),codeRepairCount:Number(x.codeRepairCount||0),
-          requiredLearningIntent:String(x.requiredLearningIntent||""),hardDistractors:true,explainAllOptions:true
-        }
+        lane:"saved",entityKey:x.savedId,generatorProvider:String(x.generatorProvider||"antigravity"),generatorModel:String(x.generatorModel||ANTIGRAVITY_MODEL),criticProvider:String(x.criticProvider||"openai"),criticModel:String(x.criticModel||LUNA_MODEL),qualityScore:Number(x?.quality?.score||0),criticDecision:String(x?.quality?.decision||""),repairCount:Number(x?.repairCount||0),questionFamily:String(x.requiredQuestionFamily||""),publicationResult:"applied",
+        metadata:{requestMode:"single_flight_bounded_two_pass",writer:String(x.generatorProvider||"antigravity"),writerReasoning:"high",antigravityAgent:ANTIGRAVITY_AGENT,antigravityModel:ANTIGRAVITY_MODEL,critic:"luna",criticReasoning:"low",lunaModel:LUNA_MODEL,fallbackModel:GEMINI_RARE_RESCUE_MODEL,writerRequests:Number(x.writerRequests||1),criticRequests:Number(x.criticRequests||1),codeRepairCount:Number(x.codeRepairCount||0),antigravityRequests:Number(x.antigravityRequests||0),geminiWriterRequests:Number(x.geminiWriterRequests||0),antigravityFallback:x.antigravityFallback===true,antigravityFallbackReason:String(x.antigravityFallbackReason||""),requiredLearningIntent:String(x.requiredLearningIntent||""),hardDistractors:true,explainAllOptions:true}
       }));
       const {error:auditError}=await db.rpc("english_record_content_generation_audits",{p_items:auditPayload});
       if(auditError)throw new Error(`AUDIT_FAILED: ${auditError.message}`);
@@ -286,15 +279,10 @@ Deno.serve(async req=>{
     if(finishError)throw new Error(`VERIFY_FAILED: ${finishError.message}`);
     const verifyItems=Array.isArray(verified?.items)?verified.items:[];
     for(const row of verifyItems)if(String(row?.gptStatus||"").toLowerCase()==="ready"&&row?.questionReady!==true)throw new Error(`VERIFY_FAILED: Ready item ${String(row?.savedId||"unknown")} is not question-ready`);
-    return reply({
-      ok:true,generator:"antigravity",antigravityAgent:ANTIGRAVITY_AGENT,antigravityModel:ANTIGRAVITY_MODEL,writerReasoning:"high",
-      critic:"luna",criticModel:LUNA_MODEL,criticReasoning:"low",rareRescueModel:GEMINI_RARE_RESCUE_MODEL,
-      learningIntentRouting:true,hardDistractors:true,explainAllOptions:true,singleFlight:true,primaryRecoveryAfterScarceRescueFailure:true,
-      claimed:items.length,processed:completed.length,failed:failures.length,initialAntigravityRequests:items.length,verified:verifyItems.length,elapsedMs:Date.now()-started
-    });
+    return reply({ok:true,generator:"antigravity",antigravityAgent:ANTIGRAVITY_AGENT,antigravityModel:ANTIGRAVITY_MODEL,writerReasoning:"high",critic:"luna",criticModel:LUNA_MODEL,criticReasoning:"low",fallbackModel:GEMINI_RARE_RESCUE_MODEL,singleFlight:true,boundedWriterPasses:2,qualityRescueDeferredToRetry:true,claimed:items.length,processed:completed.length,failed:failures.length,verified:verifyItems.length,elapsedMs:Date.now()-started});
   }catch(e){
     const classified=classifyError(e);
     try{await db.rpc("english_saved_enrichment_worker_finish",{p_token:token,p_lease_id:leaseId,p_saved_ids:[],p_error:classified.slice(0,1200)})}catch{}
-    return reply({error:classified,claimed:items.length,processed:0,failed:items.length,initialAntigravityRequests:items.length},500);
+    return reply({error:classified,claimed:items.length,processed:0,failed:items.length},500);
   }
 });
