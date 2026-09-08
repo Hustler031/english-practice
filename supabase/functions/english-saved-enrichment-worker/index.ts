@@ -114,9 +114,11 @@ const SIMPLE_VOCAB_INSTRUCTIONS=`You write exactly ONE concise, authentic SSC CG
 For a simple vocabulary target:
 - Give the precise meaning, part of speech, useful close synonyms and useful antonyms.
 - Give one natural memorable example sentence.
-- Make ONE SSC-style MCQ that directly tests meaning, synonym or antonym. Do not overcomplicate it.
-- A, B, C and D must all be nonblank, distinct and plausible lexical competitors. Exactly one answer must be defensible.
-- Explanation must explicitly label A, B, C and D and state what each option means or why it fits/fails.
+- Prefer a direct definition/meaning MCQ unless another format is clearly better.
+- The correct option must state the exact lexical meaning.
+- A, B, C and D must all be nonblank and distinct, with exactly one defensible answer.
+- Every wrong option must be a realistic close competitor from the same semantic neighbourhood. It should fail for one precise nuance, not because it is an obvious antonym, opposite, unrelated filler, or merely a broad consequence of the target.
+- Explanation must explicitly discuss A, B, C and D and state the exact distinction for each.
 - Preserve captureType exactly and return gptStatus="Ready".
 - No citations, tools, markdown or commentary. Return only the complete JSON object.`;
 
@@ -161,7 +163,7 @@ function assignment(item:any){
 }
 function preserveCapture(item:any,data:any){const original=normalizedCapture(item);data.captureType=original;return original}
 function explicitOptionCoverage(explanation:string){
-  return ["A","B","C","D"].every(k=>new RegExp(`(?:option\\s+${k}\\b|(?:^|\\n)\\s*[-*]?\\s*${k}[).:])`,"i").test(explanation));
+  return ["A","B","C","D"].every(k=>new RegExp(`(?:Option\\s+${k}\\b|(?:^|\\s)${k}(?:\\s|[).:]))`).test(explanation));
 }
 function simpleBareVocab(item:any){
   if(requiredFamily(item)!=="V"||requiredLearningIntent(item)!=="MEANING")return false;
@@ -362,7 +364,7 @@ async function enrichOne(db:any,item:any,forceModel:string|null=null){
     previousFeedback={decision:review.quality.decision,issues:review.quality.issues,repairInstruction:review.quality.repairInstruction};
   }
 
-  const summary=trace.map(x=>`${x.model}:${x.status}${x.lunaScore!==undefined?`:${x.lunaScore}`:""}`).join(" | ");
+  const summary=trace.map(x=>`${x.model}:${x.status}${x.lunaScore!==undefined?`:${x.lunaScore}`:""}${x.gateIssues?.length?`[${x.gateIssues.slice(0,2).join("; ")}]`:""}`).join(" | ");
   throw new Error(`SAVED_CASCADE_EXHAUSTED: temporarily unavailable: ${summary.slice(0,1000)}`);
 }
 
