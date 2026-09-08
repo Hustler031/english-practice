@@ -1,0 +1,3 @@
+-- Production migration history alignment.
+-- Superseded by the family/intent-aware, direct-lineage Saved identity implementation
+-- in 20260908041607_english_saved_anchor_core_family_aware.sql.
