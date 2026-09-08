@@ -66,6 +66,12 @@ jobs:
           --health-retries=10
     steps:
       - uses: actions/checkout@v4
+      - name: Mirror Supabase extension layout
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -d english_grammar_ci -v ON_ERROR_STOP=1 \
+            -c 'create schema if not exists extensions; create extension if not exists pgcrypto with schema extensions;'
       - name: Execute Grammar migrations and adaptive exact-20 behavior contracts
         env:
           PGPASSWORD: postgres
