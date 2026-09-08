@@ -75,7 +75,19 @@ jobs:
       - name: Execute Grammar migrations and adaptive exact-20 behavior contracts
         env:
           PGPASSWORD: postgres
-        run: psql -h 127.0.0.1 -U postgres -d english_grammar_ci -v ON_ERROR_STOP=1 -f .github/scripts/validate-english-grammar-stage1.sql
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('.github/scripts/validate-english-grammar-stage1.sql')
+          s=p.read_text()
+          anchor="\\ir ../../supabase/migrations/20260909013000_english_grammar_daily_pipeline.sql\n"
+          follow="\\ir ../../supabase/migrations/20260909013100_english_grammar_owner_resolution_fix.sql\n"
+          if follow not in s:
+              if anchor not in s:
+                  raise SystemExit('Grammar migration anchor missing from behavior harness')
+              p.write_text(s.replace(anchor,anchor+follow,1))
+          PY
+          psql -h 127.0.0.1 -U postgres -d english_grammar_ci -v ON_ERROR_STOP=1 -f .github/scripts/validate-english-grammar-stage1.sql
 
   web-safety:
     runs-on: ubuntu-latest
