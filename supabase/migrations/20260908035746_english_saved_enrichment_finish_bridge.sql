@@ -1,0 +1,3 @@
+-- Production migration history alignment.
+-- The final Saved enrichment finish/retry bridge is materialized idempotently in
+-- 20260908041607_english_saved_anchor_core_family_aware.sql.
