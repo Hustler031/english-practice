@@ -188,7 +188,7 @@ language plpgsql security definer
 set search_path=pg_catalog,english,auth
 as $$
 declare
-  v_target integer:=greatest(1,least(120,coalesce(p_target,120));
+  v_target integer:=greatest(1,least(120,coalesce(p_target,120)));
   v_before integer:=0;
   v_after integer:=0;
 begin
@@ -287,7 +287,7 @@ jsonb_build_object(
  'counts',jsonb_build_object('activeQuestions',c.active_questions,'attempts',c.attempts,'stateRows',pc.state_rows),
  'learning',jsonb_build_object('attemptCountMismatch',pc.attempt_count_mismatch,'statusMismatch',pc.derived_status_mismatch,'nextReviewMismatch',pc.next_review_mismatch,'intentionalReviewOverrides',pc.intentional_review_overrides),
  'flags',jsonb_build_object('starredStateMismatch',sc.starred_state_mismatch,'difficultMasteredRows',i.difficult_mastered_rows),
- 'integrity',jsonb_build_object('orphanAttempts',i.orphan_attempts,'orphanStateRows',i.orphan_state_rows,'duplicateAttemptIds',i.duplicate_attempt_ids,'invalidSavedLinks',i.invalid_saved_links,'invisibleAttempts',i.invisible_attempts,'invisibleStateRows',i.invisible_state_rows,'invisibleDailyRows',i.invisible_daily_rows,'generatedWithoutOwner',i.generated_without_owner,'privateSetMembershipViolations',i.private_set_membership_violations),
+ 'integrity',jsonb_build_object('orphanAttempts',i.orphan_attempts,'orphanStateRows',i.orphan_state_rows,'duplicateAttemptIds',i.duplicate_attempt_ids,'invalidSavedLinks',i.invalid_saved_links,'invisibleAttempts',i.invisible_attempts,'invisibleStateRows',i.invisible_state_rows,'invisibleDailyRows',i.invisible_daily_rows,'generatedWithoutOwner',i.private_set_membership_violations),
  'daily',jsonb_build_object('stored',d.stored,'completed',d.completed,'actionableRemaining',cur.remaining,'suppressed',greatest(0,d.stored-d.completed-cur.remaining),'missingSelectionMetadata',dm.missing_selection_metadata,'targetIsMaximum',true)
 ) end
 from pc cross join sc cross join d cross join cur cross join dm cross join integrity i cross join counts c;
