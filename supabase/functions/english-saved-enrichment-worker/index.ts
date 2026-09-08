@@ -29,9 +29,16 @@ function parseJsonText(text:string,label:string){
   throw new Error(`${label}_MALFORMED_JSON`);
 }
 async function featureEnabled(db:any,flag:string){
-  const {data,error}=await db.rpc("english_ai_content_feature_enabled",{p_flag:flag});
-  if(error)throw new Error(`FEATURE_READ_FAILED: ${error.message}`);
-  return data===true;
+  let lastError="";
+  for(let attempt=0;attempt<3;attempt++){
+    const {data,error}=await db.rpc("english_ai_content_feature_enabled",{p_flag:flag});
+    if(!error)return data===true;
+    lastError=String(error.message||error);
+    const transient=/(schema cache|retrying|temporar|timeout|connection|502|503|504)/i.test(lastError);
+    if(!transient||attempt===2)throw new Error(`FEATURE_READ_FAILED: ${lastError}`);
+    await sleep(250*(attempt+1));
+  }
+  throw new Error(`FEATURE_READ_FAILED: ${lastError||"unknown error"}`);
 }
 
 const enrichmentSchema:any={
