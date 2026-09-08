@@ -35,8 +35,6 @@ function validateSubmittedItem(item: Json, selection: Json, index: number) {
     throw new Error(`Phrasal slot ${n}: family contract mismatch`);
   }
   if (!text(item?.question) || !text(item?.explanation)) throw new Error(`Phrasal slot ${n}: question/explanation required`);
-  if (!text(item?.word)) throw new Error(`Phrasal slot ${n}: target word required`);
-  if (!text(item?.senseKey) || !text(item?.senseGloss)) throw new Error(`Phrasal slot ${n}: sense metadata required`);
   if (!provider || !["legacy_bank", "chatgpt"].includes(provider)) throw new Error(`Phrasal slot ${n}: generatorProvider must be legacy_bank or chatgpt`);
 
   const correct = text(item?.correctKey).toUpperCase();
@@ -46,7 +44,7 @@ function validateSubmittedItem(item: Json, selection: Json, index: number) {
         text(item?.optionC) !== "Bhool gaya" || text(item?.optionD) !== "") {
       throw new Error(`Phrasal slot ${n}: recall control contract mismatch`);
     }
-    if (norm(item?.question).includes(norm(item?.word))) throw new Error(`Phrasal slot ${n}: recall cue leaks target phrase`);
+    if (text(item?.word) && norm(item?.question).includes(norm(item?.word))) throw new Error(`Phrasal slot ${n}: recall cue leaks target phrase`);
   } else {
     if (!keys.includes(correct as any)) throw new Error(`Phrasal slot ${n}: invalid correctKey`);
     const opts = keys.map((k) => text(item?.[`option${k}`]));
@@ -59,6 +57,8 @@ function validateSubmittedItem(item: Json, selection: Json, index: number) {
     return;
   }
 
+  if (!text(item?.word)) throw new Error(`Phrasal slot ${n}: ChatGPT target word required`);
+  if (!text(item?.senseKey) || !text(item?.senseGloss)) throw new Error(`Phrasal slot ${n}: ChatGPT sense metadata required`);
   const q = item?.quality || {};
   if (Number(q?.score || 0) < 85 || !["PASS", "PASS_WITH_MINOR_ISSUES"].includes(text(q?.decision).toUpperCase())) {
     throw new Error(`Phrasal slot ${n}: ChatGPT self-critic quality gate failed`);
