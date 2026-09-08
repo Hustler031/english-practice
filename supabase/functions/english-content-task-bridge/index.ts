@@ -39,7 +39,7 @@ Deno.serve(async(req)=>{
     }
     if(action==="ingest"){
       const runId=String(body?.runId||"");const items=Array.isArray(body?.items)?body.items:null;
-      if(!runId||!items||items.length!==20)return json({error:"Phrasal ingest requires runId and exactly 20 finalized items"},400);
+      if(!runId||!items||items.length>20)return json({error:"Phrasal ingest requires runId and an array of 0-20 ChatGPT-generated slot overrides"},400);
       try{return json(await ingestSubmittedPhrasal(db,runId,items))}catch(e){return json({ok:false,lane:"phrasal",mode:"chatgpt_owned",error:errorText(e)},500)}
     }
     return json({error:"Unknown Phrasal action"},400);
