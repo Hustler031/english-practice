@@ -3,36 +3,44 @@ import { createRemoteJWKSet, jwtVerify } from "npm:jose@5.9.6";
 import { runHinduGeneration } from "./generation.ts";
 import { ingestSubmittedHinduItems } from "./submitted-hindu.ts";
 import { claimSubmittedPhrasal, ingestSubmittedPhrasal } from "./submitted-phrasal.ts";
+import { claimSubmittedGrammar, ingestSubmittedGrammar } from "./submitted-grammar.ts";
 
 const ISSUER = "https://token.actions.githubusercontent.com";
 const AUDIENCE = "english-content-automation";
 const REPOSITORY = "Hustler031/telegram-media-bot";
 const PHRASE_REF = "refs/heads/automation/english-phrasal";
 const HINDU_REF = "refs/heads/automation/english-hindu";
+const GRAMMAR_REF = "refs/heads/automation/english-grammar";
 const JWKS = createRemoteJWKSet(new URL(`${ISSUER}/.well-known/jwks`));
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json","Cache-Control":"no-store"}});
 const errorText=(e:unknown)=>e instanceof Error?e.message:String(e||"Unknown content automation error");
+type Lane = "phrasal"|"hindu"|"grammar";
 
-async function authorize(req:Request):Promise<"phrasal"|"hindu">{
+async function authorize(req:Request):Promise<Lane>{
   const auth=String(req.headers.get("authorization")||"");const token=auth.startsWith("Bearer ")?auth.slice(7).trim():"";
   if(!token)throw new Error("missing GitHub OIDC token");
   const {payload}=await jwtVerify(token,JWKS,{issuer:ISSUER,audience:AUDIENCE,algorithms:["RS256"]});
   if(payload.repository!==REPOSITORY)throw new Error("repository claim rejected");
   if(payload.event_name!=="push")throw new Error("event claim rejected");
-  if(payload.ref===PHRASE_REF)return "phrasal";if(payload.ref===HINDU_REF)return "hindu";throw new Error("ref claim rejected");
+  if(payload.ref===PHRASE_REF)return "phrasal";
+  if(payload.ref===HINDU_REF)return "hindu";
+  if(payload.ref===GRAMMAR_REF)return "grammar";
+  throw new Error("ref claim rejected");
 }
 
 Deno.serve(async(req)=>{
   if(req.method!=="POST")return json({error:"Method not allowed"},405);
-  let lane:"phrasal"|"hindu";try{lane=await authorize(req)}catch(e){return json({error:e instanceof Error?e.message:"OIDC authorization failed"},401)}
+  let lane:Lane;try{lane=await authorize(req)}catch(e){return json({error:e instanceof Error?e.message:"OIDC authorization failed"},401)}
   const url=Deno.env.get("SUPABASE_URL"),serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");if(!url||!serviceKey)return json({error:"Supabase service configuration missing"},503);
   const db=createClient(url,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
   let body:any={};try{body=await req.json()}catch{return json({error:"Invalid JSON body"},400)}const action=String(body?.action||"");
 
   if(action==="run"){
     if(lane==="phrasal")return json({ok:false,lane:"phrasal",error:"Legacy server-side Phrasal AI generation is disabled; use claim + ingest ChatGPT-owned workflow"},409);
+    if(lane==="grammar")return json({ok:false,lane:"grammar",error:"Legacy/server-side Grammar AI generation is disabled; use claim + ingest ChatGPT-owned workflow"},409);
     try{return json((await runHinduGeneration(db))??{ok:true})}catch(e){return json({ok:false,lane,error:errorText(e)},500)}
   }
+
   if(lane==="phrasal"){
     if(action==="claim"){
       try{return json(await claimSubmittedPhrasal(db))}catch(e){return json({ok:false,lane:"phrasal",mode:"chatgpt_owned",error:errorText(e)},500)}
@@ -43,6 +51,18 @@ Deno.serve(async(req)=>{
       try{return json(await ingestSubmittedPhrasal(db,runId,items))}catch(e){return json({ok:false,lane:"phrasal",mode:"chatgpt_owned",error:errorText(e)},500)}
     }
     return json({error:"Unknown Phrasal action"},400);
+  }
+
+  if(lane==="grammar"){
+    if(action==="claim"){
+      try{return json(await claimSubmittedGrammar(db))}catch(e){return json({ok:false,lane:"grammar",mode:"chatgpt_owned",error:errorText(e)},500)}
+    }
+    if(action==="ingest"){
+      const runId=String(body?.runId||"");const items=Array.isArray(body?.items)?body.items:null;
+      if(!runId||!items||items.length>20)return json({error:"Grammar ingest requires runId and an array of 0-20 ChatGPT-generated slot overrides"},400);
+      try{return json(await ingestSubmittedGrammar(db,runId,items))}catch(e){return json({ok:false,lane:"grammar",mode:"chatgpt_owned",error:errorText(e)},500)}
+    }
+    return json({error:"Unknown Grammar action"},400);
   }
 
   if(action==="ingest"){
