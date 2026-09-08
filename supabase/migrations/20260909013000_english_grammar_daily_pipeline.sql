@@ -409,17 +409,17 @@ stable
 security definer
 set search_path to 'pg_catalog','public','english','auth'
 as $function$
-with d as(select (now() at time zone 'Asia/Kolkata')::date day), rows as(
+with d as(select (now() at time zone 'Asia/Kolkata')::date as batch_day), rows as(
   select i.slot_no,i.rule_key,i.question_family,i.requested_family,i.is_new_variant,
     q.question_id id,q.topic,q.subtopic,q.word,q.question,q.question_type,
     jsonb_build_array(jsonb_build_object('key','A','text',q.option_a),jsonb_build_object('key','B','text',q.option_b),jsonb_build_object('key','C','text',q.option_c),jsonb_build_object('key','D','text',q.option_d)) options,
     q.correct "correctKey",q.explanation,q.tip,q.usage_note "usageNote",q.example_sentence example,q.memory_aid "memoryAid",q.difficulty,q.source_url "sourceUrl",
     r.rule_title "ruleTitle",r.canonical_rule "canonicalRule",r.common_trap "commonTrap",r.contrast_with "contrastWith"
-  from english.grammar_daily_items i join d on i.batch_date=d.day
+  from english.grammar_daily_items i join d on i.batch_date=d.batch_day
   join english.questions q on q.question_id=i.question_id and q.active
   join english.grammar_rules r on r.rule_key=i.rule_key
   order by i.slot_no)
-select jsonb_build_object('ok',true,'date',(select day from d),'ready',(select count(*) from rows)=20,'count',(select count(*) from rows),
+select jsonb_build_object('ok',true,'date',(select batch_day from d),'ready',(select count(*) from rows)=20,'count',(select count(*) from rows),
   'items',coalesce((select jsonb_agg(to_jsonb(rows) order by slot_no) from rows),'[]'::jsonb))
 $function$;
 
