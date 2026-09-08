@@ -30,7 +30,6 @@ set statement_timeout to '120s'
 as $function$
 declare
   v_count integer; v_distinct integer; v_key_checksum text; v_content_checksum text; v_bad integer;
-  r record;
 begin
   if btrim(coalesce(p_version,''))='' then raise exception 'Grammar curriculum version is required'; end if;
   if jsonb_typeof(coalesce(p_rules,'null'::jsonb))<>'array' then raise exception 'Grammar curriculum must be a JSON array'; end if;
@@ -98,8 +97,9 @@ begin
     active=true,metadata=english.grammar_rules.metadata||excluded.metadata,updated_at=now();
 
   -- Preserve retired rule identity/evidence but keep it out of future selection.
-  update english.grammar_rules r set active=false,updated_at=now(),metadata=r.metadata||jsonb_build_object('retiredByCurriculum',p_version)
-  where r.active and not exists(select 1 from grammar_sync_stage s where s.rule_key=r.rule_key);
+  update english.grammar_rules as gr
+  set active=false,updated_at=now(),metadata=gr.metadata||jsonb_build_object('retiredByCurriculum',p_version)
+  where gr.active and not exists(select 1 from grammar_sync_stage s where s.rule_key=gr.rule_key);
 
   insert into english.grammar_curriculum_state(singleton,curriculum_version,rule_count,key_checksum,content_checksum,source_spreadsheet_id,source_sheet,synced_at,metadata)
   values(true,p_version,v_count,v_key_checksum,v_content_checksum,p_spreadsheet_id,'Grammar_Rules',now(),
@@ -130,14 +130,14 @@ begin
   if v_distinct<>v_count then raise exception 'Grammar Sprint alias keys must be unique'; end if;
   select count(*) into v_bad from grammar_alias_stage a
   where alias_key='' or rule_key='' or confidence not between 0 and 1
-     or not exists(select 1 from english.grammar_rules r where r.rule_key=a.rule_key and r.active);
+     or not exists(select 1 from english.grammar_rules gr where gr.rule_key=a.rule_key and gr.active);
   if v_bad>0 then raise exception 'Grammar alias payload contains % invalid or unknown target rules',v_bad; end if;
 
   insert into english.grammar_rule_aliases(alias_key,rule_key,source,confidence,active,created_at)
   select alias_key,rule_key,'sprint_concept_key',confidence,true,now() from grammar_alias_stage
   on conflict(alias_key) do update set rule_key=excluded.rule_key,source=excluded.source,confidence=excluded.confidence,active=true;
-  update english.grammar_rule_aliases a set active=false
-  where a.source='sprint_concept_key' and not exists(select 1 from grammar_alias_stage s where s.alias_key=a.alias_key);
+  update english.grammar_rule_aliases as ga set active=false
+  where ga.source='sprint_concept_key' and not exists(select 1 from grammar_alias_stage s where s.alias_key=ga.alias_key);
 
   return jsonb_build_object('ok',true,'version',p_alias_version,'aliasCount',v_count);
 end
