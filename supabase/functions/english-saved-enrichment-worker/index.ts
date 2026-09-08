@@ -195,7 +195,7 @@ async function primaryAntigravityReviewedRecovery(db:any,item:any,input:any,orig
   };
   const recovered=await antigravityJson<any>(
     `${instructions}\nThe rare Gemini rescue route was temporarily unavailable. Produce one fresh final candidate using the original fixed assignment. Preserve the family and learning intent exactly, satisfy every deterministic requirement, and explain all four options.`,
-    {originalAssignment:input,upstreamFailure:upstreamError,fixedRequirements:{requiredQuestionFamily:family,requiredLearningIntent:requiredIntent,hardDistractors:true,explainAllOptions:true,clusterMustStayCombined:requiredIntent==="CONFUSION"}},
+    input,
     {maxAttempts:1,schema:enrichmentSchema},
   );
   const current=recovered.data;
