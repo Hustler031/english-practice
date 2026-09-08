@@ -27,8 +27,10 @@ export async function claimSubmittedPhrasal(db: Db) {
 
 export async function ingestSubmittedPhrasal(db: Db, runIdRaw: unknown, itemsRaw: unknown) {
   const runId = text(runIdRaw);
-  const items = Array.isArray(itemsRaw) ? itemsRaw as Json[] : [];
-  if (!runId || items.length !== 20) throw new Error("Phrasal ingest requires runId and exactly 20 finalized items");
+  if (!runId || !Array.isArray(itemsRaw) || itemsRaw.length > 20) {
+    throw new Error("Phrasal ingest requires runId and an array of 0-20 ChatGPT-generated slot overrides");
+  }
+  const items = itemsRaw as Json[];
 
   const { data, error } = await db.rpc("english_phrasal_task_ingest", {
     p_run_id: runId,
