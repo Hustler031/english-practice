@@ -101,7 +101,8 @@ async function claimAntigravityBudget(){
   catch(e){return {allowed:false,route:"gemini",reason:`BUDGET_GUARD_FAIL_CLOSED: ${errorText(e)}`}}
 }
 async function markAntigravityQuotaExhausted(reason:string){
-  try{await serviceRpc("english_mark_antigravity_quota_exhausted",{p_reason:reason.slice(0,800)})}catch{/* fallback still proceeds */}
+  try{return await serviceRpc("english_mark_antigravity_quota_exhausted",{p_reason:reason.slice(0,800)})}
+  catch{return {ok:false,kind:"UNKNOWN",route:"gemini"}}
 }
 
 export async function antigravityJson<T>(instructions:string,input:unknown,opts:{maxAttempts?:number;schema?:unknown}={}):Promise<{data:T;provider:"antigravity";model:string}> {
@@ -215,8 +216,10 @@ type SmartWriterResult<T>={data:T;provider:string;model:string;antigravityReques
 async function smartWriterJson<T>(instructions:string,input:unknown,schema:unknown):Promise<SmartWriterResult<T>>{
   const budget=await claimAntigravityBudget();
   if(budget?.allowed!==true){
+    const reason=String(budget?.reason||"ANTIGRAVITY_BUDGET_PROTECTED");
+    if(String(budget?.route||"").toLowerCase()==="retry")throw new Error(`ANTIGRAVITY_COOLDOWN: ${reason}`);
     const g=await geminiFallbackWriterJson<T>(instructions,input,schema);
-    return {...g,antigravityRequests:0,geminiRequests:1,fallback:true,fallbackReason:String(budget?.reason||"ANTIGRAVITY_BUDGET_PROTECTED")};
+    return {...g,antigravityRequests:0,geminiRequests:1,fallback:true,fallbackReason:reason};
   }
   try{
     const a=await antigravityJson<T>(instructions,input,{maxAttempts:1,schema});
@@ -225,7 +228,10 @@ async function smartWriterJson<T>(instructions:string,input:unknown,schema:unkno
     const reason=errorText(e);
     const eligible=/^ANTIGRAVITY_(429|500|502|503|504):|^ANTIGRAVITY_TIMEOUT$|^ANTIGRAVITY_RETRY_EXHAUSTED$/.test(reason);
     if(!eligible)throw e;
-    if(/^ANTIGRAVITY_429:/.test(reason))await markAntigravityQuotaExhausted(reason);
+    if(/^ANTIGRAVITY_429:/.test(reason)){
+      const circuit=await markAntigravityQuotaExhausted(reason);
+      if(String(circuit?.route||"").toLowerCase()==="retry")throw e;
+    }
     const g=await geminiFallbackWriterJson<T>(instructions,input,schema);
     return {...g,antigravityRequests:1,geminiRequests:1,fallback:true,fallbackReason:reason};
   }
