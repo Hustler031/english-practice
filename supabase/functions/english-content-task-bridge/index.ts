@@ -1,8 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { createRemoteJWKSet, jwtVerify } from "npm:jose@5.9.6";
 import { runHinduGeneration } from "./generation.ts";
-import { runPhrasalGeneration } from "./phrasal-generation.ts";
 import { ingestSubmittedHinduItems } from "./submitted-hindu.ts";
+import { claimSubmittedPhrasal, ingestSubmittedPhrasal } from "./submitted-phrasal.ts";
 
 const ISSUER = "https://token.actions.githubusercontent.com";
 const AUDIENCE = "english-content-automation";
@@ -29,10 +29,19 @@ Deno.serve(async(req)=>{
   const db=createClient(url,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
   let body:any={};try{body=await req.json()}catch{return json({error:"Invalid JSON body"},400)}const action=String(body?.action||"");
 
-  if(action==="run"){try{return json((lane==="phrasal"?await runPhrasalGeneration(db):await runHinduGeneration(db))??{ok:true})}catch(e){return json({ok:false,lane,error:errorText(e)},500)}}
+  if(action==="run"){
+    if(lane==="phrasal")return json({ok:false,lane:"phrasal",error:"Legacy server-side Phrasal AI generation is disabled; use claim + ingest ChatGPT-owned workflow"},409);
+    try{return json((await runHinduGeneration(db))??{ok:true})}catch(e){return json({ok:false,lane,error:errorText(e)},500)}
+  }
   if(lane==="phrasal"){
-    if(action==="claim"){const{data,error}=await db.rpc("english_phrasal_task_claim");if(error)return json({error:error.message},500);return json(data??{ok:true,count:0})}
-    if(action==="apply"){const runId=String(body?.runId||""),items=Array.isArray(body?.items)?body.items:null;if(!runId||!items||items.length!==20)return json({error:"Phrasal runId and exactly 20 items are required"},400);const{data,error}=await db.rpc("english_phrasal_task_apply",{p_run_id:runId,p_items:items});if(error)return json({error:error.message},500);return json(data??{ok:true})}
+    if(action==="claim"){
+      try{return json(await claimSubmittedPhrasal(db))}catch(e){return json({ok:false,lane:"phrasal",mode:"chatgpt_owned",error:errorText(e)},500)}
+    }
+    if(action==="ingest"){
+      const runId=String(body?.runId||"");const items=Array.isArray(body?.items)?body.items:null;
+      if(!runId||!items||items.length!==20)return json({error:"Phrasal ingest requires runId and exactly 20 finalized items"},400);
+      try{return json(await ingestSubmittedPhrasal(db,runId,items))}catch(e){return json({ok:false,lane:"phrasal",mode:"chatgpt_owned",error:errorText(e)},500)}
+    }
     return json({error:"Unknown Phrasal action"},400);
   }
 
