@@ -38,8 +38,12 @@ function fallbackTarget(item:any,reference:any,conceptId:string){
 function availabilityFallbackFromCanonical(item:any,cause:string){
   const conceptId=String(item?.phrasalConceptId||item?.conceptId||"");
   const originalRequested=String(item?.requestedQuestionFamily||item?.missingFamily||item?.phrasalQuestionFamily||"recognition").toLowerCase();
-  const fallbackFamily=String(item?.legacyFamily||item?.phrasalQuestionFamily||"recognition").toLowerCase();
   const reference=Object.keys(item?.referenceVariant||{}).length?item.referenceVariant:item;
+  const referenceId=String(reference?.id||reference?.questionId||"");
+  const referenceFamily=Array.isArray(item?.availableVariants)
+    ?String(item.availableVariants.find((x:any)=>String(x?.questionId||x?.id||"")===referenceId)?.family||"").toLowerCase()
+    :"";
+  const fallbackFamily=String(referenceFamily||item?.legacyFamily||item?.phrasalQuestionFamily||"recognition").toLowerCase();
   const targetWord=fallbackTarget(item,reference,conceptId);
   const question=String(reference?.question||"").trim(),explanation=String(reference?.explanation||"").trim();
   const correctKey=String(reference?.correctKey||reference?.correct||"").toUpperCase();
