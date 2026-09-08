@@ -11,6 +11,7 @@ const cors={
 };
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
 const errorText=(e:unknown)=>e instanceof Error?e.message:String(e||"Unknown Phrasal worker error");
+const sleep=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms));
 
 async function authorize(req:Request,db:any){
   const privateToken=String(req.headers.get("x-english-context-token")||"").trim();
@@ -30,9 +31,16 @@ async function authorize(req:Request,db:any){
   return {mode:"app" as const,userId};
 }
 async function featureEnabled(db:any,flag:string){
-  const {data,error}=await db.rpc("english_ai_content_feature_enabled",{p_flag:flag});
-  if(error)throw new Error(`FEATURE_READ_FAILED: ${error.message}`);
-  return data===true;
+  let lastError="";
+  for(let attempt=0;attempt<3;attempt++){
+    const {data,error}=await db.rpc("english_ai_content_feature_enabled",{p_flag:flag});
+    if(!error)return data===true;
+    lastError=String(error.message||error);
+    const transient=/(schema cache|retrying|temporar|timeout|connection|502|503|504)/i.test(lastError);
+    if(!transient||attempt===2)throw new Error(`FEATURE_READ_FAILED: ${lastError}`);
+    await sleep(250*(attempt+1));
+  }
+  throw new Error(`FEATURE_READ_FAILED: ${lastError||"unknown error"}`);
 }
 async function auditApplied(db:any,items:any[]){
   const generated=items.filter(x=>x?.generatorProvider!=="legacy_bank");
