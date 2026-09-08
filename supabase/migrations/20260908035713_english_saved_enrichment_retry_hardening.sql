@@ -1,0 +1,4 @@
+-- Production migration history alignment.
+-- The final idempotent Saved enrichment retry implementation is materialized in
+-- 20260908041607_english_saved_anchor_core_family_aware.sql so a fresh database
+-- reaches the same production state without replaying the transient intermediate form.
