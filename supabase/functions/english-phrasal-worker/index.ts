@@ -42,6 +42,17 @@ async function featureEnabled(db:any,flag:string){
   }
   throw new Error(`FEATURE_READ_FAILED: ${lastError||"unknown error"}`);
 }
+async function claimSlot(db:any){
+  let data:any=null,error:any=null;
+  for(let attempt=0;attempt<3;attempt++){
+    const out=await db.rpc("english_phrasal_single_slot_claim");
+    data=out.data;error=out.error;
+    if(!error)return {data,error:null};
+    if(!/statement timeout/i.test(String(error.message||error))||attempt===2)return {data,error};
+    await sleep(300*(attempt+1));
+  }
+  return {data,error};
+}
 async function auditApplied(db:any,items:any[]){
   const generated=items.filter(x=>x?.generatorProvider!=="legacy_bank");
   if(!generated.length)return;
@@ -89,7 +100,7 @@ Deno.serve(async(req)=>{
     if(!await featureEnabled(db,"luna_critic_v1")||!await featureEnabled(db,"phrasal_sense_v1")||!await featureEnabled(db,"phrasal_context_fill_v1"))
       throw new Error("AI_PIPELINE_DISABLED: Phrasal Luna/sense/context flags are not enabled");
 
-    const {data:claim,error:claimError}=await db.rpc("english_phrasal_single_slot_claim");
+    const {data:claim,error:claimError}=await claimSlot(db);
     if(claimError)throw new Error(`PHRASAL_SLOT_CLAIM_FAILED: ${claimError.message}`);
 
     if(Number(claim?.count||0)===0){
