@@ -1,0 +1,35 @@
+name: English Grammar Stage 1 Validation
+
+on:
+  push:
+    branches:
+      - english-grammar-intelligence-stage1-20260909
+    paths:
+      - 'supabase/migrations/20260909011**'
+      - 'supabase/migrations/20260909012**'
+      - 'supabase/migrations/20260909013**'
+      - 'supabase/functions/english-content-task-bridge/**'
+      - 'web-v2/data/grammar-*'
+      - 'web-v2/scripts/validate-grammar-stage1.mjs'
+      - '.github/workflows/grammar-stage1-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch main boundary
+        run: git fetch origin main --depth=1
+      - name: Validate Grammar Stage 1 architecture
+        run: node web-v2/scripts/validate-grammar-stage1.mjs
+      - name: Show scoped diff
+        run: |
+          echo 'Changed files vs main:'
+          git diff --name-only origin/main...HEAD
