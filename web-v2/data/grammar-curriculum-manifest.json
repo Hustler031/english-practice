@@ -1,0 +1,30 @@
+{
+  "version": "2026-09-09-stage1-v1",
+  "spreadsheetId": "1IgUGQZu6sp1STBCX6gyI5pHayLGVpmYYrkKGYdwkjak",
+  "sheet": "Grammar_Rules",
+  "ruleCount": 260,
+  "keySha256": "10d45629bcf13e5294c12a5bf3d98a6c29b712636377cc972acb0083edd50711",
+  "chapters": {
+    "Articles & Determiners": 19,
+    "Comparison & Degree": 16,
+    "Conditionals & Wishes": 20,
+    "Conjunctions & Clauses": 16,
+    "Inversion & Negation": 16,
+    "Modals": 15,
+    "Modifiers & Word Order": 15,
+    "Narration": 16,
+    "Pronouns & Relative Clauses": 22,
+    "Sentence Structure & Parallelism": 10,
+    "Subject–Verb Agreement": 24,
+    "Tense & Time": 23,
+    "Verb Patterns & Non-finites": 33,
+    "Voice": 15
+  },
+  "dailyTarget": 20,
+  "coldStart": {
+    "initialReviewCap": 3,
+    "policy": "Mostly new verified rules; only bounded recent/weak review until broad syllabus exposure develops."
+  },
+  "sourcePolicy": "SSC official syllabus defines exam scope. Atomic rule truth must be verified against Cambridge English Grammar/Dictionary, British Council LearnEnglish, Merriam-Webster, or another comparably authoritative English-language reference. Coaching sites are not curriculum sources.",
+  "runtimePolicy": "The Google Sheet is the curated workspace, but daily runtime never reads Google. Stage 3 performs an explicit validated snapshot sync into Supabase before Grammar is enabled."
+}
