@@ -16,8 +16,8 @@ const manifestPath='web-v2/data/grammar-curriculum-manifest.json';
 for(const p of [homePath,practicePath,hubPath,chapterPath,sqlPath,manifestPath])if(!fs.existsSync(p))fail(`required file missing: ${p}`);
 const home=read(homePath),practice=read(practicePath),hub=read(hubPath),chapter=read(chapterPath),sql=read(sqlPath),manifest=JSON.parse(read(manifestPath));
 
-if(manifest.ruleCount!==260)fail(`Grammar curriculum drifted from 260 rules`);
-if(manifest.dailyTarget!==20)fail(`Grammar daily target drifted from exact 20`);
+if(manifest.ruleCount!==260)fail('Grammar curriculum drifted from 260 rules');
+if(manifest.dailyTarget!==20)fail('Grammar daily target drifted from exact 20');
 
 // Home changes only the compact shortcut; Exam Sprint remains available from Practice.
 has(home,'<section className="exam-home-row"><Link href="/english/grammar">','Home compact Grammar row');
@@ -51,7 +51,7 @@ notHas(chapter,'english_submit_answer','read-only page direct answer mutation');
 notHas(chapter,'english_set_mastered','read-only page mastery mutation');
 
 // DB read model remains compact and evidence-driven.
-for(const fn of ['english_get_grammar_hub','english_get_grammar_chapter','english_get_grammar_rule_questions','english_get_grammar_batch','english_get_grammar_today'])has(sql,`function public.${fn}` `${fn} RPC`);
+for(const fn of ['english_get_grammar_hub','english_get_grammar_chapter','english_get_grammar_rule_questions','english_get_grammar_batch','english_get_grammar_today'])has(sql,`function public.${fn}`,`${fn} RPC`);
 has(sql,"v_mode not in ('smart','weak','due','all')",'bounded Grammar practice modes');
 has(sql,'partition by v.rule_key','one-question-per-rule variant selection');
 has(sql,"when e.coverage_state='weak'",'weak-aware variant selection');
