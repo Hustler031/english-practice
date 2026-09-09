@@ -122,4 +122,14 @@ jobs:
       - name: TypeScript boundary
         run: npm run typecheck
       - name: Production build boundary
-        run: npm run build
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee /tmp/grammar-stage2-build.log
+      - name: Upload Grammar Stage 2 build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grammar-stage2-build-${{ github.run_id }}
+          path: /tmp/grammar-stage2-build.log
+          if-no-files-found: ignore
+          retention-days: 3
