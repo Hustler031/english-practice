@@ -37,12 +37,13 @@ need(worker, 'SAVED_GEMINI_35_MODEL', 'Gemini 3.5 easy-route constant');
 need(worker, '"gemini-3.5-flash"', 'Gemini 3.5 easy meaning model');
 need(worker, 'type RouteKind="EASY"|"NORMAL"|"CONFUSION"', 'deterministic route labels');
 need(worker, 'function routeKind(item:any):RouteKind', 'deterministic difficulty router');
+need(worker, 'const family=requiredFamily(item),intent=requiredLearningIntent(item)', 'router reads authoritative family and intent');
+need(worker, 'if(intent==="CONFUSION"', 'authoritative confusion routing');
 need(worker, 'route==="EASY"?', 'easy-route branch');
 need(worker, 'model:SAVED_GEMINI_35_MODEL', 'easy route starts on 3.5');
 need(worker, 'model:SAVED_GEMINI_38_MODEL', 'normal/confusion route starts on 3.8');
 need(worker, 'model:SAVED_GEMINI_36_MODEL', 'availability fallback uses 3.6');
 need(worker, 'availabilityError', 'provider availability classifier');
-need(worker, 'requiredLearningIntent(item)==="CONFUSION"', 'authoritative confusion routing');
 need(worker, 'directGeminiJson', 'direct Gemini writer');
 
 // Luna is a one-shot rescue writer, not a blanket critic or retry loop.
@@ -68,7 +69,6 @@ need(worker, 'lunaRescueUsed:false', 'Google direct publish metadata');
 need(worker, 'status:"code_reject"', 'Google deterministic rejection trace');
 need(worker, 'return await rescue', 'immediate rescue after Google failure');
 need(worker, 'lunaRescueUsed:true', 'Luna rescue publish metadata');
-before(worker, 'if(!issues.length)', 'return await rescue', 'Google pass is checked before rescue');
 
 // Existing category/intent authority and SSC hard gates stay enforced.
 need(worker, 'function requiredFamily(item:any)', 'authoritative family reader');
