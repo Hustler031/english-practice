@@ -83,10 +83,12 @@ has(T.route,['bootstrap_learning_routes','Historical clean evidence; verificatio
 has(T.reconcile,['english_get_learning_route_bootstrap_reconciliation','totalEvaluated','fastTrackCandidates','targetedCandidates','starredUnresolved','insufficientEvidence','alreadyMastered','excludedCases','savedClean','savedTargeted','savedUnclassified'], 'Bootstrap reconciliation reports all required buckets');
 has(T.reconcile,['attemptsUnchanged','dailyHistoryUnchanged','starHistoryPreserved','savedRowsUnchanged','questionStateRowsUnchanged','activeQuestionIdsUnique'], 'Bootstrap reconciliation asserts preserved evidence and canonical uniqueness');
 
-// Home: exactly one compact Exam Preparation row, immediately before Quick Start, no Fast Track card.
-const examRows=(T.home.match(/EXAM PREPARATION/g)||[]).length;
-ok(examRows===1, 'Home contains exactly one EXAM PREPARATION entry');
-ok(T.home.indexOf('exam-home-row')<T.home.indexOf('Quick Start') && T.home.indexOf('exam-home-row')>T.home.indexOf('paused&&'), 'Exam Preparation row is immediately in the pre-Quick-Start Home region');
+// Home: Grammar owns the compact pre-Quick-Start shortcut; Exam Sprint remains in Practice.
+const grammarRows=(T.home.match(/<b>GRAMMAR<\/b>/g)||[]).length;
+ok(grammarRows===1, 'Home contains exactly one compact GRAMMAR entry');
+has(T.home,['<section className="exam-home-row"><Link href="/english/grammar">','<b>GRAMMAR</b><small>Daily 20 · Adaptive Grammar Intelligence</small>'], 'Home compact Grammar shortcut is canonical');
+ok(!T.home.includes('href="/english/exam"><span><b>EXAM PREPARATION'), 'Home does not duplicate the Exam Preparation shortcut');
+ok(T.home.indexOf('exam-home-row')<T.home.indexOf('Quick Start') && T.home.indexOf('exam-home-row')>T.home.indexOf('paused&&'), 'Grammar row is immediately in the pre-Quick-Start Home region');
 ok(!T.home.includes('/english/fast-track'), 'Home has no Fast Track card/link');
 
 // Final learner navigation: Fast Track is a Practice mode, while Revision stays focused on due/repair/saved/topic/insights.
