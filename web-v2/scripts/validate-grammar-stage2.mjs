@@ -13,12 +13,13 @@ const notHas=(text,needle,label=needle)=>{if(text.includes(needle))fail(`forbidd
 const homePath='web-v2/app/english/page.tsx';
 const practicePath='web-v2/app/english/practice/page.tsx';
 const hubPath='web-v2/app/english/grammar/page.tsx';
-const chapterPath='web-v2/app/english/grammar/chapter/[chapter]/page.tsx';
+const chapterRoutePath='web-v2/app/english/grammar/chapter/[chapter]/page.tsx';
+const chapterClientPath='web-v2/app/english/grammar/chapter/[chapter]/grammar-chapter-client.tsx';
 const sqlPath='supabase/migrations/20260909020000_english_grammar_world_read_model.sql';
 const manifestPath='web-v2/data/grammar-curriculum-manifest.json';
 
-for(const p of [homePath,practicePath,hubPath,chapterPath,sqlPath,manifestPath])if(!fs.existsSync(at(p)))fail(`required file missing: ${p}`);
-const home=read(homePath),practice=read(practicePath),hub=read(hubPath),chapter=read(chapterPath),sql=read(sqlPath),manifest=JSON.parse(read(manifestPath));
+for(const p of [homePath,practicePath,hubPath,chapterRoutePath,chapterClientPath,sqlPath,manifestPath])if(!fs.existsSync(at(p)))fail(`required file missing: ${p}`);
+const home=read(homePath),practice=read(practicePath),hub=read(hubPath),chapterRoute=read(chapterRoutePath),chapter=read(chapterClientPath),sql=read(sqlPath),manifest=JSON.parse(read(manifestPath));
 
 if(manifest.ruleCount!==260)fail('Grammar curriculum drifted from 260 rules');
 if(manifest.dailyTarget!==20)fail('Grammar daily target drifted from exact 20');
@@ -44,7 +45,12 @@ has(hub,'Due','Due action');
 has(hub,'Practice All','Practice All action');
 has(hub,'/english/grammar/chapter/','chapter navigation');
 
-// Chapter page: practice uses QuizRunner, browsing is separate and must never submit attempts.
+// Static-export route wrapper must pre-generate the frozen curriculum chapters while keeping learner logic client-side.
+has(chapterRoute,'generateStaticParams','static Grammar chapter params');
+has(chapterRoute,'Object.keys(manifest.chapters||{})','frozen manifest chapter generation');
+has(chapterRoute,'<GrammarChapterClient/>','chapter client wrapper');
+
+// Chapter client: practice uses QuizRunner, browsing is separate and must never submit attempts.
 has(chapter,'english_get_grammar_chapter','chapter read model');
 has(chapter,'english_get_grammar_rule_questions','lazy read-only question bank');
 has(chapter,'english_get_grammar_batch','chapter-scoped adaptive practice');
@@ -76,4 +82,4 @@ for(const p of changed){
  if(/\.css$/i.test(p)&&!p.includes('grammar'))fail(`Stage 2 unexpectedly changed shared visual CSS: ${p}`);
 }
 
-console.log(JSON.stringify({ok:true,stage:'grammar-intelligence-stage2',ruleCount:manifest.ruleCount,dailyTarget:manifest.dailyTarget,changedFilesChecked:changed.length},null,2));
+console.log(JSON.stringify({ok:true,stage:'grammar-intelligence-stage2',ruleCount:manifest.ruleCount,dailyTarget:manifest.dailyTarget,chapters:Object.keys(manifest.chapters||{}).length,changedFilesChecked:changed.length},null,2));
