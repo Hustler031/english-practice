@@ -172,6 +172,36 @@ function simpleBareVocab(item:any){
   if(/[,/;]|\b(?:and|vs|versus|confus|difference|sentence|usage|use\s+kro|use\s+karo)\b/i.test(raw))return false;
   return raw.split(/\s+/).length<=3;
 }
+function familyWriterContract(item:any){
+  const family=requiredFamily(item),intent=requiredLearningIntent(item);
+  if(family==="SM"){
+    if(intent==="CONFUSION")return `FAMILY CONTRACT — SM + CONFUSION:\n- This MUST remain a spelling-family diagnostic. Use an explicit spelling stem such as "Which of the following is correctly spelled?" or "Which word is incorrectly spelled?" so the task is unmistakably about spelling.\n- Keep learner-supplied confusable spellings/targets together where relevant.\n- Options must be plausible orthographic/spelling candidates, not semantic definitions or sentence-length fillers.\n- Exactly one answer is defensible. Meaning/explanation may teach lexical distinctions, but the tested MCQ remains spelling-family.`;
+    return `FAMILY CONTRACT — SM:\n- This MUST be a spelling MCQ regardless of semantic context. Use an explicit stem such as "Which of the following is correctly spelled?" or "Which word is incorrectly spelled?".\n- For one target, create four plausible spelling variants from the same orthographic family; exactly one is standard.\n- Do NOT generate a synonym, antonym, direct-meaning, or sentence-completion question. Keep each spelling option short.`;
+  }
+  if(family==="V"&&intent==="USAGE")return `FAMILY CONTRACT — V + USAGE:\n- Do NOT ask for the direct meaning/synonym. Test whether the target is used naturally and semantically correctly.\n- Prefer an SSC-style "Which sentence uses the word correctly?" task or a contextual-fit sentence with close lexical competitors.\n- All four choices must look grammatical/plausible; exactly one must have the correct sense/collocation.\n- Explain the exact usage defect or nuance for A, B, C and D.`;
+  if(family==="V"&&intent==="CONFUSION")return `FAMILY CONTRACT — V + CONFUSION:\n- Keep EVERY learner-supplied confusable target together in the SAME diagnostic MCQ.\n- Test the distinction among their exact meanings/usages; do NOT collapse to "synonym/meaning of" one target.\n- Make all four choices plausible and close enough to diagnose the confusion, with exactly one defensible answer.\n- Explanation must contrast all supplied targets and A-D explicitly.`;
+  if(family==="CU"){
+    if(intent==="CONFUSION")return `FAMILY CONTRACT — CU + CONFUSION:\n- Keep all supplied grammar/usage/confusable forms together in one MCQ.\n- Explicitly test "correct usage", a grammatical distinction, collocation, or rule application; do not reduce it to a generic vocabulary synonym question.\n- Exactly one answer; explanation must name the governing rule/distinction and explain A-D.`;
+    return `FAMILY CONTRACT — CU:\n- Explicitly test a grammar/usage rule, collocation, grammatical distinction, or "correct usage".\n- The stem/explanation must make the rule signal clear.\n- Exactly one defensible answer; explain A-D under that rule.`;
+  }
+  if(family==="OWS"){
+    if(intent==="CONFUSION")return `FAMILY CONTRACT — OWS + CONFUSION:\n- Keep supplied one-word-substitution terms together and diagnose their definition-to-term distinctions in one MCQ.\n- Exactly one answer; explain why each OWS term fits or fails.`;
+    return `FAMILY CONTRACT — OWS:\n- Test a precise definition/scenario against four plausible one-word-substitution terms.\n- Exactly one defensible answer; explain A-D.`;
+  }
+  if(family==="PV"){
+    if(intent==="CONFUSION")return `FAMILY CONTRACT — PV + CONFUSION:\n- Keep all supplied phrasal verbs together in one diagnostic MCQ and distinguish their exact meanings/usages.\n- Preserve particles; exactly one answer; explain A-D.`;
+    if(intent==="USAGE")return `FAMILY CONTRACT — PV + USAGE:\n- Test the phrasal verb in a natural sentence/collocation, preserving its particle(s).\n- Exactly one idiomatic/contextually correct answer; explain A-D.`;
+    return `FAMILY CONTRACT — PV:\n- Test the actual phrasal-verb meaning/recall, preserving its particle(s), with four plausible same-domain choices and exactly one answer.`;
+  }
+  if(family==="IP"){
+    if(intent==="CONFUSION")return `FAMILY CONTRACT — IP + CONFUSION:\n- Keep supplied idioms/phrases together and test their precise contextual distinctions in one MCQ.\n- Exactly one answer; explain A-D.`;
+    if(intent==="USAGE")return `FAMILY CONTRACT — IP + USAGE:\n- Test the idiom/phrase in a natural context, not as unrelated bare vocabulary.\n- Exactly one idiomatic answer; explain A-D.`;
+    return `FAMILY CONTRACT — IP:\n- Test the precise idiomatic meaning with four plausible choices and exactly one defensible answer.`;
+  }
+  if(intent==="USAGE")return `LEARNING-INTENT CONTRACT — USAGE:\n- Test natural use/collocation/contextual fit rather than direct meaning. Exactly one answer; explain A-D.`;
+  if(intent==="CONFUSION")return `LEARNING-INTENT CONTRACT — CONFUSION:\n- Keep every supplied confusable target together in the same diagnostic MCQ. Do not collapse to a one-target synonym question. Exactly one answer; explain A-D.`;
+  return `FAMILY CONTRACT:\n- Preserve requiredQuestionFamily=${family} and requiredLearningIntent=${intent} exactly. Exactly one defensible answer; explain A-D.`;
+}
 function familyIssues(item:any,data:any){
   const issues:string[]=[];
   const family=requiredFamily(item),intent=requiredLearningIntent(item);
@@ -305,7 +335,9 @@ function readyOutput(item:any,data:any,reviewed:any){
 async function enrichOne(db:any,item:any,forceModel:string|null=null){
   const input=assignment(item),originalCapture=normalizedCapture(item),family=requiredFamily(item),requiredIntent=requiredLearningIntent(item);
   const criticContext={lane:"saved",rawLearnerRequest:input.rawSavedRequest,captureType:originalCapture,resolvedType:input.resolvedType,requiredQuestionFamily:family,requiredLearningIntent:requiredIntent,hardDistractors:true,explainAllOptions:true,clusterMustStayCombined:requiredIntent==="CONFUSION"};
-  const baseInstructions=simpleBareVocab(item)?SIMPLE_VOCAB_INSTRUCTIONS:GENERAL_INSTRUCTIONS;
+  const baseInstructions=simpleBareVocab(item)
+    ? SIMPLE_VOCAB_INSTRUCTIONS
+    : `${GENERAL_INSTRUCTIONS}\n\n${familyWriterContract(item)}`;
   const tiers=forceModel&&DIRECT_MODELS.has(forceModel)
     ? [{provider:"gemini",model:forceModel}]
     : WRITER_CHAIN.map(x=>({provider:x.provider,model:x.model}));
@@ -320,7 +352,7 @@ async function enrichOne(db:any,item:any,forceModel:string|null=null){
       ? {originalAssignment:input,previousCandidate:current,feedback:previousFeedback}
       : input;
     const tierInstructions=previousFeedback
-      ? `${baseInstructions}\nA previous writer did not pass validation. Fix only the listed feedback while keeping all valid content.`
+      ? `${baseInstructions}\nA previous writer did not pass validation. Fix only the listed feedback while keeping all valid content. The FAMILY/LEARNING-INTENT CONTRACT above remains mandatory and overrides any incompatible previous-candidate shape.`
       : baseInstructions;
 
     let written:WriterResult;
@@ -401,7 +433,7 @@ Deno.serve(async req=>{
       const auditPayload=completed.map(x=>({
         lane:"saved",entityKey:x.savedId,generatorProvider:String(x.generatorProvider||"unknown"),generatorModel:String(x.generatorModel||"unknown"),criticProvider:String(x.criticProvider||"openai"),criticModel:String(x.criticModel||LUNA_MODEL),qualityScore:Number(x?.quality?.score||0),criticDecision:String(x?.quality?.decision||""),repairCount:Number(x?.repairCount||0),questionFamily:String(x.requiredQuestionFamily||""),publicationResult:"applied",
         metadata:{
-          requestMode:"saved_four_tier_simple_cascade",writer:String(x.generatorProvider||"unknown"),writerChain:WRITER_CHAIN.map(t=>t.model),
+          requestMode:"saved_four_tier_family_contract_cascade",writer:String(x.generatorProvider||"unknown"),writerChain:WRITER_CHAIN.map(t=>t.model),
           critic:"luna",criticReasoning:"low",lunaModel:LUNA_MODEL,writerRequests:Number(x.writerRequests||1),criticRequests:Number(x.criticRequests||1),
           codeRepairCount:Number(x.codeRepairCount||0),antigravityRequests:Number(x.antigravityRequests||0),geminiWriterRequests:Number(x.geminiWriterRequests||0),
           antigravityFallback:x.antigravityFallback===true,antigravityFallbackReason:String(x.antigravityFallbackReason||""),
@@ -418,7 +450,7 @@ Deno.serve(async req=>{
     const verifyItems=Array.isArray(verified?.items)?verified.items:[];
     for(const row of verifyItems)if(String(row?.gptStatus||"").toLowerCase()==="ready"&&row?.questionReady!==true)throw new Error(`VERIFY_FAILED: Ready item ${String(row?.savedId||"unknown")} is not question-ready`);
     return reply({
-      ok:true,generator:"saved-four-tier-cascade",
+      ok:true,generator:"saved-four-tier-family-contract-cascade",
       writerChain:WRITER_CHAIN.map(t=>`${t.provider}:${t.model}`),forceModel,
       critic:"luna",criticModel:LUNA_MODEL,criticReasoning:"low",
       singleFlight:true,maxOneCallPerWriterTier:true,
