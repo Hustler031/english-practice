@@ -328,14 +328,15 @@ function readyOutput(item:any,data:any,reviewed:any){
     generatorProvider:reviewed.generatorProvider,generatorModel:reviewed.generatorModel,criticProvider:reviewed.criticProvider,criticModel:reviewed.criticModel,
     repairCount:reviewed.repairCount,quality:reviewed.quality,rareRescue:false,writerRequests:reviewed.writerRequests,criticRequests:reviewed.criticRequests,codeRepairCount:reviewed.codeRepairCount,
     antigravityRequests:reviewed.antigravityRequests,geminiWriterRequests:reviewed.geminiWriterRequests,antigravityFallback:reviewed.antigravityFallback,antigravityFallbackReason:reviewed.antigravityFallbackReason,
-    writerTierTrace:reviewed.writerTierTrace,
+    writerTierTrace:reviewed.writerTierTrace,sameTierRepairUsed:reviewed.sameTierRepairUsed===true,
   };
 }
 
 async function enrichOne(db:any,item:any,forceModel:string|null=null){
   const input=assignment(item),originalCapture=normalizedCapture(item),family=requiredFamily(item),requiredIntent=requiredLearningIntent(item);
   const criticContext={lane:"saved",rawLearnerRequest:input.rawSavedRequest,captureType:originalCapture,resolvedType:input.resolvedType,requiredQuestionFamily:family,requiredLearningIntent:requiredIntent,hardDistractors:true,explainAllOptions:true,clusterMustStayCombined:requiredIntent==="CONFUSION"};
-  const baseInstructions=simpleBareVocab(item)
+  const isSimple=simpleBareVocab(item);
+  const baseInstructions=isSimple
     ? SIMPLE_VOCAB_INSTRUCTIONS
     : `${GENERAL_INSTRUCTIONS}\n\n${familyWriterContract(item)}`;
   const tiers=forceModel&&DIRECT_MODELS.has(forceModel)
@@ -344,58 +345,76 @@ async function enrichOne(db:any,item:any,forceModel:string|null=null){
 
   let current:any=null,previousFeedback:any=null,finalProvider="",finalModel="",review:any=null;
   let writerRequests=0,criticRequests=0,codeRepairCount=0,antigravityRequests=0,geminiWriterRequests=0;
+  let boundedRepairUsed=false;
   const trace:TierTrace[]=[];
 
   for(let i=0;i<tiers.length;i++){
     const tier=tiers[i];
-    const tierInput=previousFeedback
-      ? {originalAssignment:input,previousCandidate:current,feedback:previousFeedback}
-      : input;
-    const tierInstructions=previousFeedback
-      ? `${baseInstructions}\nA previous writer did not pass validation. Fix only the listed feedback while keeping all valid content. The FAMILY/LEARNING-INTENT CONTRACT above remains mandatory and overrides any incompatible previous-candidate shape.`
-      : baseInstructions;
+    let localFeedback=previousFeedback;
 
-    let written:WriterResult;
-    try{
-      written=await runWriterTier(db,tier,tierInstructions,tierInput);
-      writerRequests++;antigravityRequests+=written.antigravityRequests;geminiWriterRequests+=written.geminiWriterRequests;
-      current=written.data;finalProvider=written.provider;finalModel=written.model;preserveCapture(item,current);
-    }catch(e){
-      const err=classifyError(e);
-      trace.push({provider:tier.provider,model:tier.model,status:"provider_error",error:err.slice(0,500)});
-      // Provider availability/quota is routing information, not content-quality feedback.
-      // Preserve any prior code/Luna repair context; if none exists, the next model gets
-      // the clean original assignment rather than a bogus "repair provider error" prompt.
-      continue;
-    }
+    while(true){
+      const tierInput=localFeedback
+        ? {originalAssignment:input,previousCandidate:current,feedback:localFeedback}
+        : input;
+      const tierInstructions=localFeedback
+        ? `${baseInstructions}\nA previous writer candidate did not pass validation. Repair only the listed feedback while keeping all valid content. The FAMILY/LEARNING-INTENT CONTRACT above remains mandatory and overrides any incompatible previous-candidate shape. Return a complete replacement object; every required field and all four options must be nonblank.`
+        : baseInstructions;
 
-    const codeIssues=savedCodeGate(item,current);
-    if(codeIssues.length){
-      codeRepairCount++;
-      trace.push({provider:written.provider,model:written.model,status:"code_reject",gateIssues:codeIssues});
-      previousFeedback={decision:"CODE",issues:codeIssues,repairInstruction:codeIssues.join("; ")};
-      continue;
-    }
+      let written:WriterResult;
+      try{
+        written=await runWriterTier(db,tier,tierInstructions,tierInput);
+        writerRequests++;antigravityRequests+=written.antigravityRequests;geminiWriterRequests+=written.geminiWriterRequests;
+        current=written.data;finalProvider=written.provider;finalModel=written.model;preserveCapture(item,current);
+      }catch(e){
+        const err=classifyError(e);
+        trace.push({provider:tier.provider,model:tier.model,status:"provider_error",error:err.slice(0,500)});
+        // Availability/quota is routing information. Never retry an unavailable provider
+        // in the same invocation; move to the next tier while preserving content feedback.
+        break;
+      }
 
-    criticRequests++;
-    try{review=await lunaCritic(current,criticContext)}
-    catch(e){
-      // Do not burn more writer tiers when the shared critic itself is unavailable.
-      throw new Error(classifyError(e));
+      const codeIssues=savedCodeGate(item,current);
+      if(codeIssues.length){
+        codeRepairCount++;
+        trace.push({provider:written.provider,model:written.model,status:"code_reject",gateIssues:codeIssues});
+        const feedback={decision:"CODE",issues:codeIssues,repairInstruction:codeIssues.join("; ")};
+        previousFeedback=feedback;
+        if(!isSimple&&!boundedRepairUsed){
+          boundedRepairUsed=true;
+          localFeedback=feedback;
+          continue;
+        }
+        break;
+      }
+
+      criticRequests++;
+      try{review=await lunaCritic(current,criticContext)}
+      catch(e){
+        // Do not burn more writer tiers when the shared critic itself is unavailable.
+        throw new Error(classifyError(e));
+      }
+      const score=Number(review?.quality?.score||0),decision=String(review?.quality?.decision||"");
+      trace.push({provider:written.provider,model:written.model,status:lunaPass(review.quality)?"pass":"critic_reject",lunaScore:score,lunaDecision:decision});
+      if(lunaPass(review.quality)&&validateReady(item,current)){
+        const firstFallback=trace.find(x=>x.status==="provider_error"||x.status==="code_reject"||x.status==="critic_reject");
+        return readyOutput(item,current,{
+          generatorProvider:finalProvider,generatorModel:finalModel,criticProvider:review.provider,criticModel:review.model,
+          repairCount:Math.max(0,writerRequests-1),quality:review.quality,writerRequests,criticRequests,codeRepairCount,
+          antigravityRequests,geminiWriterRequests,antigravityFallback:finalProvider!=="antigravity",
+          antigravityFallbackReason:firstFallback?`${firstFallback.model}:${firstFallback.status}`:"",
+          writerTierTrace:trace,sameTierRepairUsed:boundedRepairUsed,
+        });
+      }
+
+      const feedback={decision:review.quality.decision,issues:review.quality.issues,repairInstruction:review.quality.repairInstruction};
+      previousFeedback=feedback;
+      if(!isSimple&&!boundedRepairUsed){
+        boundedRepairUsed=true;
+        localFeedback=feedback;
+        continue;
+      }
+      break;
     }
-    const score=Number(review?.quality?.score||0),decision=String(review?.quality?.decision||"");
-    trace.push({provider:written.provider,model:written.model,status:lunaPass(review.quality)?"pass":"critic_reject",lunaScore:score,lunaDecision:decision});
-    if(lunaPass(review.quality)&&validateReady(item,current)){
-      const firstFallback=trace.find(x=>x.status==="provider_error"||x.status==="code_reject"||x.status==="critic_reject");
-      return readyOutput(item,current,{
-        generatorProvider:finalProvider,generatorModel:finalModel,criticProvider:review.provider,criticModel:review.model,
-        repairCount:Math.max(0,writerRequests-1),quality:review.quality,writerRequests,criticRequests,codeRepairCount,
-        antigravityRequests,geminiWriterRequests,antigravityFallback:finalProvider!=="antigravity",
-        antigravityFallbackReason:firstFallback?`${firstFallback.model}:${firstFallback.status}`:"",
-        writerTierTrace:trace,
-      });
-    }
-    previousFeedback={decision:review.quality.decision,issues:review.quality.issues,repairInstruction:review.quality.repairInstruction};
   }
 
   const summary=trace.map(x=>`${x.model}:${x.status}${x.lunaScore!==undefined?`:${x.lunaScore}`:""}${x.gateIssues?.length?`[${x.gateIssues.slice(0,2).join("; ")}]`:""}`).join(" | ");
@@ -433,10 +452,10 @@ Deno.serve(async req=>{
       const auditPayload=completed.map(x=>({
         lane:"saved",entityKey:x.savedId,generatorProvider:String(x.generatorProvider||"unknown"),generatorModel:String(x.generatorModel||"unknown"),criticProvider:String(x.criticProvider||"openai"),criticModel:String(x.criticModel||LUNA_MODEL),qualityScore:Number(x?.quality?.score||0),criticDecision:String(x?.quality?.decision||""),repairCount:Number(x?.repairCount||0),questionFamily:String(x.requiredQuestionFamily||""),publicationResult:"applied",
         metadata:{
-          requestMode:"saved_four_tier_family_contract_cascade",writer:String(x.generatorProvider||"unknown"),writerChain:WRITER_CHAIN.map(t=>t.model),
+          requestMode:"saved_four_tier_family_contract_bounded_repair",writer:String(x.generatorProvider||"unknown"),writerChain:WRITER_CHAIN.map(t=>t.model),
           critic:"luna",criticReasoning:"low",lunaModel:LUNA_MODEL,writerRequests:Number(x.writerRequests||1),criticRequests:Number(x.criticRequests||1),
           codeRepairCount:Number(x.codeRepairCount||0),antigravityRequests:Number(x.antigravityRequests||0),geminiWriterRequests:Number(x.geminiWriterRequests||0),
-          antigravityFallback:x.antigravityFallback===true,antigravityFallbackReason:String(x.antigravityFallbackReason||""),
+          antigravityFallback:x.antigravityFallback===true,antigravityFallbackReason:String(x.antigravityFallbackReason||""),sameTierRepairUsed:x.sameTierRepairUsed===true,
           requiredLearningIntent:String(x.requiredLearningIntent||""),hardDistractors:true,explainAllOptions:true,writerTierTrace:x.writerTierTrace||[],
         }
       }));
@@ -450,10 +469,10 @@ Deno.serve(async req=>{
     const verifyItems=Array.isArray(verified?.items)?verified.items:[];
     for(const row of verifyItems)if(String(row?.gptStatus||"").toLowerCase()==="ready"&&row?.questionReady!==true)throw new Error(`VERIFY_FAILED: Ready item ${String(row?.savedId||"unknown")} is not question-ready`);
     return reply({
-      ok:true,generator:"saved-four-tier-family-contract-cascade",
+      ok:true,generator:"saved-four-tier-family-contract-bounded-repair",
       writerChain:WRITER_CHAIN.map(t=>`${t.provider}:${t.model}`),forceModel,
       critic:"luna",criticModel:LUNA_MODEL,criticReasoning:"low",
-      singleFlight:true,maxOneCallPerWriterTier:true,
+      singleFlight:true,maxOneBaseCallPerWriterTier:true,boundedSameTierRepair:!items.every((x:any)=>simpleBareVocab(x)),maxExtraWriterCallsPerItem:1,
       claimed:items.length,processed:completed.length,failed:failures.length,verified:verifyItems.length,elapsedMs:Date.now()-started
     });
   }catch(e){
