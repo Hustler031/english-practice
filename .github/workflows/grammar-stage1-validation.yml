@@ -11,6 +11,7 @@ on:
       - 'supabase/functions/english-content-task-bridge/**'
       - 'web-v2/data/grammar-*'
       - 'web-v2/scripts/validate-grammar-stage1.mjs'
+      - 'web-v2/package.json'
       - '.github/scripts/validate-english-content-chatgpt-bridge.cjs'
       - '.github/scripts/validate-english-grammar-stage1.sql'
       - '.github/workflows/validate-english-content-chatgpt-bridge.yml'
@@ -87,7 +88,16 @@ jobs:
                   raise SystemExit('Grammar migration anchor missing from behavior harness')
               p.write_text(s.replace(anchor,anchor+follow,1))
           PY
-          psql -h 127.0.0.1 -U postgres -d english_grammar_ci -v ON_ERROR_STOP=1 -f .github/scripts/validate-english-grammar-stage1.sql
+          set -o pipefail
+          psql -h 127.0.0.1 -U postgres -d english_grammar_ci -v ON_ERROR_STOP=1 -f .github/scripts/validate-english-grammar-stage1.sql 2>&1 | tee /tmp/grammar-postgres-contract.log
+      - name: Upload Grammar PostgreSQL contract log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grammar-postgres-contract-log-${{ github.run_id }}
+          path: /tmp/grammar-postgres-contract.log
+          if-no-files-found: ignore
+          retention-days: 3
 
   web-safety:
     runs-on: ubuntu-latest
