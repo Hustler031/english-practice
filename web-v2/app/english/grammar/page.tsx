@@ -53,19 +53,7 @@ export default function GrammarWorld(){
   <section className="pv-page-subhead"><button className="btn ghost" onClick={()=>window.history.length>1?router.back():router.push("/english")}>← Back</button><div><h1>Grammar</h1><p>Daily rules + adaptive SSC practice.</p></div></section>
   {error&&<div className="error-box">{error}</div>}
 
-  <section className="pv-today-legacy" style={{order:1}}>
-   <div className="pv-today-head"><div><h2>Today&apos;s {t?.count||hub?.dailyTarget||20}</h2><p>{t?.ready?`${t.count} permanent questions · ${t.date}`:"Today’s exact-20 Grammar batch has not been published yet."}</p></div><span className={`pv-ready-pill ${t?.ready?"ready":"pending"}`}>{t?.ready?"READY":"PENDING"}</span></div>
-   <button className="btn primary pv-today-button" disabled={!t?.ready} onClick={()=>setPick({kind:"today",label:"Grammar · Today"})}>Practice Today&apos;s {t?.count||hub?.dailyTarget||20}</button>
-  </section>
-
-  <section className="section-block" style={{order:2}}>
-   <details className="practice-more-details" open>
-    <summary><span><b>Chapters</b><small>Open a chapter for focused practice and read-only question review</small></span></summary>
-    <div className="practice-more-list">{hub?.chapters?.length?hub.chapters.map(ch=><Link href={`/english/grammar/chapter/${encodeURIComponent(ch.chapter)}`} key={ch.chapter}><span><b>{ch.chapter}</b><small>{ch.coveredRules}/{ch.totalRules} covered · {ch.weakRules} weak · {ch.dueRules} due · {ch.questionCount} questions</small></span></Link>):<div className="empty-copy">Grammar chapters are syncing…</div>}</div>
-   </details>
-  </section>
-
-  <section className="pv-legacy-card" style={{order:3}}>
+  <section className="pv-legacy-card" style={{order:1}}>
    <div className="pv-legacy-head"><div><h2>🧠 Grammar Intelligence</h2><p>Rule evidence · weak/due signals · progressive question variants.</p></div><span className="pv-concept-pill">{s?.totalRules??"—"} rules</span></div>
    <div className="pv-legacy-metrics">
     <div><b>{s?`${s.covered} / ${s.totalRules}`:"—"}</b><small>Covered</small></div>
@@ -78,6 +66,18 @@ export default function GrammarWorld(){
     return <button key={mode} className="pv-legacy-action" disabled={disabled} onClick={()=>setPendingMode(mode)}><span>{icon}</span><b>{label}{n?` (${n})`:""}</b></button>;
    })}</div>
    <div className="pv-cache-note">Grammar Intelligence updates from real practice evidence</div>
+  </section>
+
+  <section className="pv-today-legacy" style={{order:2}}>
+   <div className="pv-today-head"><div><h2>Today&apos;s {t?.count||hub?.dailyTarget||20}</h2><p>{t?.ready?`${t.count} permanent questions · ${t.date}`:"Today’s exact-20 Grammar batch has not been published yet."}</p></div><span className={`pv-ready-pill ${t?.ready?"ready":"pending"}`}>{t?.ready?"READY":"PENDING"}</span></div>
+   <button className="btn primary pv-today-button" disabled={!t?.ready} onClick={()=>setPick({kind:"today",label:"Grammar · Today"})}>Practice Today&apos;s {t?.count||hub?.dailyTarget||20}</button>
+  </section>
+
+  <section className="section-block" style={{order:3}}>
+   <details className="practice-more-details" open>
+    <summary><span><b>Chapters</b><small>Open a chapter for focused practice and read-only question review</small></span></summary>
+    <div className="practice-more-list">{hub?.chapters?.length?hub.chapters.map(ch=><Link href={`/english/grammar/chapter/${encodeURIComponent(ch.chapter)}`} key={ch.chapter}><span><b>{ch.chapter}</b><small>{ch.coveredRules}/{ch.totalRules} covered · {ch.weakRules} weak · {ch.dueRules} due · {ch.questionCount} questions</small></span></Link>):<div className="empty-copy">Grammar chapters are syncing…</div>}</div>
+   </details>
   </section>
 
   {pendingMode&&<div className="sheet-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setPendingMode(null)}}><section className="pv-picker-sheet" onMouseDown={e=>e.stopPropagation()}><h3>{modes.find(m=>m[2]===pendingMode)?.[1]||"Grammar Practice"} · choose questions</h3><div className="pv-picker-counts">{sizeChoices.map(n=><button key={n} onClick={()=>{start(pendingMode,n);setPendingMode(null)}}>{n}</button>)}</div><button className="btn ghost full-width" onClick={()=>setPendingMode(null)}>Cancel</button></section></div>}
