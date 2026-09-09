@@ -1,2 +1,2 @@
-Trigger Cloudflare Workers Build from the configured branch.
-Preview trigger: english-concept-intelligence-20260901 @ 2026-09-02
+Trigger Cloudflare Workers Build from the configured production branch.
+Production trigger: main @ 2026-09-09 for grammar layout commit 18e77dfde1c5f7b043fc8750f22d2231869ce344
