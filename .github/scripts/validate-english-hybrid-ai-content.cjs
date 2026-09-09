@@ -38,38 +38,38 @@ need(materializer,"'Bhool gaya'",'Recall C contract retained');
 need(savedScheduler,"jobname='english-saved-enrichment'",'Saved hourly scheduler ownership retained');
 need(savedScheduler,"'7 * * * *'",'Saved hourly cadence retained');
 
-// Dedicated Stage-1 rollout flags isolate Saved/Phrasal from Hindu.
+// Dedicated Stage-1 rollout flags remain for shared/Phrasal infrastructure.
 need(stage1Flags,"'antigravity_writer_v1'",'Antigravity writer flag exists');
-need(stage1Flags,"'luna_critic_v1'",'Luna critic flag exists');
-need(stage1Flags,'"scope":["saved","phrasal"]','Flags are scoped to Saved/Phrasal');
+need(stage1Flags,"'luna_critic_v1'",'Luna flag exists');
+need(stage1Flags,'"scope":["saved","phrasal"]','Historical flag scope remains auditable');
 need(stage1Flags,'"reasoning":"high"','Writer reasoning intent recorded');
 need(stage1Flags,'"reasoning":"low"','Critic reasoning intent recorded');
 
-// Shared writer/critic helper: budget guard -> Antigravity once -> Gemini 3.8 fallback -> Luna.
-need(stage1,'antigravity-preview-05-2026','Antigravity managed agent remains primary writer');
-need(stage1,'gemini-3.6-flash','Antigravity uses full Flash model');
+// Shared Antigravity/Luna helper remains intact for Phrasal. Saved no longer calls its retry pipeline.
+need(stage1,'antigravity-preview-05-2026','Antigravity managed agent remains available to Phrasal');
+need(stage1,'gemini-3.6-flash','Shared helper retains Flash fallback');
 need(stage1,'https://generativelanguage.googleapis.com/v1beta/interactions','Antigravity uses Interactions API');
 need(stage1,'environment:"remote"','Antigravity remote environment retained');
 need(stage1,'store:true','Antigravity stateful interaction mode retained');
 forbid(stage1,'store:false','Antigravity stateless mode is forbidden');
 need(stage1,'max_total_tokens','Antigravity token budget remains bounded');
-need(stage1,'english_claim_antigravity_request_budget','Every primary writer stage is request-budget guarded');
+need(stage1,'english_claim_antigravity_request_budget','Every shared primary writer stage is request-budget guarded');
 need(stage1,'BUDGET_GUARD_FAIL_CLOSED','Budget guard fails closed to Gemini');
 need(stage1,'maxAttempts:1','Primary Antigravity transport gets one request attempt per writer stage');
 need(stage1,'english_mark_antigravity_quota_exhausted','429 opens the Antigravity circuit for the day');
-need(stage1,'geminiFallbackWriterJson','Gemini 3.8 can replace Antigravity as writer');
-need(stage1,'gpt-5.6-luna','Luna 5.6 is independent critic');
-need(stage1,'reasoning:{effort:"low"}','Luna reasoning remains low');
-need(stage1,'q.score>=85','Runtime PASS threshold is 85');
-need(stage1,'Object.values(q.hardGates||{}).every(Boolean)','All semantic hard gates must pass');
-need(stage1,'First Luna non-PASS (REPAIR or REJECT) returns to the primary writer route.','First Luna non-PASS receives one bounded writer repair');
-need(stage1,'A second Luna non-PASS reaches Gemini 3.8 high-reasoning rescue exactly once.','Second Luna non-PASS reaches one 3.8 rescue');
-need(stage1,'thinkingConfig:{thinkingLevel:"high"}','Gemini 3.8 reasoning is high');
+need(stage1,'geminiFallbackWriterJson','Shared helper can replace Antigravity as writer');
+need(stage1,'gpt-5.6-luna','Luna 5.6 remains available to shared/Phrasal pipeline');
+need(stage1,'reasoning:{effort:"low"}','Shared Luna reasoning remains low');
+need(stage1,'q.score>=85','Shared runtime PASS threshold is 85');
+need(stage1,'Object.values(q.hardGates||{}).every(Boolean)','Shared semantic hard gates must pass');
+need(stage1,'First Luna non-PASS (REPAIR or REJECT) returns to the primary writer route.','Phrasal shared repair path retained');
+need(stage1,'A second Luna non-PASS reaches Gemini 3.8 high-reasoning rescue exactly once.','Phrasal shared rare rescue retained');
+need(stage1,'thinkingConfig:{thinkingLevel:"high"}','Shared Gemini rare rescue reasoning is high');
 need(stage1,'antigravityRequests','Actual Antigravity request count is surfaced');
 need(stage1,'geminiWriterRequests','Actual Gemini writer/rescue count is surfaced');
 forbid(stage1,'GROQ_API_KEY','Saved/Phrasal shared helper does not use Groq');
 
-// Today-specific budget reservation: reported 73 used, protect 12, at most 15 more backend claims.
+// Today-specific budget reservation remains for routes that still use Antigravity.
 need(rescueMigration,"values ('2026-09-06'::date, 'antigravity', 100, 12, 73, 0, now())",'2026-09-06 Antigravity budget starts from 73/100 with 12 reserved');
 need(rescueMigration,'v_limit := greatest(0, r.max_requests - r.reserve_requests)','Reserve is excluded before Antigravity call');
 need(rescueMigration,"'ANTIGRAVITY_BUDGET_RESERVED'",'Budget exhaustion routes away before provider call');
@@ -94,7 +94,7 @@ need(phrasalWorker,'english_phrasal_single_slot_mark_applied','Staging lifecycle
 forbid(phrasalWorker,'english_release_content_task_claim','One slot failure must not release/regenerate the whole 20-slot batch');
 need(singleSlot,'function legacyPhrasal','Serviceable canonical card can bypass AI');
 need(singleSlot,'deterministicRecallFromCanonical','Recall can be built deterministically before writer escalation');
-need(singleSlot,'runAntigravityLunaPipeline<any>','Only a real gap/refinement enters bounded writer/critic pipeline');
+need(singleSlot,'runAntigravityLunaPipeline<any>','Only a real Phrasal gap/refinement enters bounded shared writer/critic pipeline');
 need(singleSlot,'recentConceptStems','Anti-repeat evidence reaches writer');
 need(singleSlot,'selectedVariantCooled','Central cooldown signal reaches writer');
 need(singleSlot,'Reverse Recall front leaks the target phrasal verb','Recall target leak is code-gated');
@@ -102,20 +102,28 @@ need(singleSlot,'antigravityRequests:reviewed.antigravityRequests','Per-slot Ant
 forbid(singleSlot,'mapLimit','Single-slot worker must not fan out 20 AI jobs concurrently');
 forbid(singleSlot,'GROQ_MODEL','Phrasal does not use Groq');
 
-// Saved remains independent one-item enrichment and automatically receives shared budget/fallback behavior.
+// Saved is now independent smart routing: no Antigravity and no blanket Luna critic.
 need(saved,'english_saved_enrichment_worker_claim','Saved lease/claim contract retained');
-need(saved,'runAntigravityLunaPipeline<any>','Saved uses shared writer/critic pipeline');
-need(saved,'items.map((item:any)=>enrichOne(item))','Saved items remain independent one-item workflows');
-need(saved,'initialAntigravityRequests:0','Zero pending Saved work calls no writer');
+need(saved,'SAVED_GEMINI_38_MODEL','Saved normal/confusion primary is Gemini 3.8');
+need(saved,'SAVED_GEMINI_36_MODEL','Saved availability fallback is Gemini 3.6');
+need(saved,'SAVED_GEMINI_35_MODEL','Saved easy meaning route uses Gemini 3.5');
+need(saved,'function routeKind(item:any):RouteKind','Saved uses deterministic EASY/NORMAL/CONFUSION routing');
+need(saved,'lunaRescueJson','Saved has a one-shot Luna rescue writer');
+need(saved,'maxLunaCallsPerItem:1','Saved Luna spend is bounded to one rescue call per item');
+need(saved,'criticRequests:0','Saved blanket critic calls are zero');
+need(saved,'antigravityRequests:0','Saved Antigravity calls are zero');
+need(saved,'items.map((item:any)=>enrichOne(item,forceModel))','Saved items remain independent one-item workflows');
 need(saved,'english_saved_enrichment_worker_apply','Saved validated apply contract retained');
 need(saved,'english_saved_enrichment_worker_finish','Saved finish/verification retained');
+forbid(saved,'runAntigravityLunaPipeline<any>','Saved no longer enters shared Antigravity/Luna retry pipeline');
+forbid(saved,'ANTIGRAVITY_AGENT','Saved no longer depends on Antigravity');
 forbid(saved,'GROQ_MODEL','Saved does not use Groq');
 
-// Hindu remains isolated for later Stage 2.
+// Hindu remains isolated.
 need(legacyHybrid,'GEMINI_BULK_MODEL','Legacy Hindu helper remains available');
 need(legacyHybrid,'openai/gpt-oss-120b','Legacy Hindu Groq critic remains available');
 need(hindu,'TRUSTED_FEEDS','Hindu trusted-feed path remains intact');
 need(hindu,'generateCriticRepair','Hindu retains its existing hybrid helper');
 forbid(hindu,'english-antigravity-luna','Hindu is not coupled to the Saved/Phrasal helper');
 
-console.log('\n✅ English guarded Antigravity/Luna + single-slot Phrasal contracts passed.');
+console.log('\n✅ English hybrid contracts passed: Phrasal shared Antigravity/Luna retained; Saved smart-routed independently.');
