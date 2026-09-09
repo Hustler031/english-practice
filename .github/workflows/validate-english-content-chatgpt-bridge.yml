@@ -102,8 +102,11 @@ jobs:
           p=Path('.github/scripts/validate-english-grammar-stage1.sql')
           s=p.read_text()
           anchor="\\ir ../../supabase/migrations/20260909013000_english_grammar_daily_pipeline.sql\n"
-          follow="\\ir ../../supabase/migrations/20260909013100_english_grammar_owner_resolution_fix.sql\n"
-          if follow not in s:
+          follow=(
+              "\\ir ../../supabase/migrations/20260909013100_english_grammar_owner_resolution_fix.sql\n"
+              "\\ir ../../supabase/migrations/20260909013200_english_grammar_selector_alias_fix.sql\n"
+          )
+          if "20260909013200_english_grammar_selector_alias_fix.sql" not in s:
               if anchor not in s:
                   raise SystemExit('Grammar migration anchor missing from behavior harness')
               p.write_text(s.replace(anchor,anchor+follow,1))
