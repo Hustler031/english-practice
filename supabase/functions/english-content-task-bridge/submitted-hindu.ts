@@ -131,7 +131,7 @@ export async function ingestSubmittedHinduItems(db:Db,submitted:Json[],toneItems
         setDecision({index:row.index,word:row.item.word,status:"rejected",stage:"central_duplicate_gate",reason:"historical_or_family_collision",hits:result.hits||[]});
         continue;
       }
-      const item={...row.item,generatorProvider:String(row.item.generatorProvider||"chatgpt"),generatorModel:String(row.item.generatorModel||"scheduled_chatgpt")};
+      const item:Json={...row.item,generatorProvider:String(row.item.generatorProvider||"chatgpt"),generatorModel:String(row.item.generatorModel||"scheduled_chatgpt")};
       approved.push({item,index:row.index});
       setDecision({index:row.index,word:item.word,status:"submitted",stage:"approved_by_chatgpt_and_deterministic_gates",secondAiCritic:false});
     }

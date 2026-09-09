@@ -1,0 +1,54 @@
+{
+  "version": "2026-09-09-stage3-v1",
+  "stage1Head": "bdd324149b5b046a7be66d0c759e64f1f6290f09",
+  "stage2Head": "1c4c984bbd83076dd3920afeddbaaec72e1ea50d",
+  "curriculum": {
+    "version": "2026-09-09-stage1-v1",
+    "ruleCount": 260,
+    "keySha256": "10d45629bcf13e5294c12a5bf3d98a6c29b712636377cc972acb0083edd50711",
+    "spreadsheetId": "1IgUGQZu6sp1STBCX6gyI5pHayLGVpmYYrkKGYdwkjak",
+    "sheet": "Grammar_Rules"
+  },
+  "dailyTarget": 20,
+  "migrationOrder": [
+    "20260909011500_english_grammar_preflight.sql",
+    "20260909012000_english_grammar_intelligence_foundation.sql",
+    "20260909012500_english_grammar_curriculum_sync.sql",
+    "20260909013000_english_grammar_daily_pipeline.sql",
+    "20260909013100_english_grammar_owner_resolution_fix.sql",
+    "20260909013200_english_grammar_selector_alias_fix.sql",
+    "20260909020000_english_grammar_world_read_model.sql"
+  ],
+  "transport": {
+    "repository": "Hustler031/telegram-media-bot",
+    "baseBranch": "automation/english-grammar-base",
+    "baseHead": "fbc82f12bf9b89d9a1b19045a87741e8d1620b52",
+    "activeBranch": "automation/english-grammar",
+    "queue": ".automation/english-grammar/queue.json",
+    "workflow": ".github/workflows/english-grammar-bridge.yml",
+    "oidcAudience": "english-content-automation"
+  },
+  "activationOrder": [
+    "validate_current_production_baseline",
+    "apply_grammar_migrations_in_order",
+    "sync_verified_260_rule_curriculum_and_checksum",
+    "sync_curated_sprint_aliases",
+    "backfill_existing_sprint_grammar_evidence",
+    "deploy_shared_english_content_task_bridge",
+    "create_active_grammar_transport_branch_from_frozen_base",
+    "run_exact_20_manual_end_to_end_smoke",
+    "verify_home_hub_chapter_readonly_and_attempt_evidence",
+    "verify_phrasal_hindu_daily_sprint_regressions",
+    "verify_database_load_has_no_new_hotspot",
+    "enable_grammar_feature_and_daily_scheduler_last"
+  ],
+  "guards": {
+    "productionFeatureFlagInitiallyOff": true,
+    "schedulerInitiallyOff": true,
+    "noGoogleRuntimeDependency": true,
+    "readOnlyBrowsingWritesEvidence": false,
+    "canonicalReusePreservesQuestionId": true,
+    "partialDailyPublicationAllowed": false,
+    "mathsOrGkChangesAllowed": false
+  }
+}

@@ -1,76 +1,56 @@
-name: Validate English Content ChatGPT Bridge
+name: English Grammar Stage 1 Validation
 
 on:
   push:
-    branches: [main]
+    branches:
+      - english-grammar-intelligence-stage1-20260909
     paths:
-      - 'supabase/functions/english-content-task-bridge/**'
-      - 'supabase/managed-migrations/**english_phrasal_hindu_chatgpt_bridge.sql'
-      - 'supabase/managed-migrations/**english_phrasal_task_central_mapping.sql'
       - 'supabase/migrations/20260909011**'
       - 'supabase/migrations/20260909012**'
       - 'supabase/migrations/20260909013**'
-      - 'web-v2/data/grammar-*'
-      - '.github/scripts/validate-english-content-chatgpt-bridge.cjs'
-      - '.github/scripts/validate-english-content-chatgpt-bridge.sql'
-      - '.github/scripts/validate-english-grammar-stage1.sql'
-      - '.github/workflows/validate-english-content-chatgpt-bridge.yml'
-  pull_request:
-    paths:
       - 'supabase/functions/english-content-task-bridge/**'
-      - 'supabase/managed-migrations/**english_phrasal_hindu_chatgpt_bridge.sql'
-      - 'supabase/managed-migrations/**english_phrasal_task_central_mapping.sql'
-      - 'supabase/migrations/20260909011**'
-      - 'supabase/migrations/20260909012**'
-      - 'supabase/migrations/20260909013**'
       - 'web-v2/data/grammar-*'
+      - 'web-v2/scripts/validate-grammar-stage1.mjs'
+      - 'web-v2/package.json'
       - '.github/scripts/validate-english-content-chatgpt-bridge.cjs'
-      - '.github/scripts/validate-english-content-chatgpt-bridge.sql'
       - '.github/scripts/validate-english-grammar-stage1.sql'
       - '.github/workflows/validate-english-content-chatgpt-bridge.yml'
+      - '.github/workflows/grammar-stage1-validation.yml'
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   source-contract:
     runs-on: ubuntu-latest
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - name: Validate shared ChatGPT bridge source contracts
+      - name: Fetch main boundary
+        run: git fetch origin main --depth=1
+      - name: Validate Grammar Stage 1 architecture
+        run: node web-v2/scripts/validate-grammar-stage1.mjs
+      - name: Validate normal shared ChatGPT bridge contracts
         run: node .github/scripts/validate-english-content-chatgpt-bridge.cjs
       - name: Type-check shared content Edge Function
         run: deno check supabase/functions/english-content-task-bridge/index.ts
-
-  postgres-contract:
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: english_bridge_ci
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd="pg_isready -U postgres -d english_bridge_ci"
-          --health-interval=5s
-          --health-timeout=5s
-          --health-retries=10
-    steps:
-      - uses: actions/checkout@v4
-      - name: Execute Phrasal/Hindu bridge migrations and behavior contracts
-        env:
-          PGPASSWORD: postgres
-        run: psql -h 127.0.0.1 -U postgres -d english_bridge_ci -v ON_ERROR_STOP=1 -f .github/scripts/validate-english-content-chatgpt-bridge.sql
+      - name: Show scoped diff
+        run: |
+          echo 'Changed files vs main:'
+          git diff --name-only origin/main...HEAD
 
   grammar-postgres-contract:
     runs-on: ubuntu-latest
+    timeout-minutes: 8
     services:
       postgres:
         image: postgres:16
@@ -93,7 +73,7 @@ jobs:
         run: |
           psql -h 127.0.0.1 -U postgres -d english_grammar_ci -v ON_ERROR_STOP=1 \
             -c 'create schema if not exists extensions; create extension if not exists pgcrypto with schema extensions;'
-      - name: Execute Grammar migrations and exact-20 adaptive behavior contracts
+      - name: Execute Grammar migrations and adaptive exact-20 behavior contracts
         env:
           PGPASSWORD: postgres
         run: |
@@ -102,10 +82,41 @@ jobs:
           p=Path('.github/scripts/validate-english-grammar-stage1.sql')
           s=p.read_text()
           anchor="\\ir ../../supabase/migrations/20260909013000_english_grammar_daily_pipeline.sql\n"
-          follow="\\ir ../../supabase/migrations/20260909013100_english_grammar_owner_resolution_fix.sql\n"
-          if follow not in s:
+          follow=(
+              "\\ir ../../supabase/migrations/20260909013100_english_grammar_owner_resolution_fix.sql\n"
+              "\\ir ../../supabase/migrations/20260909013200_english_grammar_selector_alias_fix.sql\n"
+          )
+          if "20260909013200_english_grammar_selector_alias_fix.sql" not in s:
               if anchor not in s:
                   raise SystemExit('Grammar migration anchor missing from behavior harness')
               p.write_text(s.replace(anchor,anchor+follow,1))
           PY
-          psql -h 127.0.0.1 -U postgres -d english_grammar_ci -v ON_ERROR_STOP=1 -f .github/scripts/validate-english-grammar-stage1.sql
+          set -o pipefail
+          psql -h 127.0.0.1 -U postgres -d english_grammar_ci -v ON_ERROR_STOP=1 -f .github/scripts/validate-english-grammar-stage1.sql 2>&1 | tee /tmp/grammar-postgres-contract.log
+      - name: Upload Grammar PostgreSQL contract log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grammar-postgres-contract-log-${{ github.run_id }}
+          path: /tmp/grammar-postgres-contract.log
+          if-no-files-found: ignore
+          retention-days: 3
+
+  web-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    defaults:
+      run:
+        working-directory: web-v2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web-v2/package-lock.json
+      - run: npm ci
+      - name: TypeScript boundary
+        run: npm run typecheck
+      - name: Production build boundary
+        run: npm run build
