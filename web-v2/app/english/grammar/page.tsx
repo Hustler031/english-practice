@@ -7,6 +7,7 @@ import QuizRunner from "@/components/quiz-runner";
 import { EnglishLoading } from "@/components/english-frame";
 import { learnerErrorMessage, rpc, subscribeRpcFresh } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
+import { readPausedQuiz, type PausedQuizSession } from "@/lib/quiz-session";
 
 type Chapter={chapter:string;totalRules:number;coveredRules:number;coveragePercent:number;weakRules:number;dueRules:number;questionCount:number};
 type Hub={
@@ -19,14 +20,29 @@ type Hub={
  chapters:Chapter[];
  readOnlyBrowsing:boolean;
 };
-type Pick={kind:"today"|"practice";label:string;mode?:"smart"|"weak"|"due"|"all";count?:number};
+type Pick={kind:"today"|"practice";label:string;mode?:"smart"|"weak"|"due"|"all";count?:number;resumeSession?:PausedQuizSession|null};
 const modes=[["🧠","Smart Practice","smart"],["🔥","Weak","weak"],["◷","Due","due"],["▶","Practice All","all"]] as const;
+
+function firstUnanswered(session:PausedQuizSession|null){
+ if(!session)return null;
+ const answers=session.answers||{};
+ const rows=session.questions as Array<{id?:string}>;
+ const next=rows.findIndex(row=>{const id=String(row?.id||"");return !!id&&!answers[id];});
+ return {...session,index:next>=0?next:Math.max(0,Math.min(session.index||0,rows.length-1))};
+}
+function matchingSession(session:PausedQuizSession|null,module:string,title:string,count?:number){
+ if(!session||session.module!==module||session.backHref!=="/english/grammar"||session.title!==title)return null;
+ if(count&&session.questions.length!==count)return null;
+ return firstUnanswered(session);
+}
+function answeredCount(session:PausedQuizSession|null){return session?Object.keys(session.answers||{}).length:0;}
 
 export default function GrammarWorld(){
  const ready=useAuthGuard(),router=useRouter();
  const [hub,setHub]=useState<Hub|null>(null);
  const [pick,setPick]=useState<Pick|null>(null);
  const [pendingMode,setPendingMode]=useState<Pick["mode"]|null>(null);
+ const [pausedGrammar,setPausedGrammar]=useState<PausedQuizSession|null>(null);
  const [error,setError]=useState("");
 
  useEffect(()=>{
@@ -35,6 +51,7 @@ export default function GrammarWorld(){
   const accept=(x:Hub)=>{if(live){setHub(x);setError("");}};
   const off=subscribeRpcFresh<Hub>("english_get_grammar_hub",undefined,accept);
   rpc<Hub>("english_get_grammar_hub").then(accept).catch((e:any)=>live&&setError(learnerErrorMessage(e,"Grammar Intelligence is taking longer than usual. Please retry.")));
+  setPausedGrammar(firstUnanswered(readPausedQuiz()));
   return()=>{live=false;off();};
  },[ready]);
 
@@ -45,10 +62,17 @@ export default function GrammarWorld(){
  },[pick]);
 
  if(!ready)return <EnglishLoading text="Checking session…"/>;
- if(pick)return <QuizRunner title={pick.label} backHref="/english/grammar" load={load} module={pick.kind==="today"?"grammardaily":"grammarrevision"} onExit={()=>setPick(null)}/>;
+ if(pick)return <QuizRunner title={pick.label} backHref="/english/grammar" load={load} module={pick.kind==="today"?"grammardaily":"grammarrevision"} resumeSession={pick.resumeSession||null} onExit={()=>{setPick(null);window.setTimeout(()=>setPausedGrammar(firstUnanswered(readPausedQuiz())),0)}}/>;
 
  const s=hub?.stats,a=hub?.available,t=hub?.today,sizeChoices=hub?.sizes?.length?hub.sizes:[10,20,30,50];
- const start=(mode:NonNullable<Pick["mode"]>,count:number)=>setPick({kind:"practice",mode,count,label:`Grammar · ${modes.find(m=>m[2]===mode)?.[1]||mode}`});
+ const start=(mode:NonNullable<Pick["mode"]>,count:number)=>{
+  const label=`Grammar · ${modes.find(m=>m[2]===mode)?.[1]||mode}`;
+  const resume=matchingSession(pausedGrammar,"grammarrevision",label,count);
+  setPick({kind:"practice",mode,count,label,resumeSession:resume});
+ };
+ const todayTitle="Grammar · Today";
+ const todayResume=matchingSession(pausedGrammar,"grammardaily",todayTitle,t?.count||hub?.dailyTarget||20);
+ const todayAnswered=answeredCount(todayResume);
  return <main className="phrasal-parity-page">
   <section className="pv-page-subhead"><button className="btn ghost" onClick={()=>window.history.length>1?router.back():router.push("/english")}>← Back</button><div><h1>Grammar</h1><p>Daily rules + adaptive SSC practice.</p></div></section>
   {error&&<div className="error-box">{error}</div>}
@@ -70,7 +94,7 @@ export default function GrammarWorld(){
 
   <section className="pv-today-legacy" style={{order:2}}>
    <div className="pv-today-head"><div><h2>Today&apos;s {t?.count||hub?.dailyTarget||20}</h2><p>{t?.ready?`${t.count} permanent questions · ${t.date}`:"Today’s exact-20 Grammar batch has not been published yet."}</p></div><span className={`pv-ready-pill ${t?.ready?"ready":"pending"}`}>{t?.ready?"READY":"PENDING"}</span></div>
-   <button className="btn primary pv-today-button" disabled={!t?.ready} onClick={()=>setPick({kind:"today",label:"Grammar · Today"})}>Practice Today&apos;s {t?.count||hub?.dailyTarget||20}</button>
+   <button className="btn primary pv-today-button" disabled={!t?.ready} onClick={()=>setPick({kind:"today",label:todayTitle,resumeSession:todayResume})}>{todayResume&&todayAnswered<(t?.count||20)?`Resume Today’s ${t?.count||20} · ${todayAnswered} done`:`Practice Today’s ${t?.count||hub?.dailyTarget||20}`}</button>
   </section>
 
   <section className="section-block" style={{order:3}}>
