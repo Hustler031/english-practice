@@ -1,7 +1,11 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
-const read=(p)=>fs.readFileSync(p,'utf8');
+const cwd=process.cwd();
+const repoRoot=fs.existsSync(path.join(cwd,'web-v2','app','english','page.tsx'))?cwd:path.resolve(cwd,'..');
+const at=(p)=>path.join(repoRoot,p);
+const read=(p)=>fs.readFileSync(at(p),'utf8');
 const fail=(m)=>{throw new Error(`Grammar Stage 2 validation failed: ${m}`)};
 const has=(text,needle,label=needle)=>{if(!text.includes(needle))fail(`missing ${label}`)};
 const notHas=(text,needle,label=needle)=>{if(text.includes(needle))fail(`forbidden ${label}`)};
@@ -13,7 +17,7 @@ const chapterPath='web-v2/app/english/grammar/chapter/[chapter]/page.tsx';
 const sqlPath='supabase/migrations/20260909020000_english_grammar_world_read_model.sql';
 const manifestPath='web-v2/data/grammar-curriculum-manifest.json';
 
-for(const p of [homePath,practicePath,hubPath,chapterPath,sqlPath,manifestPath])if(!fs.existsSync(p))fail(`required file missing: ${p}`);
+for(const p of [homePath,practicePath,hubPath,chapterPath,sqlPath,manifestPath])if(!fs.existsSync(at(p)))fail(`required file missing: ${p}`);
 const home=read(homePath),practice=read(practicePath),hub=read(hubPath),chapter=read(chapterPath),sql=read(sqlPath),manifest=JSON.parse(read(manifestPath));
 
 if(manifest.ruleCount!==260)fail('Grammar curriculum drifted from 260 rules');
@@ -64,7 +68,7 @@ notHas(sql,manifest.spreadsheetId,'Google Sheet runtime dependency');
 // Stage 2 scope: English Grammar UI/read model only. No Maths/GK or global visual redesign.
 let changed=[];
 try{
- const out=execFileSync('git',['diff','--name-only','origin/main...HEAD'],{encoding:'utf8'});
+ const out=execFileSync('git',['diff','--name-only','origin/main...HEAD'],{cwd:repoRoot,encoding:'utf8'});
  changed=out.split(/\r?\n/).filter(Boolean);
 }catch{}
 for(const p of changed){
