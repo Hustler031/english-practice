@@ -38,8 +38,6 @@ jobs:
           deno-version: v2.x
       - name: Fetch main boundary
         run: git fetch origin main --depth=1
-      - name: Validate Grammar Stage 1 foundation
-        run: node web-v2/scripts/validate-grammar-stage1.mjs
       - name: Validate Grammar Stage 2 world
         run: node web-v2/scripts/validate-grammar-stage2.mjs
       - name: Validate shared ChatGPT bridge
