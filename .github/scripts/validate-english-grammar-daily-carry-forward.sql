@@ -29,6 +29,7 @@ alter table english.learner_confidence_signals add column if not exists signal t
 alter table english.learner_confidence_signals add column if not exists created_at timestamptz not null default now();
 
 \ir ../../supabase/migrations/20260910091000_english_grammar_daily_carry_forward_round2.sql
+\ir ../../supabase/migrations/20260910091900_english_grammar_daily_history.sql
 
 -- Create a previous-day copy of the exact-20 fixture and answer only 12 of it
 -- using the legacy module format. The oldest unfinished batch must become the
@@ -135,4 +136,41 @@ begin
   end if;
 end $$;
 
-select 'English Grammar Daily carry-forward + Round 2 contracts passed' result;
+-- History is numbered from the first permanent Grammar Daily batch. In this
+-- fixture the copied previous day is Day 1 and current day is Day 2. Because
+-- the same canonical IDs were deliberately reused across both fixture days,
+-- a Days 1–2 review must deduplicate IDs safely for QuizRunner.
+do $$
+declare
+  v_today date:=(now() at time zone 'Asia/Kolkata')::date;
+  v_old date:=((now() at time zone 'Asia/Kolkata')::date-1);
+  h jsonb; batch jsonb; d1 jsonb; d2 jsonb;
+begin
+  h:=public.english_get_grammar_history();
+  if not coalesce((h->>'ok')::boolean,false) or (h->>'currentDay')::int<>2 then
+    raise exception 'Grammar history did not number the two fixture days correctly: %',h;
+  end if;
+
+  select value into d1 from jsonb_array_elements(h->'history') where value->>'label'='Day 1' limit 1;
+  select value into d2 from jsonb_array_elements(h->'history') where value->>'label'='Day 2' limit 1;
+  if d1 is null or d2 is null then raise exception 'Grammar day rows missing: %',h; end if;
+  if (d1->>'date')::date<>v_old or (d2->>'date')::date<>v_today then
+    raise exception 'Grammar day/date mapping drifted: Day1 %, Day2 %',d1,d2;
+  end if;
+  if (d1->>'practised')::int<>20 or (d2->>'practised')::int<>20 then
+    raise exception 'Grammar history progress is not batch-specific: %',h;
+  end if;
+  if not (d1->>'complete')::boolean or not (d2->>'complete')::boolean then
+    raise exception 'Completed Grammar days were not marked complete: %',h;
+  end if;
+
+  batch:=public.english_get_grammar_history_batch(1,2);
+  if jsonb_array_length(batch)<>20 then
+    raise exception 'Grouped Grammar history did not deduplicate repeated canonical IDs: %',jsonb_array_length(batch);
+  end if;
+  if coalesce(batch->0->>'historyDay','')='' or coalesce(batch->0->>'batchDate','')='' then
+    raise exception 'Grammar history review payload lost day identity: %',batch->0;
+  end if;
+end $$;
+
+select 'English Grammar Daily carry-forward + Round 2 + history contracts passed' result;
