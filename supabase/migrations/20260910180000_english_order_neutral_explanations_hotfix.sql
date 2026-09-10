@@ -46,20 +46,16 @@ declare
 begin
   if v='' then return v; end if;
 
-  -- Explicit positional references: Option A, Choice B, Answer 3, etc.
   v:=regexp_replace(v,'(^|[^[:alnum:]_])(option|choice|answer|alternative)[[:space:]*#:_-]*(no[.]?[[:space:]]*)?(A|1)([^[:alnum:]_]|$)',E'\\1'||ra||E'\\5','gi');
   v:=regexp_replace(v,'(^|[^[:alnum:]_])(option|choice|answer|alternative)[[:space:]*#:_-]*(no[.]?[[:space:]]*)?(B|2)([^[:alnum:]_]|$)',E'\\1'||rb||E'\\5','gi');
   v:=regexp_replace(v,'(^|[^[:alnum:]_])(option|choice|answer|alternative)[[:space:]*#:_-]*(no[.]?[[:space:]]*)?(C|3)([^[:alnum:]_]|$)',E'\\1'||rc||E'\\5','gi');
   v:=regexp_replace(v,'(^|[^[:alnum:]_])(option|choice|answer|alternative)[[:space:]*#:_-]*(no[.]?[[:space:]]*)?(D|4)([^[:alnum:]_]|$)',E'\\1'||rd||E'\\5','gi');
 
-  -- Ordinal references, consuming an optional article so "the second option"
-  -- becomes the answer text rather than "the <answer text>".
   v:=regexp_replace(v,'(^|[^[:alnum:]_])(the[[:space:]]+)?first[[:space:]-]+(option|choice|answer|alternative)([^[:alnum:]_]|$)',E'\\1'||ra||E'\\4','gi');
   v:=regexp_replace(v,'(^|[^[:alnum:]_])(the[[:space:]]+)?second[[:space:]-]+(option|choice|answer|alternative)([^[:alnum:]_]|$)',E'\\1'||rb||E'\\4','gi');
   v:=regexp_replace(v,'(^|[^[:alnum:]_])(the[[:space:]]+)?third[[:space:]-]+(option|choice|answer|alternative)([^[:alnum:]_]|$)',E'\\1'||rc||E'\\4','gi');
   v:=regexp_replace(v,'(^|[^[:alnum:]_])(the[[:space:]]+)?fourth[[:space:]-]+(option|choice|answer|alternative)([^[:alnum:]_]|$)',E'\\1'||rd||E'\\4','gi');
 
-  -- Legacy labels: A:, A., A), and A — ... in distractor lists.
   v:=regexp_replace(v,'(^|[[:space:]—–;,])[*_]*A[*_]*[[:space:]]*:',E'\\1'||ra||':','g');
   v:=regexp_replace(v,'(^|[[:space:]—–;,])[*_]*B[*_]*[[:space:]]*:',E'\\1'||rb||':','g');
   v:=regexp_replace(v,'(^|[[:space:]—–;,])[*_]*C[*_]*[[:space:]]*:',E'\\1'||rc||':','g');
@@ -73,8 +69,6 @@ begin
   v:=regexp_replace(v,'(^|[;:])[[:space:]*_-]*C[[:space:]]*(—|–|-)[[:space:]]*',E'\\1 '||rc||' — ','g');
   v:=regexp_replace(v,'(^|[;:])[[:space:]*_-]*D[[:space:]]*(—|–|-)[[:space:]]*',E'\\1 '||rd||' — ','g');
 
-  -- If a legacy explanation repeated the option text after its label, collapse
-  -- the echo while keeping the actual term named in the explanation.
   if nullif(btrim(p_a),'') is not null then
     v:=replace(v,qa||': '||p_a,qa);
     v:=replace(v,qa||' — '||p_a,qa);
@@ -104,24 +98,34 @@ begin
 end;
 $function$;
 
--- Re-run only the explanation cleanup; keep semantic generation/routing untouched.
+-- Temporarily suspend only the explanation guard during the one-time rewrite.
+-- The semantic-queue trigger is also suspended so text cleanup does not create
+-- a fresh semantic/AI workload. Everything is re-enabled in the same transaction.
+alter table english.questions disable trigger english_questions_order_neutral_explanation;
 alter table english.questions disable trigger english_question_semantic_queue;
 update english.questions
 set explanation=english.explanation_order_neutralized(explanation,option_a,option_b,option_c,option_d)
 where not english.explanation_is_order_neutral(explanation);
 alter table english.questions enable trigger english_question_semantic_queue;
+alter table english.questions enable trigger english_questions_order_neutral_explanation;
 
+alter table english.saved_items disable trigger english_saved_order_neutral_explanation;
 update english.saved_items
 set explanation=english.explanation_order_neutralized(explanation,option_a,option_b,option_c,option_d)
 where not english.explanation_is_order_neutral(explanation);
+alter table english.saved_items enable trigger english_saved_order_neutral_explanation;
 
+alter table english.sprint_items disable trigger english_sprint_order_neutral_explanation;
 update english.sprint_items
 set explanation=english.explanation_order_neutralized(explanation,options)
 where not english.explanation_is_order_neutral(explanation);
+alter table english.sprint_items enable trigger english_sprint_order_neutral_explanation;
 
+alter table english.editorial_tone_items disable trigger english_editorial_order_neutral_explanation;
 update english.editorial_tone_items
 set explanation=english.explanation_order_neutralized(explanation,options)
 where not english.explanation_is_order_neutral(explanation);
+alter table english.editorial_tone_items enable trigger english_editorial_order_neutral_explanation;
 
 do $contract$
 begin
