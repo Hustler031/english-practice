@@ -26,7 +26,7 @@ type Question = { id:string; question:string; options:{key:string;text:string}[]
 
 const lanes:{key:LaneKey;summaryKey:keyof FocusSummary["lanes"];icon:string;title:string;subtitle:string;module:string;fastTrack:boolean;accent:string}[] = [
   { key:"repair", summaryKey:"repair", icon:"◎", title:"Repair Intelligence", subtitle:"Weak · Persistent Weak · Starred · My Saved", module:"dailyfocusrepair", fastTrack:false, accent:"accent-starred" },
-  { key:"coverage", summaryKey:"coverage", icon:"▦", title:"Bank Coverage", subtitle:"20 previously seen · 30 new canonical concepts", module:"bankcoverage", fastTrack:false, accent:"accent-bank" },
+  { key:"coverage", summaryKey:"coverage", icon:"▦", title:"Bank Coverage", subtitle:"20 pending siblings from seen concepts · 50 new canonical concepts", module:"bankcoverage", fastTrack:false, accent:"accent-bank" },
   { key:"fast_track", summaryKey:"fastTrack", icon:"⚡", title:"Fast-Track Mastery", subtitle:"Existing Central Intelligence Fast Track queue", module:"fasttrack", fastTrack:true, accent:"accent-phrasal" },
 ];
 
@@ -67,7 +67,7 @@ export default function DailyFocusPage(){
     />;
   }
 
-  const total=summary?.total||150;
+  const total=summary?.total||170;
   const completed=summary?.completed||0;
   const percent=total?Math.min(100,Math.round((completed/total)*100)):0;
   const allDone=!!summary&&summary.status==="completed";
@@ -107,7 +107,7 @@ export default function DailyFocusPage(){
 
     <section className="route-start">
       <h2>Routing contract</h2>
-      <p>Repair reuses Weak/PW, Starred Intelligence and My Saved Intelligence. Bank Coverage is Central Intelligence-owned and reserves 20 familiar incomplete concepts plus 30 genuinely new canonical concepts. Fast-Track reuses the existing Fast Track route. The same canonical concept cannot appear twice in one Daily Focus batch.</p>
+      <p>Repair reuses Weak/PW, Starred Intelligence and My Saved Intelligence. Bank Coverage is Central Intelligence-owned: 20 questions come from unattempted siblings inside canonical concepts you have already seen, while 50 come from genuinely new canonical concepts with category-balanced routing. Fast-Track reuses the existing Fast Track route. The same canonical concept cannot appear twice in one Daily Focus batch.</p>
     </section>
   </section>;
 }
