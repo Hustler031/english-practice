@@ -21,6 +21,7 @@ type Hub={
  readOnlyBrowsing:boolean;
 };
 type Pick={kind:"today"|"practice";label:string;mode?:"smart"|"weak"|"due"|"all";count?:number;resumeSession?:PausedQuizSession|null};
+type TodayMix={date:string;count:number;newCount:number;reviewCount:number};
 const modes=[["🧠","Smart Practice","smart"],["🔥","Weak","weak"],["◷","Due","due"],["▶","Practice All","all"]] as const;
 
 function firstUnanswered(session:PausedQuizSession|null){
@@ -43,6 +44,7 @@ export default function GrammarWorld(){
  const [pick,setPick]=useState<Pick|null>(null);
  const [pendingMode,setPendingMode]=useState<Pick["mode"]|null>(null);
  const [pausedGrammar,setPausedGrammar]=useState<PausedQuizSession|null>(null);
+ const [todayMix,setTodayMix]=useState<TodayMix|null>(null);
  const [error,setError]=useState("");
 
  useEffect(()=>{
@@ -51,6 +53,12 @@ export default function GrammarWorld(){
   const accept=(x:Hub)=>{if(live){setHub(x);setError("");}};
   const off=subscribeRpcFresh<Hub>("english_get_grammar_hub",undefined,accept);
   rpc<Hub>("english_get_grammar_hub").then(accept).catch((e:any)=>live&&setError(learnerErrorMessage(e,"Grammar Intelligence is taking longer than usual. Please retry.")));
+  rpc<any>("english_get_grammar_today").then(x=>{
+   if(!live)return;
+   const rows=Array.isArray(x?.items)?x.items:[];
+   const newCount=rows.filter((row:any)=>row?.isNewVariant===true).length;
+   setTodayMix({date:String(x?.date||""),count:rows.length,newCount,reviewCount:Math.max(0,rows.length-newCount)});
+  }).catch(()=>{});
   setPausedGrammar(firstUnanswered(readPausedQuiz()));
   return()=>{live=false;off();};
  },[ready]);
@@ -73,6 +81,8 @@ export default function GrammarWorld(){
  const todayTitle="Grammar · Today";
  const todayResume=matchingSession(pausedGrammar,"grammardaily",todayTitle,t?.count||hub?.dailyTarget||20);
  const todayAnswered=answeredCount(todayResume);
+ const mixMatchesToday=!!t?.date&&todayMix?.date===t.date&&todayMix.count===t.count;
+ const todaySummary=t?.ready?(mixMatchesToday?`${todayMix.newCount} new · ${todayMix.reviewCount} review · ${t.date}`:`${t.count} permanent questions · ${t.date}`):"Today’s exact-20 Grammar batch has not been published yet.";
  return <main className="phrasal-parity-page">
   <section className="pv-page-subhead"><button className="btn ghost" onClick={()=>window.history.length>1?router.back():router.push("/english")}>← Back</button><div><h1>Grammar</h1><p>Daily rules + adaptive SSC practice.</p></div></section>
   {error&&<div className="error-box">{error}</div>}
@@ -93,7 +103,7 @@ export default function GrammarWorld(){
   </section>
 
   <section className="pv-today-legacy" style={{order:2}}>
-   <div className="pv-today-head"><div><h2>Today&apos;s {t?.count||hub?.dailyTarget||20}</h2><p>{t?.ready?`${t.count} permanent questions · ${t.date}`:"Today’s exact-20 Grammar batch has not been published yet."}</p></div><span className={`pv-ready-pill ${t?.ready?"ready":"pending"}`}>{t?.ready?"READY":"PENDING"}</span></div>
+   <div className="pv-today-head"><div><h2>Today&apos;s {t?.count||hub?.dailyTarget||20}</h2><p>{todaySummary}</p></div><span className={`pv-ready-pill ${t?.ready?"ready":"pending"}`}>{t?.ready?"READY":"PENDING"}</span></div>
    <button className="btn primary pv-today-button" disabled={!t?.ready} onClick={()=>setPick({kind:"today",label:todayTitle,resumeSession:todayResume})}>{todayResume&&todayAnswered<(t?.count||20)?`Resume Today’s ${t?.count||20} · ${todayAnswered} done`:`Practice Today’s ${t?.count||hub?.dailyTarget||20}`}</button>
   </section>
 
