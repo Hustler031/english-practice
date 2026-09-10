@@ -1,0 +1,32 @@
+name: Validate English Backend AI Quality Fix
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/20260910145000_english_backend_ai_quality_dispatch_visibility.sql'
+      - 'supabase/migrations/20260910145100_english_quality_review_rationale_backfill.sql'
+      - 'web-v2/app/english/revision/ai-intelligence/page.tsx'
+      - 'web-v2/components/question-revision-actions.tsx'
+      - '.github/scripts/validate-english-backend-ai-quality-fix.cjs'
+      - '.github/workflows/validate-english-backend-ai-quality-fix.yml'
+  push:
+    branches:
+      - english-backend-ai-quality-fix-20260910
+    paths:
+      - 'supabase/migrations/20260910145000_english_backend_ai_quality_dispatch_visibility.sql'
+      - 'supabase/migrations/20260910145100_english_quality_review_rationale_backfill.sql'
+      - 'web-v2/app/english/revision/ai-intelligence/page.tsx'
+      - 'web-v2/components/question-revision-actions.tsx'
+      - '.github/scripts/validate-english-backend-ai-quality-fix.cjs'
+      - '.github/workflows/validate-english-backend-ai-quality-fix.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Validate backend AI quality routing contract
+        run: node .github/scripts/validate-english-backend-ai-quality-fix.cjs

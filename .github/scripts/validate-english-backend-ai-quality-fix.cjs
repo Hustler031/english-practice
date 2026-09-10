@@ -1,0 +1,30 @@
+const fs=require('fs');
+const path=require('path');
+const root=path.resolve(__dirname,'../..');
+const migration=fs.readFileSync(path.join(root,'supabase/migrations/20260910145000_english_backend_ai_quality_dispatch_visibility.sql'),'utf8');
+const backfill=fs.readFileSync(path.join(root,'supabase/migrations/20260910145100_english_quality_review_rationale_backfill.sql'),'utf8');
+const insights=fs.readFileSync(path.join(root,'web-v2/app/english/revision/ai-intelligence/page.tsx'),'utf8');
+const actions=fs.readFileSync(path.join(root,'web-v2/components/question-revision-actions.tsx'),'utf8');
+function need(text,needle,label){if(!text.includes(needle))throw new Error(`Missing ${label}: ${needle}`)}
+function forbid(text,needle,label){if(text.includes(needle))throw new Error(`Forbidden ${label}: ${needle}`)}
+need(migration,'has_quality boolean:=false','quality dispatch state');
+need(migration,'if not has_revision and not has_quality then return 0','dedicated worker accepts review-only work');
+need(migration,"'reviewLimit',1",'quality review request payload');
+need(migration,"values(req,'revision_quality_dedicated',now())",'dedicated observability lane');
+need(migration,'begin perform english.kick_revision_worker(1); exception when others then null; end;','best-effort immediate dispatch');
+need(migration,'english.explanation_order_neutralized','order-neutral review rationale');
+need(migration,'quality_review_valid','review activity logging');
+need(migration,'quality_review_issue','issue activity logging');
+need(migration,'english_get_question_quality_updates','dashboard quality-review RPC');
+need(migration,"grant execute on function public.english_get_question_quality_updates(integer) to authenticated",'authenticated dashboard access');
+need(backfill,'not english.explanation_is_order_neutral','legacy rationale backfill guard');
+need(insights,'english_get_question_quality_updates','Learning Insights quality RPC');
+need(insights,'Answer doubt reviews','Learning Insights answer-review section');
+need(insights,'item.rationale','AI rationale display');
+need(insights,'canonical question has not been changed automatically','no auto-change learner message');
+need(actions,'Add / improve explanation','explanation learner action');
+need(actions,'review.rationale','inline answer-review rationale');
+need(actions,'Use AI explanation','explicit explanation activation');
+need(actions,'correctText','answer text instead of mutable key in preview');
+forbid(actions,'<h3>Correct answer: {payload.correctKey}</h3>','mutable correct-key preview');
+console.log('Backend AI answer-review dispatch + visibility + explanation-only revision contract: PASS');
