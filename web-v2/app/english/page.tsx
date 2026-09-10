@@ -102,7 +102,7 @@ export default function EnglishHome() {
   <section className="section-block">
    <Link className="resume-card" href="/english/focus">
     <span>◎</span>
-    <span><b>Daily Focus · {focus?`${focus.completed} / ${focus.total||focus.nominalTarget||150}`:"0 / 150"}</b><small>{focus?.status==="completed"?"Mandatory focus complete ✓":focus?.carryover?`Carry-over ${focus.batchDate} · finish to unlock fresh batch`:"Mandatory · Repair · Bank Coverage · Fast Track"}</small></span>
+    <span><b>Daily Focus · {focus?`${focus.completed} / ${focus.total||focus.nominalTarget||170}`:"0 / 170"}</b><small>{focus?.status==="completed"?"Mandatory focus complete ✓":focus?.carryover?`Carry-over ${focus.batchDate} · finish to unlock fresh batch`:"Mandatory · Repair · Bank Coverage · Fast Track"}</small></span>
     <i>›</i>
    </Link>
   </section>
