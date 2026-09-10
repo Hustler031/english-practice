@@ -23,8 +23,9 @@ type Hub={
  chapters:Chapter[];
  readOnlyBrowsing:boolean;
 };
-type Pick={kind:"daily"|"round2"|"practice";label:string;mode?:"smart"|"weak"|"due"|"all";count?:number;batchDate?:string;resumeSession?:PausedQuizSession|null};
-const modes=[["🧠","Smart Practice","smart"],["🔥","Weak","weak"],["◷","Due","due"],["▶","Practice All","all"]] as const;
+type HistoryRow={type:"day"|"block"|"month";label:string;fromDay:number;toDay:number;generated:number;practised:number;correct:number;wrong:number;round2Focus:number;complete:boolean;date?:string;isToday?:boolean};
+type HistoryResponse={ok:boolean;currentDay:number;history:HistoryRow[]};
+type Pick={kind:"daily"|"round2"|"history";label:string;batchDate?:string;fromDay?:number;toDay?:number;resumeSession?:PausedQuizSession|null};
 const months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 function shortDate(value?:string|null){
@@ -47,8 +48,8 @@ function matchingSession(session:PausedQuizSession|null,module:string,title:stri
 export default function GrammarWorld(){
  const ready=useAuthGuard(),router=useRouter();
  const [hub,setHub]=useState<Hub|null>(null);
+ const [history,setHistory]=useState<HistoryRow[]>([]);
  const [pick,setPick]=useState<Pick|null>(null);
- const [pendingMode,setPendingMode]=useState<Pick["mode"]|null>(null);
  const [pausedGrammar,setPausedGrammar]=useState<PausedQuizSession|null>(null);
  const [error,setError]=useState("");
 
@@ -57,6 +58,10 @@ export default function GrammarWorld(){
   try{const x=await rpc<Hub>("english_get_grammar_hub");setHub(x);setError("");}
   catch(e:any){setError(learnerErrorMessage(e,"Grammar Intelligence is taking longer than usual. Please retry."));}
  },[ready]);
+ const refreshHistory=useCallback(async()=>{
+  if(!ready)return;
+  try{const x=await rpc<HistoryResponse>("english_get_grammar_history");setHistory(Array.isArray(x?.history)?x.history:[]);}catch{}
+ },[ready]);
 
  useEffect(()=>{
   if(!ready)return;
@@ -64,36 +69,32 @@ export default function GrammarWorld(){
   const accept=(x:Hub)=>{if(live){setHub(x);setError("");}};
   const off=subscribeRpcFresh<Hub>("english_get_grammar_hub",undefined,accept);
   refreshHub().catch(()=>{});
+  refreshHistory().catch(()=>{});
   setPausedGrammar(firstUnanswered(readPausedQuiz()));
   return()=>{live=false;off();};
- },[ready,refreshHub]);
+ },[ready,refreshHub,refreshHistory]);
 
  const load=useCallback(()=>{
   if(!pick)return Promise.resolve([]);
   if(pick.kind==="daily")return rpc<any>("english_get_grammar_today").then(x=>Array.isArray(x?.items)?x.items:[]);
   if(pick.kind==="round2")return rpc<any>("english_get_grammar_round2",{p_batch_date:pick.batchDate||null}).then(x=>Array.isArray(x?.items)?x.items:[]);
-  return rpc<any[]>("english_get_grammar_batch",{p_mode:pick.mode,p_count:pick.count||20,p_chapter:null});
+  return rpc<any[]>("english_get_grammar_history_batch",{p_from_day:pick.fromDay,p_to_day:pick.toDay});
  },[pick]);
 
  if(!ready)return <EnglishLoading text="Checking session…"/>;
  if(pick){
-  const module=pick.kind==="practice"?"grammarrevision":`grammardaily:${pick.batchDate||hub?.today?.date||""}`;
+  const module=pick.kind==="history"?"grammarrevision":`grammardaily:${pick.batchDate||hub?.today?.date||""}`;
   return <QuizRunner title={pick.label} backHref="/english/grammar" load={load} module={module} resumeSession={pick.resumeSession||null} onExit={()=>{
    setPick(null);
    window.setTimeout(()=>{
     setPausedGrammar(firstUnanswered(readPausedQuiz()));
     refreshHub().catch(()=>{});
+    refreshHistory().catch(()=>{});
    },0);
   }}/>;
  }
 
- const s=hub?.stats,a=hub?.available,t=hub?.today,d=hub?.daily,sizeChoices=hub?.sizes?.length?hub.sizes:[10,20,30,50];
- const start=(mode:NonNullable<Pick["mode"]>,count:number)=>{
-  const label=`Grammar · ${modes.find(m=>m[2]===mode)?.[1]||mode}`;
-  const resume=matchingSession(pausedGrammar,"grammarrevision",label,count);
-  setPick({kind:"practice",mode,count,label,resumeSession:resume});
- };
-
+ const s=hub?.stats,t=hub?.today,d=hub?.daily;
  const activeDate=d?.activeDate||t?.date||"";
  const activeTotal=Number(d?.activeTotal??t?.count??hub?.dailyTarget??20);
  const activePracticed=Number(d?.activePracticed??t?.practiced??0);
@@ -153,10 +154,6 @@ export default function GrammarWorld(){
     <div><b>{s?.weak??"—"}</b><small>Weak</small></div>
     <div><b>{s?.mastered??"—"}</b><small>Mastered</small></div>
    </div>
-   <div className="pv-legacy-actions">{modes.map(([icon,label,mode])=>{
-    const n=Number(a?.[mode]||0),disabled=!a||n===0;
-    return <button key={mode} className="pv-legacy-action" disabled={disabled} onClick={()=>setPendingMode(mode)}><span>{icon}</span><b>{label}{n?` (${n})`:""}</b></button>;
-   })}</div>
    <div className="pv-cache-note">Grammar Intelligence updates from real practice evidence</div>
   </section>
 
@@ -166,12 +163,22 @@ export default function GrammarWorld(){
   </section>
 
   <section className="section-block" style={{order:3}}>
-   <details className="practice-more-details" open>
-    <summary><span><b>Chapters</b><small>Open a chapter for focused practice and read-only question review</small></span></summary>
+   <div className="legacy-list">
+    <Link className="legacy-row" href="/english/grammar/practice"><span className="legacy-row-copy"><b>Practice</b><small>Smart · Weak · Due · Practice All</small></span><span className="legacy-chevron">›</span></Link>
+   </div>
+   <details className="practice-more-details">
+    <summary><span><b>Chapters</b><small>Focused chapter practice + read-only rule review</small></span></summary>
     <div className="practice-more-list">{hub?.chapters?.length?hub.chapters.map(ch=><Link href={`/english/grammar/chapter/${encodeURIComponent(ch.chapter)}`} key={ch.chapter}><span><b>{ch.chapter}</b><small>{ch.coveredRules}/{ch.totalRules} covered · {ch.weakRules} weak · {ch.dueRules} due · {ch.questionCount} questions</small></span></Link>):<div className="empty-copy">Grammar chapters are syncing…</div>}</div>
    </details>
   </section>
 
-  {pendingMode&&<div className="sheet-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setPendingMode(null)}}><section className="pv-picker-sheet" onMouseDown={e=>e.stopPropagation()}><h3>{modes.find(m=>m[2]===pendingMode)?.[1]||"Grammar Practice"} · choose questions</h3><div className="pv-picker-counts">{sizeChoices.map(n=><button key={n} onClick={()=>{start(pendingMode,n);setPendingMode(null)}}>{n}</button>)}</div><button className="btn ghost full-width" onClick={()=>setPendingMode(null)}>Cancel</button></section></div>}
+  <section className="pv-history-section" style={{order:4}}><h2>Grammar Daily History</h2><div className="pv-history-list">{history.length?history.map((h,i)=>{
+   const pending=Math.max(0,h.generated-h.practised);
+   const sub=h.complete?`${h.practised}/${h.generated} practiced · ${h.correct} correct${h.round2Focus?` · ${h.round2Focus} focus`:""}`:`${h.practised}/${h.generated} practiced · ${pending} left`;
+   const title=`Grammar · ${h.label}`;
+   const expectedCount=h.fromDay===h.toDay?h.generated:undefined;
+   const resume=matchingSession(pausedGrammar,"grammarrevision",title,expectedCount);
+   return <article className="pv-history-card" key={`${h.type}-${h.fromDay}-${h.date||i}`}><div><b>{h.label}</b><p>{sub}</p></div><div className="pv-history-side">{h.date&&<span>{shortDate(h.date)}</span>}<button className="btn soft mini" disabled={!h.generated} onClick={()=>setPick({kind:"history",fromDay:h.fromDay,toDay:h.toDay,label:title,resumeSession:resume})}>Review</button></div></article>;
+  }):<div className="empty-copy">No Grammar Daily history yet.</div>}</div></section>
  </main>;
 }
