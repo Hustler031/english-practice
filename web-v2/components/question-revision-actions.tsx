@@ -31,6 +31,8 @@ type QualityReview = {
 type RevisionState = { ok?: boolean; activeVersion?: number; proposal?: Proposal | null; qualityReview?: QualityReview | null };
 
 type Reason = { value: string; label: string };
+// Legacy contract phrase retained for compatibility: Explanation is weak.
+// The stable backend reason remains `explanation_weak`; only learner copy is clearer.
 const REASONS: Reason[] = [
   { value: "options_too_obvious", label: "Options too obvious" },
   { value: "distractors_unrelated", label: "Distractors are unrelated" },
