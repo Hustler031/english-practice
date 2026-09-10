@@ -18,6 +18,7 @@ const key = "english-v2:paused-quiz";
 const SESSION_VERSION = 2;
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
+const IST_TIME_ZONE = "Asia/Kolkata";
 
 function currentOwnerId() {
   try {
@@ -38,6 +39,30 @@ function currentOwnerId() {
   } catch { return ""; }
 }
 
+function istDateKey(timestamp:number) {
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: IST_TIME_ZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date(timestamp));
+    const part = (type:string) => parts.find(x => x.type === type)?.value || "";
+    const year = part("year"), month = part("month"), day = part("day");
+    return year && month && day ? `${year}-${month}-${day}` : "";
+  } catch { return ""; }
+}
+
+function isCurrentDayScopedSession(value:PausedQuizSession) {
+  // Grammar Today is a date-scoped fixed batch. It must never resume yesterday's
+  // questions after the Asia/Kolkata day rolls over, even though generic paused
+  // quizzes are allowed to live for up to 24 hours.
+  if (String(value.module || "").toLowerCase() !== "grammardaily") return true;
+  const savedDay = istDateKey(Number(value.savedAt || 0));
+  const today = istDateKey(Date.now());
+  return !!savedDay && savedDay === today;
+}
+
 function validSession(value: PausedQuizSession, ownerId: string) {
   const age = Date.now() - Number(value.savedAt || 0);
   return value.version === SESSION_VERSION
@@ -54,7 +79,8 @@ function validSession(value: PausedQuizSession, ownerId: string) {
     && value.index < value.questions.length
     && Number.isFinite(age)
     && age >= -MAX_CLOCK_SKEW_MS
-    && age <= SESSION_TTL_MS;
+    && age <= SESSION_TTL_MS
+    && isCurrentDayScopedSession(value);
 }
 
 export function readPausedQuiz(): PausedQuizSession | null {
