@@ -79,7 +79,15 @@ need(worker, 'V requires semantic vocabulary practice, not spelling practice', '
 need(worker, 'CU must explicitly test grammar/usage or a distinction', 'CU family gate');
 need(worker, 'simple V+MEANING must directly test lexical meaning/recall', 'simple meaning gate');
 need(worker, 'CONFUSION must test supplied targets together', 'confusion family gate');
-need(worker, 'explanation must explicitly explain A, B, C and D', 'all-option explanation gate');
+need(worker, 'ORDER_NEUTRAL_EXPLANATION_RULE', 'shared order-neutral writer instruction');
+need(worker, 'function actualOptionCoverage(data:any)', 'actual-text all-option explanation coverage');
+need(worker, 'function positionalExplanationReference(explanation:string)', 'mutable-position detector');
+need(worker, 'explanation must be order-neutral and must not refer to mutable option positions', 'order-neutral deterministic gate');
+need(worker, 'explanation must explicitly discuss all four choices by their actual text/term', 'actual-text all-option explanation gate');
+need(worker, 'orderNeutralExplanation:true', 'order-neutral audit metadata');
+forbid(worker, 'Explanation must explicitly discuss A, B, C and D', 'legacy positional writer instruction');
+forbid(worker, 'Explanation must explicitly explain A, B, C and D', 'legacy positional writer instruction');
+forbid(worker, 'explanation must explicitly explain A, B, C and D', 'legacy positional deterministic gate');
 need(worker, 'data.captureType=normalizedCapture(item)', 'AI cannot mutate capture type');
 need(worker, 'requiredQuestionFamily:family', 'family sent to writer');
 need(worker, 'requiredLearningIntent:requiredIntent', 'learning intent sent to writer');
@@ -106,4 +114,4 @@ const zeroGuard = 'if(!items.length)return reply({ok:true,claimed:0,processed:0,
 need(worker, zeroGuard, 'zero-pending early exit');
 before(worker, zeroGuard, 'items.map((item:any)=>enrichOne(item,forceModel))', 'zero-pending exit before item generation');
 
-console.log('English Saved smart router: 3.5 easy / 3.8 primary / 3.6 availability fallback / one-shot Luna rescue / no Antigravity / no critic retry loop: PASS');
+console.log('English Saved smart router: 3.5 easy / 3.8 primary / 3.6 availability fallback / one-shot Luna rescue / order-neutral all-choice explanations / no Antigravity / no critic retry loop: PASS');
