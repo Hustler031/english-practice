@@ -7,6 +7,7 @@ on:
     paths:
       - 'supabase/migrations/20260909013**'
       - 'supabase/migrations/20260909020**'
+      - 'supabase/migrations/20260910091**'
       - 'supabase/functions/english-content-task-bridge/**'
       - 'web-v2/app/english/page.tsx'
       - 'web-v2/app/english/grammar/**'
@@ -15,7 +16,15 @@ on:
       - 'web-v2/scripts/validate-grammar-stage*.mjs'
       - 'web-v2/package.json'
       - '.github/scripts/validate-english-grammar-stage*.sql'
+      - '.github/scripts/validate-english-grammar-daily-carry-forward.sql'
       - '.github/scripts/validate-english-content-chatgpt-bridge.cjs'
+      - '.github/workflows/grammar-stage2-validation.yml'
+  pull_request:
+    paths:
+      - 'supabase/migrations/20260910091**'
+      - 'web-v2/app/english/grammar/**'
+      - '.github/scripts/validate-english-grammar-daily-carry-forward.sql'
+      - '.github/scripts/validate-english-grammar-stage*.sql'
       - '.github/workflows/grammar-stage2-validation.yml'
   workflow_dispatch:
 
@@ -93,7 +102,7 @@ jobs:
           PGPASSWORD: postgres
         run: |
           set -o pipefail
-          psql -h 127.0.0.1 -U postgres -d english_grammar_stage2 -v ON_ERROR_STOP=1 -f .github/scripts/validate-english-grammar-stage2.sql 2>&1 | tee /tmp/grammar-stage2-postgres.log
+          psql -h 127.0.0.1 -U postgres -d english_grammar_stage2 -v ON_ERROR_STOP=1 -f .github/scripts/validate-english-grammar-daily-carry-forward.sql 2>&1 | tee /tmp/grammar-stage2-postgres.log
       - name: Upload Grammar Stage 2 PostgreSQL log
         if: always()
         uses: actions/upload-artifact@v4
