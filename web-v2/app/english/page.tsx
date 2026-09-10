@@ -18,6 +18,7 @@ type HinduWord={id:string};
 type Intelligence={queues?:Record<string,number>;daily?:{actionableRemaining:number;suppressed?:number};coreCoverage?:{percent:number}};
 type HomeSnapshot={ok:boolean;studyDay:number;summary:Summary;intelligence:Intelligence;phrasal:PhrasalHub;bank:BankHub;saved:SavedHub;starred:StarredHub;hindu:HinduWord[]};
 type TargetedSummary={ok:boolean;active:number;dueNow:number;confusions:number;needLearning:number;transferChecks:number;retentionChecks:number};
+type DailyFocusSummary={ok:boolean;batchDate:string;carryover:boolean;status:"active"|"completed";total:number;completed:number;remaining:number;nominalTarget:number};
 
 const quick = [
  ["📰", "The Hindu – Today", "Fresh vocabulary batch", "/english/hindu?return=/english", "hindu"],
@@ -40,6 +41,7 @@ export default function EnglishHome() {
  const ready=useAuthGuard();
  const[snapshot,setSnapshot]=useState<HomeSnapshot|null>(null);
  const[targeted,setTargeted]=useState<TargetedSummary|null>(null);
+ const[focus,setFocus]=useState<DailyFocusSummary|null>(null);
  const[error,setError]=useState("");
  const[paused,setPaused]=useState<PausedQuizSession|null>(null);
 
@@ -48,10 +50,12 @@ export default function EnglishHome() {
   let alive=true;
   const accept=(x:HomeSnapshot)=>{if(alive){setSnapshot(x);setError("");}};
   const refreshTargeted=()=>targetedLiveRpc<TargetedSummary>("english_get_targeted_summary").then(x=>{if(alive)setTargeted(x)}).catch(()=>{});
+  const refreshFocus=()=>rpc<DailyFocusSummary>("english_get_daily_focus_summary").then(x=>{if(alive)setFocus(x)}).catch(()=>{});
   const unsubscribe=subscribeRpcFresh<HomeSnapshot>("english_get_home_snapshot",undefined,accept);
   const unsubscribeTargeted=subscribeTargetedDurability(()=>void refreshTargeted());
   rpc<HomeSnapshot>("english_get_home_snapshot").then(accept).catch((e:any)=>{if(alive)setError(learnerErrorMessage(e,"Home data is taking longer than usual. Please retry."))});
   void refreshTargeted();
+  void refreshFocus();
   setPaused(readPausedQuiz());
   return()=>{alive=false;unsubscribe();unsubscribeTargeted();};
  },[ready]);
@@ -94,6 +98,14 @@ export default function EnglishHome() {
     <div className="progress-track daily-active-progress"><i style={{width:`${percent}%`}}/></div>
    </section>
   }
+
+  <section className="section-block">
+   <Link className="resume-card" href="/english/focus">
+    <span>◎</span>
+    <span><b>Daily Focus · {focus?`${focus.completed} / ${focus.total||focus.nominalTarget||150}`:"0 / 150"}</b><small>{focus?.status==="completed"?"Mandatory focus complete ✓":focus?.carryover?`Carry-over ${focus.batchDate} · finish to unlock fresh batch`:"Mandatory · Repair · Bank Coverage · Fast Track"}</small></span>
+    <i>›</i>
+   </Link>
+  </section>
 
   {dailyComplete&&<section className="practice-more-card compact-extra-card"><div className="practice-more-copy"><span className="eyebrow">Optional · after Daily</span><h2>Focused extra practice</h2><p>Wrong, Difficult, Marked · Weak/PW</p></div><Link className="btn primary" href="/english/extra?count=20">Start 20</Link></section>}
 
