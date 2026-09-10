@@ -10,20 +10,27 @@ import { useAuthGuard } from "@/lib/use-auth";
 import { readPausedQuiz, type PausedQuizSession } from "@/lib/quiz-session";
 
 type Chapter={chapter:string;totalRules:number;coveredRules:number;coveragePercent:number;weakRules:number;dueRules:number;questionCount:number};
+type TodayState={date:string;count:number;target:number;ready:boolean;newCount?:number;reviewCount?:number;practiced?:number;remaining?:number;correct?:number;wrong?:number;round2Focus?:number;complete?:boolean};
+type DailyState={activeDate?:string|null;activeTotal?:number;activePracticed?:number;activeRemaining?:number;activeCorrect?:number;activeWrong?:number;activeRound2Focus?:number;isBacklog?:boolean;todayLocked?:boolean};
 type Hub={
  ok:boolean;
  dailyTarget:number;
  stats:{totalRules:number;covered:number;coveragePercent:number;weak:number;due:number;mastered:number};
- today:{date:string;count:number;target:number;ready:boolean};
+ today:TodayState;
+ daily?:DailyState;
  available:{smart:number;weak:number;due:number;all:number};
  sizes:number[];
  chapters:Chapter[];
  readOnlyBrowsing:boolean;
 };
-type Pick={kind:"today"|"practice";label:string;mode?:"smart"|"weak"|"due"|"all";count?:number;resumeSession?:PausedQuizSession|null};
-type TodayMix={date:string;count:number;newCount:number;reviewCount:number};
+type Pick={kind:"daily"|"round2"|"practice";label:string;mode?:"smart"|"weak"|"due"|"all";count?:number;batchDate?:string;resumeSession?:PausedQuizSession|null};
 const modes=[["🧠","Smart Practice","smart"],["🔥","Weak","weak"],["◷","Due","due"],["▶","Practice All","all"]] as const;
+const months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
+function shortDate(value?:string|null){
+ const [y,m,d]=String(value||"").split("-").map(Number);
+ return y&&m&&d?`${d} ${months[m-1]||""}`:String(value||"");
+}
 function firstUnanswered(session:PausedQuizSession|null){
  if(!session)return null;
  const answers=session.answers||{};
@@ -36,7 +43,6 @@ function matchingSession(session:PausedQuizSession|null,module:string,title:stri
  if(count&&session.questions.length!==count)return null;
  return firstUnanswered(session);
 }
-function answeredCount(session:PausedQuizSession|null){return session?Object.keys(session.answers||{}).length:0;}
 
 export default function GrammarWorld(){
  const ready=useAuthGuard(),router=useRouter();
@@ -44,45 +50,97 @@ export default function GrammarWorld(){
  const [pick,setPick]=useState<Pick|null>(null);
  const [pendingMode,setPendingMode]=useState<Pick["mode"]|null>(null);
  const [pausedGrammar,setPausedGrammar]=useState<PausedQuizSession|null>(null);
- const [todayMix,setTodayMix]=useState<TodayMix|null>(null);
  const [error,setError]=useState("");
+
+ const refreshHub=useCallback(async()=>{
+  if(!ready)return;
+  try{const x=await rpc<Hub>("english_get_grammar_hub");setHub(x);setError("");}
+  catch(e:any){setError(learnerErrorMessage(e,"Grammar Intelligence is taking longer than usual. Please retry."));}
+ },[ready]);
 
  useEffect(()=>{
   if(!ready)return;
   let live=true;
   const accept=(x:Hub)=>{if(live){setHub(x);setError("");}};
   const off=subscribeRpcFresh<Hub>("english_get_grammar_hub",undefined,accept);
-  rpc<Hub>("english_get_grammar_hub").then(accept).catch((e:any)=>live&&setError(learnerErrorMessage(e,"Grammar Intelligence is taking longer than usual. Please retry.")));
-  rpc<any>("english_get_grammar_today").then(x=>{
-   if(!live)return;
-   const rows=Array.isArray(x?.items)?x.items:[];
-   const newCount=rows.filter((row:any)=>row?.isNewVariant===true).length;
-   setTodayMix({date:String(x?.date||""),count:rows.length,newCount,reviewCount:Math.max(0,rows.length-newCount)});
-  }).catch(()=>{});
+  refreshHub().catch(()=>{});
   setPausedGrammar(firstUnanswered(readPausedQuiz()));
   return()=>{live=false;off();};
- },[ready]);
+ },[ready,refreshHub]);
 
  const load=useCallback(()=>{
   if(!pick)return Promise.resolve([]);
-  if(pick.kind==="today")return rpc<any>("english_get_grammar_today").then(x=>Array.isArray(x?.items)?x.items:[]);
+  if(pick.kind==="daily")return rpc<any>("english_get_grammar_today").then(x=>Array.isArray(x?.items)?x.items:[]);
+  if(pick.kind==="round2")return rpc<any>("english_get_grammar_round2",{p_batch_date:pick.batchDate||null}).then(x=>Array.isArray(x?.items)?x.items:[]);
   return rpc<any[]>("english_get_grammar_batch",{p_mode:pick.mode,p_count:pick.count||20,p_chapter:null});
  },[pick]);
 
  if(!ready)return <EnglishLoading text="Checking session…"/>;
- if(pick)return <QuizRunner title={pick.label} backHref="/english/grammar" load={load} module={pick.kind==="today"?"grammardaily":"grammarrevision"} resumeSession={pick.resumeSession||null} onExit={()=>{setPick(null);window.setTimeout(()=>setPausedGrammar(firstUnanswered(readPausedQuiz())),0)}}/>;
+ if(pick){
+  const module=pick.kind==="practice"?"grammarrevision":`grammardaily:${pick.batchDate||hub?.today?.date||""}`;
+  return <QuizRunner title={pick.label} backHref="/english/grammar" load={load} module={module} resumeSession={pick.resumeSession||null} onExit={()=>{
+   setPick(null);
+   window.setTimeout(()=>{
+    setPausedGrammar(firstUnanswered(readPausedQuiz()));
+    refreshHub().catch(()=>{});
+   },0);
+  }}/>;
+ }
 
- const s=hub?.stats,a=hub?.available,t=hub?.today,sizeChoices=hub?.sizes?.length?hub.sizes:[10,20,30,50];
+ const s=hub?.stats,a=hub?.available,t=hub?.today,d=hub?.daily,sizeChoices=hub?.sizes?.length?hub.sizes:[10,20,30,50];
  const start=(mode:NonNullable<Pick["mode"]>,count:number)=>{
   const label=`Grammar · ${modes.find(m=>m[2]===mode)?.[1]||mode}`;
   const resume=matchingSession(pausedGrammar,"grammarrevision",label,count);
   setPick({kind:"practice",mode,count,label,resumeSession:resume});
  };
- const todayTitle="Grammar · Today";
- const todayResume=matchingSession(pausedGrammar,"grammardaily",todayTitle,t?.count||hub?.dailyTarget||20);
- const todayAnswered=answeredCount(todayResume);
- const mixMatchesToday=!!t?.date&&todayMix?.date===t.date&&todayMix.count===t.count;
- const todaySummary=t?.ready?(mixMatchesToday?`${todayMix.newCount} new · ${todayMix.reviewCount} review · ${t.date}`:`${t.count} permanent questions · ${t.date}`):"Today’s exact-20 Grammar batch has not been published yet.";
+
+ const activeDate=d?.activeDate||t?.date||"";
+ const activeTotal=Number(d?.activeTotal??t?.count??hub?.dailyTarget??20);
+ const activePracticed=Number(d?.activePracticed??t?.practiced??0);
+ const activeRemaining=Number(d?.activeRemaining??t?.remaining??Math.max(0,activeTotal-activePracticed));
+ const isBacklog=!!d?.isBacklog;
+ const todayComplete=!isBacklog&&!!t?.complete;
+ const round2Focus=Number(t?.round2Focus||0);
+ const dailyModule=activeDate?`grammardaily:${activeDate}`:"grammardaily";
+ const dailyTitle=isBacklog?`Grammar · Catch-up ${shortDate(activeDate)}`:"Grammar · Today";
+ const dailyResume=matchingSession(pausedGrammar,dailyModule,dailyTitle,activeTotal||20);
+ const round2Title="Grammar · Round 2";
+ const round2Module=t?.date?`grammardaily:${t.date}`:"grammardaily";
+ const round2Resume=matchingSession(pausedGrammar,round2Module,round2Title,round2Focus||undefined);
+ const newCount=Number(t?.newCount??0),reviewCount=Number(t?.reviewCount??Math.max(0,(t?.count||0)-newCount));
+
+ let dailyHeading=`Today’s ${t?.count||hub?.dailyTarget||20}`;
+ let dailySummary=t?.ready?`${newCount||t.count} new${reviewCount?` · ${reviewCount} review`:""} · ${Number(t.practiced||0)}/${t.count} practiced`:`Today’s exact-20 Grammar batch has not been published yet.`;
+ let dailyBadge=t?.ready?"READY":"PENDING";
+ let dailyButton=`Practice Today’s ${t?.count||hub?.dailyTarget||20}`;
+ let dailyDisabled=!t?.ready;
+ let dailyAction=()=>{
+  if(!activeDate)return;
+  setPick({kind:"daily",label:dailyTitle,batchDate:activeDate,resumeSession:dailyResume});
+ };
+
+ if(isBacklog){
+  dailyHeading=`Pending ${shortDate(activeDate)} · Grammar`;
+  dailySummary=`${activePracticed}/${activeTotal} practiced · ${activeRemaining} left · finish this before today’s batch.`;
+  dailyBadge="CATCH-UP";
+  dailyButton=`Continue ${shortDate(activeDate)} · ${activeRemaining} left`;
+  dailyDisabled=!activeDate||activeTotal===0;
+ }else if(todayComplete){
+  dailyHeading="Today’s Practice ✓ Complete";
+  dailySummary=`${t?.practiced||20}/20 practiced · ${t?.correct||0} correct${round2Focus?` · ${round2Focus} focus for Round 2`:""} · ${newCount} new · ${reviewCount} review`;
+  dailyBadge="COMPLETE";
+  if(round2Focus>0){
+   dailyButton=`Round 2 · ${round2Focus} focus`;
+   dailyDisabled=false;
+   dailyAction=()=>setPick({kind:"round2",label:round2Title,batchDate:t?.date,resumeSession:round2Resume});
+  }else{
+   dailyButton="✓ Done for today";
+   dailyDisabled=true;
+  }
+ }else if(t?.ready&&Number(t.practiced||0)>0){
+  dailyButton=`Resume Today’s 20 · ${t.practiced} done`;
+ }
+
  return <main className="phrasal-parity-page">
   <section className="pv-page-subhead"><button className="btn ghost" onClick={()=>window.history.length>1?router.back():router.push("/english")}>← Back</button><div><h1>Grammar</h1><p>Daily rules + adaptive SSC practice.</p></div></section>
   {error&&<div className="error-box">{error}</div>}
@@ -103,8 +161,8 @@ export default function GrammarWorld(){
   </section>
 
   <section className="pv-today-legacy" style={{order:2}}>
-   <div className="pv-today-head"><div><h2>Today&apos;s {t?.count||hub?.dailyTarget||20}</h2><p>{todaySummary}</p></div><span className={`pv-ready-pill ${t?.ready?"ready":"pending"}`}>{t?.ready?"READY":"PENDING"}</span></div>
-   <button className="btn primary pv-today-button" disabled={!t?.ready} onClick={()=>setPick({kind:"today",label:todayTitle,resumeSession:todayResume})}>{todayResume&&todayAnswered<(t?.count||20)?`Resume Today’s ${t?.count||20} · ${todayAnswered} done`:`Practice Today’s ${t?.count||hub?.dailyTarget||20}`}</button>
+   <div className="pv-today-head"><div><h2>{dailyHeading}</h2><p>{dailySummary}</p></div><span className={`pv-ready-pill ${dailyBadge==="PENDING"?"pending":"ready"}`}>{dailyBadge}</span></div>
+   <button className="btn primary pv-today-button" disabled={dailyDisabled} onClick={dailyAction}>{dailyButton}</button>
   </section>
 
   <section className="section-block" style={{order:3}}>
