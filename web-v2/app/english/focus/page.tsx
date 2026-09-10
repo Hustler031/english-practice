@@ -56,20 +56,15 @@ export default function DailyFocusPage(){
   if(running&&summary){
     const config=lanes.find(x=>x.key===running)!;
     const lane=summary.lanes[config.summaryKey];
-    if(lane.done){
-      setRunning(null);
-    }else{
-      return <QuizRunner
-        title={`${config.title} · ${lane.completed}/${lane.target}`}
-        backHref="/english/focus"
-        load={load}
-        module={config.module}
-        fastTrackMode={config.fastTrack}
-        emptyText="This Daily Focus lane is already complete or has no eligible questions."
-        onFinish={async()=>{await refresh();}}
-        onExit={()=>{setRunning(null);void refresh();}}
-      />;
-    }
+    return <QuizRunner
+      title={`${config.title} · ${lane.completed}/${lane.target}`}
+      backHref="/english/focus"
+      load={load}
+      module={config.module}
+      fastTrackMode={config.fastTrack}
+      emptyText="This Daily Focus lane is already complete or has no eligible questions."
+      onExit={()=>{setRunning(null);void refresh();}}
+    />;
   }
 
   const total=summary?.total||150;
@@ -99,7 +94,7 @@ export default function DailyFocusPage(){
         {lanes.map(config=>{
           const lane=summary?.lanes[config.summaryKey];
           const done=!!lane?.done;
-          return <button type="button" className={`study-row home-quick-row ${config.accent}`} key={config.key} disabled={!summary||done||localSafe} onClick={()=>setRunning(config.key)}>
+          return <button type="button" className={`study-row home-quick-row ${config.accent}`} key={config.key} disabled={!summary||done||localSafe} onClick={()=>{if(!done)setRunning(config.key);}}>
             <span className="row-icon">{done?"✓":config.icon}</span>
             <span className="row-copy"><b>{config.title}</b><small>{done?"Completed — this batch will not restart":config.subtitle}</small></span>
             <span className="row-status">{lane?`${lane.completed} / ${lane.target}`:"…"}</span>
