@@ -13,6 +13,7 @@ const gateAware = read('supabase/migrations/20260911101000_english_review_due_ga
 const exactQuality = read('supabase/migrations/20260911101200_english_review_due_exact_question_quality_semantics.sql');
 const releaseSecurity = read('supabase/migrations/20260911101500_english_review_due_release_security_hardening.sql');
 const coverageHotfix = read('supabase/migrations/20260911113000_english_review_due_coverage_semantics_hotfix.sql');
+const enableCrossCredit = read('supabase/migrations/20260911120500_english_review_due_enable_valid_cross_credit.sql');
 
 function must(text, re, label) {
   if (!re.test(text)) throw new Error(`Review Due contract failed: ${label}`);
@@ -54,8 +55,8 @@ must(lane, /routingChanged',false/, 'practice-lane migration must not silently a
 mustNot(lane, /update\s+english\.question_state/i, 'practice lane must remain read-only with respect to question_state');
 mustNot(lane, /insert\s+into\s+english\.attempts/i, 'practice lane must never fake attempts');
 
-must(gate, /cross_concept_credit_enabled boolean not null default false/, 'cross-concept credit must default OFF');
-must(gate, /auto_deferral_enabled boolean not null default false/, 'automatic deferral must default OFF');
+must(gate, /cross_concept_credit_enabled boolean not null default false/, 'cross-concept credit must default OFF before validated activation');
+must(gate, /auto_deferral_enabled boolean not null default false/, 'automatic deferral must default OFF before validated activation');
 must(gate, /review_due_question_deferrals/, 'cross-concept credit must have an audited word-clock deferral ledger');
 must(gate, /active_review_due_deferral/, 'recompute path must preserve recorded deferrals');
 must(gate, /least\(v_base_next,v_override\)/, 'guess/context earlier-review override must beat a later deferral');
@@ -64,7 +65,7 @@ must(gate, /enabled',false/, 'disabled deferral path must explicitly no-op');
 mustNot(gate, /insert\s+into\s+english\.attempts/i, 'deferral must never manufacture learning history');
 
 must(gateAware, /crossCreditEnabled/, 'learner summary must expose cross-credit gate state');
-must(gateAware, /p\.cross_credit or q\.question_id=any\(s\.due_question_ids\)/, 'gate-OFF practice must stay on exact due questions');
+must(gateAware, /p\.cross_credit or q\.question_id=any\(s\.due_question_ids\)/, 'gate-aware practice must protect exact-due behavior while cross-credit is disabled');
 must(gateAware, /reviewDueCrossCreditEnabled/, 'practice payload must expose gate state');
 mustNot(gateAware, /insert\s+into\s+english\.attempts/i, 'gate-aware lane must never manufacture attempts');
 
@@ -73,14 +74,18 @@ must(exactQuality, /too_easy and not exact_due/, 'too-easy sibling evidence must
 must(exactQuality, /a\.low_at is null[\s\S]*interval '15 minutes'/, 'quality diagnostics must retain aged/fresh recovery semantics');
 mustNot(exactQuality, /insert\s+into\s+english\.attempts/i, 'quality semantics must never manufacture attempts');
 
-// Learner-facing Review Due is coverage accounting, while shadow_status remains quality evidence.
 must(coverageHotfix, /module_key='reviewduetoday'/, 'dedicated Review Due attempts must be identifiable');
 must(coverageHotfix, /when review_attempt_at is not null then 'satisfied'/, 'any durable Review Due attempt must cover today even when wrong');
-must(coverageHotfix, /when cross_credit_enabled and recovered then 'satisfied'/, 'outside-module credit must remain gated and require strong recovery evidence');
+must(coverageHotfix, /when cross_credit_enabled and recovered then 'satisfied'/, 'outside-module credit must require enabled strong recovery evidence');
 must(coverageHotfix, /else 'remaining'/, 'outside wrong/low-confidence evidence must leave the Review Due obligation open');
 must(coverageHotfix, /when wrong_at is not null then 'needs_repair'/, 'shadow quality status must still preserve wrong-answer repair evidence');
-mustNot(coverageHotfix, /update\s+english\.question_state/i, 'coverage hotfix must not write question_state or next_review');
+mustNot(coverageHotfix, /update\s+english\.question_state/i, 'coverage hotfix must not directly write question_state or next_review');
 mustNot(coverageHotfix, /insert\s+into\s+english\.attempts/i, 'coverage hotfix must never manufacture attempts');
+
+must(enableCrossCredit, /cross_concept_credit_enabled\s*=\s*true/, 'validated cross-module credit must be explicitly enabled');
+must(enableCrossCredit, /auto_deferral_enabled\s*=\s*true/, 'automatic scheduler deferral must be enabled together with cross-credit');
+must(enableCrossCredit, /cross-credit and auto-deferral must be enabled together/i, 'activation migration must fail closed if the paired gates diverge');
+mustNot(enableCrossCredit, /insert\s+into\s+english\.attempts/i, 'cross-credit activation must not manufacture attempts');
 
 must(releaseSecurity, /review_due_runtime_config enable row level security/, 'runtime gate table must have RLS');
 must(releaseSecurity, /review_due_question_deferrals enable row level security/, 'deferral audit table must have RLS');
