@@ -20,6 +20,7 @@ type FocusSummary = {
   completed:number;
   remaining:number;
   nominalTarget:number;
+  buildVersion?:"legacy"|"v3"|string;
   lanes:{ repair:LaneProgress; coverage:LaneProgress; fastTrack:LaneProgress };
 };
 type ReviewDueSummary = {
@@ -29,6 +30,7 @@ type ReviewDueSummary = {
   snapshotReady:boolean;
   dueQuestionCount:number;
   dueAtStart:number;
+  carryoverConcepts?:number;
   satisfied:number;
   satisfiedElsewhere:number;
   needsRepair:number;
@@ -38,12 +40,13 @@ type ReviewDueSummary = {
   routingChanged:boolean;
   countsTowardDailyFocus:boolean;
   practiceEnabled?:boolean;
+  crossCreditEnabled?:boolean;
 };
 
 type Question = { id:string; question:string; options:{key:string;text:string}[] };
 
 const lanes:{key:LaneKey;summaryKey:keyof FocusSummary["lanes"];icon:string;title:string;subtitle:string;module:string;fastTrack:boolean;accent:string}[] = [
-  { key:"repair", summaryKey:"repair", icon:"◎", title:"Repair Intelligence", subtitle:"Weak · Persistent Weak · Starred · My Saved", module:"dailyfocusrepair", fastTrack:false, accent:"accent-starred" },
+  { key:"repair", summaryKey:"repair", icon:"◎", title:"Repair Intelligence", subtitle:"Learning Need Engine · Weak/PW · Targeted · fragile risk · Saved/Starred rotation", module:"dailyfocusrepair", fastTrack:false, accent:"accent-starred" },
   { key:"coverage", summaryKey:"coverage", icon:"▦", title:"Bank Coverage", subtitle:"20 pending siblings from seen concepts · 50 new canonical concepts", module:"bankcoverage", fastTrack:false, accent:"accent-bank" },
   { key:"fast_track", summaryKey:"fastTrack", icon:"⚡", title:"Fast-Track Mastery", subtitle:"Existing Central Intelligence Fast Track queue", module:"fasttrack", fastTrack:true, accent:"accent-phrasal" },
 ];
@@ -121,30 +124,32 @@ export default function DailyFocusPage(){
     />;
   }
 
-  const total=summary?.total||170;
+  const total=summary?.total||summary?.nominalTarget||170;
   const completed=summary?.completed||0;
   const percent=total?Math.min(100,Math.round((completed/total)*100)):0;
   const allDone=!!summary&&summary.status==="completed";
   const reviewActionable=reviewDue?.actionable??((reviewDue?.needsRepair||0)+(reviewDue?.lowConfidence||0)+(reviewDue?.remaining||0));
   const reviewCovered=reviewDue?.satisfied||0;
+  const reviewCarryover=Math.max(0,reviewDue?.carryoverConcepts||0);
   const reviewDone=!!reviewDue?.snapshotReady&&reviewActionable===0;
+  const focusDenominator=summary?.nominalTarget||170;
   const reviewSubtitle=!reviewDue?.snapshotReady
-    ?"Exact midnight snapshot is not ready yet"
+    ?"Midnight Review Due snapshot is not ready yet"
     :reviewDone
-      ?`All ${reviewDue.dueAtStart} scheduled reviews covered today`
-      :`${reviewCovered} covered${reviewDue.satisfiedElsewhere?` · ${reviewDue.satisfiedElsewhere} elsewhere`:""} · ${reviewActionable} left · separate from 170`;
+      ?`All ${reviewDue.dueAtStart} scheduled reviews covered${reviewCarryover?` · ${reviewCarryover} carried in`:""}`
+      :`${reviewCovered} covered${reviewDue.satisfiedElsewhere?` · ${reviewDue.satisfiedElsewhere} elsewhere`:""}${reviewCarryover?` · ${reviewCarryover} carryover`:""} · ${reviewActionable} left · separate from ${focusDenominator}`;
 
   return <section className="route-page">
     <div className="route-head">
       <Link className="btn ghost" href="/english">← Home</Link>
-      <div><span className="eyebrow">Central Intelligence · mandatory routing</span><h1>Daily Focus</h1><p>One frozen 170-question mission plus today’s dynamic scheduled-review coverage obligation.</p></div>
+      <div><span className="eyebrow">Central Intelligence · mandatory routing</span><h1>Daily Focus</h1><p>One frozen {focusDenominator}-question maximum mission plus today’s dynamic scheduled-review watchlist.</p></div>
     </div>
 
     {error&&<div className="error-box">{error}</div>}
 
     <section className="daily-active-card">
       <div className="daily-active-top">
-        <div className="daily-active-copy"><span className="eyebrow">{summary?.carryover?"Carry-over batch":"Today’s Focus"}</span><h1>{allDone?"Daily Focus complete":"Mandatory focus work"}</h1><p>{summary?.carryover?`Finish ${summary.batchDate} before a fresh batch unlocks.`:"Repair, expose the canonical bank, then clear Fast Track. Review Due Today remains a separate dynamic coverage obligation."}</p></div>
+        <div className="daily-active-copy"><span className="eyebrow">{summary?.carryover?"Carry-over batch":"Today’s Focus"}</span><h1>{allDone?"Daily Focus complete":"Mandatory focus work"}</h1><p>{summary?.carryover?`Finish ${summary.batchDate} before a fresh batch unlocks.`:"Repair learning needs, expose the canonical bank, then clear Fast Track. Review Due Today remains the separate scheduler-owned watchlist."}</p></div>
         <div className="daily-active-side"><strong>{summary?`${completed} / ${total}`:"—"}</strong>{allDone&&<span className="today-badge">✓ Done</span>}</div>
       </div>
       <div className="progress-track daily-active-progress"><i style={{width:`${percent}%`}}/></div>
@@ -175,7 +180,7 @@ export default function DailyFocusPage(){
 
     <section className="route-start">
       <h2>Routing contract</h2>
-      <p>Repair reuses Weak/PW, Starred Intelligence and My Saved Intelligence. Bank Coverage is Central Intelligence-owned: 20 questions come from unattempted siblings inside canonical concepts you have already seen, while 50 come from genuinely new canonical concepts with category-balanced routing. Fast-Track reuses the existing Fast Track route. Review Due Today is concept-deduped but scheduled by the original question/word clock; it does not count toward the 170 denominator. Any durable attempt made inside Review Due Today covers that concept’s obligation for today, whether the answer is correct or wrong; the answer quality still feeds Central Intelligence and the normal next-review scheduler. A wrong answer in another module does not cover Review Due Today while cross-credit is disabled. The same canonical concept cannot appear twice in one Daily Focus batch.</p>
+      <p>{summary?.buildVersion==="v3"?"Repair is owned by the canonical Learning Need Engine: up to 50 critical learning needs, 15 protected anti-starvation Saved/Starred items, and adaptive fill up to 70 total. ":"This frozen legacy batch preserves its original 50-item Repair allocation. New v3 batches use the canonical Learning Need Engine with Repair up to 70. "}Bank Coverage remains Central Intelligence-owned: up to 20 questions come from unattempted siblings inside canonical concepts already seen, while up to 50 come from genuinely new canonical concepts with category-balanced routing. Fast Track reuses the existing mastery-verification route. Review Due Today is the scheduler-owned watchlist and does not count toward the Daily Focus denominator. Unresolved scheduled reviews carry forward. Any durable attempt made inside Review Due Today covers that concept’s obligation for that day whether correct or wrong; answer quality still feeds Central Intelligence and the normal next-review scheduler. Valid strong evidence from another module may cross-credit Review Due, while a wrong answer elsewhere does not cover it. The same canonical concept cannot appear twice in one Daily Focus batch.</p>
     </section>
   </section>;
 }
