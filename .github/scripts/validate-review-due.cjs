@@ -10,6 +10,7 @@ const shadowSecurity = read('supabase/migrations/20260911095447_english_review_d
 const lane = read('supabase/migrations/20260911100000_english_review_due_practice_lane.sql');
 const gate = read('supabase/migrations/20260911100500_english_review_due_cross_credit_deferral_gate.sql');
 const gateAware = read('supabase/migrations/20260911101000_english_review_due_gate_aware_lane.sql');
+const exactQuality = read('supabase/migrations/20260911101200_english_review_due_exact_question_quality_semantics.sql');
 const releaseSecurity = read('supabase/migrations/20260911101500_english_review_due_release_security_hardening.sql');
 
 function must(text, re, label) {
@@ -63,6 +64,11 @@ must(gateAware, /p\.cross_credit or q\.question_id=any\(s\.due_question_ids\)/, 
 must(gateAware, /reviewDueCrossCreditEnabled/, 'practice payload must expose gate state');
 must(gateAware, /Retry the scheduled due word after repair/, 'gate-OFF repair selection must remain exact-word based');
 mustNot(gateAware, /insert\s+into\s+english\.attempts/i, 'gate-aware lane must never manufacture attempts');
+
+must(exactQuality, /exact_due or not too_easy/, 'exact due questions must remain resolvable even when flagged too easy');
+must(exactQuality, /too_easy and not exact_due/, 'too-easy sibling evidence must remain low-confidence');
+must(exactQuality, /a\.low_at is null[\s\S]*interval '15 minutes'/, 'guessed/low-confidence same-question recovery must require aged or fresh evidence');
+mustNot(exactQuality, /insert\s+into\s+english\.attempts/i, 'quality semantics must never manufacture attempts');
 
 must(releaseSecurity, /review_due_runtime_config enable row level security/, 'runtime gate table must have RLS');
 must(releaseSecurity, /review_due_question_deferrals enable row level security/, 'deferral audit table must have RLS');
