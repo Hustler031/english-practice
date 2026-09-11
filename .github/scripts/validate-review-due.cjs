@@ -12,6 +12,7 @@ const gate = read('supabase/migrations/20260911100500_english_review_due_cross_c
 const gateAware = read('supabase/migrations/20260911101000_english_review_due_gate_aware_lane.sql');
 const exactQuality = read('supabase/migrations/20260911101200_english_review_due_exact_question_quality_semantics.sql');
 const releaseSecurity = read('supabase/migrations/20260911101500_english_review_due_release_security_hardening.sql');
+const coverageHotfix = read('supabase/migrations/20260911113000_english_review_due_coverage_semantics_hotfix.sql');
 
 function must(text, re, label) {
   if (!re.test(text)) throw new Error(`Review Due contract failed: ${label}`);
@@ -28,6 +29,9 @@ must(focus, /settlePendingAnswers/, 'Review Due lane must settle queued answers 
 must(focus, /ep:answer-durable/, 'Daily Focus must refresh after durable answer saves');
 must(focus, /const total=summary\?\.total\|\|170/, 'Daily Focus denominator must remain 170');
 must(focus, /separate from 170/, 'Review Due must be visibly separate from the 170 denominator');
+must(focus, /scheduled reviews covered today/, 'Review Due UI must describe coverage, not retention proof');
+must(focus, /whether the answer is correct or wrong/, 'Review Due UI must document any-attempt coverage');
+must(focus, /wrong answer in another module does not cover Review Due Today/, 'Review Due UI must document outside-wrong non-credit');
 
 must(home, /Daily Focus/, 'Home must retain Daily Focus entry point');
 must(home, /Review Due/, 'Home Daily Focus entry must surface Review Due status');
@@ -62,13 +66,21 @@ mustNot(gate, /insert\s+into\s+english\.attempts/i, 'deferral must never manufac
 must(gateAware, /crossCreditEnabled/, 'learner summary must expose cross-credit gate state');
 must(gateAware, /p\.cross_credit or q\.question_id=any\(s\.due_question_ids\)/, 'gate-OFF practice must stay on exact due questions');
 must(gateAware, /reviewDueCrossCreditEnabled/, 'practice payload must expose gate state');
-must(gateAware, /Retry the scheduled due word after repair/, 'gate-OFF repair selection must remain exact-word based');
 mustNot(gateAware, /insert\s+into\s+english\.attempts/i, 'gate-aware lane must never manufacture attempts');
 
 must(exactQuality, /exact_due or not too_easy/, 'exact due questions must remain resolvable even when flagged too easy');
 must(exactQuality, /too_easy and not exact_due/, 'too-easy sibling evidence must remain low-confidence');
-must(exactQuality, /a\.low_at is null[\s\S]*interval '15 minutes'/, 'guessed/low-confidence same-question recovery must require aged or fresh evidence');
+must(exactQuality, /a\.low_at is null[\s\S]*interval '15 minutes'/, 'quality diagnostics must retain aged/fresh recovery semantics');
 mustNot(exactQuality, /insert\s+into\s+english\.attempts/i, 'quality semantics must never manufacture attempts');
+
+// Learner-facing Review Due is coverage accounting, while shadow_status remains quality evidence.
+must(coverageHotfix, /module_key='reviewduetoday'/, 'dedicated Review Due attempts must be identifiable');
+must(coverageHotfix, /when review_attempt_at is not null then 'satisfied'/, 'any durable Review Due attempt must cover today even when wrong');
+must(coverageHotfix, /when cross_credit_enabled and recovered then 'satisfied'/, 'outside-module credit must remain gated and require strong recovery evidence');
+must(coverageHotfix, /else 'remaining'/, 'outside wrong/low-confidence evidence must leave the Review Due obligation open');
+must(coverageHotfix, /when wrong_at is not null then 'needs_repair'/, 'shadow quality status must still preserve wrong-answer repair evidence');
+mustNot(coverageHotfix, /update\s+english\.question_state/i, 'coverage hotfix must not write question_state or next_review');
+mustNot(coverageHotfix, /insert\s+into\s+english\.attempts/i, 'coverage hotfix must never manufacture attempts');
 
 must(releaseSecurity, /review_due_runtime_config enable row level security/, 'runtime gate table must have RLS');
 must(releaseSecurity, /review_due_question_deferrals enable row level security/, 'deferral audit table must have RLS');
