@@ -18,9 +18,9 @@ type HinduWord={id:string};
 type Intelligence={queues?:Record<string,number>;daily?:{actionableRemaining:number;suppressed?:number};coreCoverage?:{percent:number}};
 type HomeSnapshot={ok:boolean;studyDay:number;summary:Summary;intelligence:Intelligence;phrasal:PhrasalHub;bank:BankHub;saved:SavedHub;starred:StarredHub;hindu:HinduWord[]};
 type TargetedSummary={ok:boolean;active:number;dueNow:number;confusions:number;needLearning:number;transferChecks:number;retentionChecks:number};
-type DailyFocusSummary={ok:boolean;batchDate:string;carryover:boolean;status:"active"|"completed";total:number;completed:number;remaining:number;nominalTarget:number};
+type DailyFocusSummary={ok:boolean;batchDate:string;carryover:boolean;status:"active"|"completed";total:number;completed:number;remaining:number;nominalTarget:number;buildVersion?:string};
 type DailyCurrent={ok:boolean;batch_date:string|null;today:string;pending_previous_day:boolean;total:number;completed:number;remaining:number};
-type ReviewDueSummary={ok:boolean;date:string;phase:string;snapshotReady:boolean;snapshotAt:string|null;dueQuestionCount:number;dueAtStart:number;satisfied:number;satisfiedElsewhere:number;needsRepair:number;lowConfidence:number;remaining:number;actionable?:number;duplicateTouches:number;overdueConcepts:number|null;routingChanged:boolean;countsTowardDailyFocus:boolean;practiceEnabled?:boolean;crossCreditEnabled?:boolean};
+type ReviewDueSummary={ok:boolean;date:string;phase:string;snapshotReady:boolean;snapshotAt:string|null;dueQuestionCount:number;dueAtStart:number;carryoverConcepts?:number;satisfied:number;satisfiedElsewhere:number;needsRepair:number;lowConfidence:number;remaining:number;actionable?:number;duplicateTouches:number;overdueConcepts:number|null;routingChanged:boolean;countsTowardDailyFocus:boolean;practiceEnabled?:boolean;crossCreditEnabled?:boolean};
 
 const quick = [
  ["📰", "The Hindu – Today", "Fresh vocabulary batch", "/english/hindu?return=/english", "hindu"],
@@ -91,11 +91,12 @@ export default function EnglishHome() {
  const dailyCarryover=!!dailyCurrent?.pending_previous_day&&!!dailyCurrent?.batch_date;
  const carryoverTitle=isYesterday(dailyCurrent?.batch_date,dailyCurrent?.today)?"Pending yesterday’s Daily Mix":`Pending ${shortDate(dailyCurrent?.batch_date)} Daily Mix`;
  const reviewActionable=reviewDue?.actionable??((reviewDue?.needsRepair||0)+(reviewDue?.lowConfidence||0)+(reviewDue?.remaining||0));
+ const reviewCarryover=Math.max(0,reviewDue?.carryoverConcepts||0);
  const reviewFocusCopy=!reviewDue?.snapshotReady
    ?"Review Due syncing"
    :reviewActionable===0
-     ?`Review Due ✓ ${reviewDue.dueAtStart} covered`
-     :`Review Due ${reviewActionable} left`;
+     ?`Review Due ✓ ${reviewDue.dueAtStart} covered${reviewCarryover?` · ${reviewCarryover} carried in`:""}`
+     :`Review Due ${reviewActionable} left${reviewCarryover?` · ${reviewCarryover} carryover`:""}`;
  const status=(accent:string)=>{
   if(accent==="hindu")return hinduCount===null?"…":`${hinduCount} today`;
   if(accent==="saved")return saved?`${saved.stats.eligible} active`:"…";
@@ -114,13 +115,13 @@ export default function EnglishHome() {
 
   {dailyComplete?
    <section className="daily-complete-card">
-    <div className="daily-complete-main"><span className="daily-complete-icon">✓</span><div className="daily-complete-copy"><span className="eyebrow">Day {dayNo} · Daily complete</span><h1>Today’s due work is done</h1><p>{completed} completed{suppressedToday?` · ${suppressedToday} no longer due now`:""}. Daily target is a maximum, not a fill requirement.</p></div></div>
+    <div className="daily-complete-main"><span className="daily-complete-icon">✓</span><div className="daily-complete-copy"><span className="eyebrow">Day {dayNo} · Daily complete</span><h1>Today’s Daily Mix is done</h1><p>{completed} completed{suppressedToday?` · ${suppressedToday} already satisfied elsewhere`:""}. Daily Mix is a performance-practice target, while scheduled review ownership stays with Review Due.</p></div></div>
     <span className="today-badge">{completed} done</span>
    </section>
    :
    <section className="daily-active-card">
     <div className="daily-active-top">
-     <div className="daily-active-copy"><span className="eyebrow">Day {dayNo} · Daily Practice{dailyCarryover?" · CATCH-UP":""}</span><h1>{dailyCarryover?carryoverTitle:"Today’s due practice"}</h1><p>{data?(dailyCarryover?`${actionableRemaining} left · finish this batch to unlock today’s Daily Mix.`:`${actionableRemaining} due now`):"Syncing today’s queue…"}</p></div>
+     <div className="daily-active-copy"><span className="eyebrow">Day {dayNo} · Daily Mix{dailyCarryover?" · CATCH-UP":""}</span><h1>{dailyCarryover?carryoverTitle:"Today’s performance mix"}</h1><p>{data?(dailyCarryover?`${actionableRemaining} left · finish this frozen batch to unlock today’s Daily Mix.`:`${actionableRemaining} performance questions left · Review Due handles the scheduled-review clock separately.`):"Syncing today’s performance queue…"}</p></div>
      <div className="daily-active-side"><strong>{data?`${completed} / ${total}`:"—"}</strong><Link className="btn primary" href="/english/daily">{dailyCarryover?"Continue pending":completed?"Continue":"Start Daily"}</Link></div>
     </div>
     <div className="progress-track daily-active-progress"><i style={{width:`${percent}%`}}/></div>
@@ -130,7 +131,7 @@ export default function EnglishHome() {
   <section className="section-block">
    <Link className="resume-card" href="/english/focus">
     <span>◎</span>
-    <span><b>Daily Focus · {focus?`${focus.completed} / ${focus.total||focus.nominalTarget||170}`:"0 / 170"}</b><small>{focus?.carryover?`Carry-over ${focus.batchDate} · finish active batch · ${reviewFocusCopy}`:focus?.status==="completed"?`Mandatory focus complete ✓ · ${reviewFocusCopy}`:`Repair · Bank Coverage · Fast Track · ${reviewFocusCopy}`}</small></span>
+    <span><b>Daily Focus · {focus?`${focus.completed} / ${focus.total||focus.nominalTarget}`:"Syncing"}</b><small>{focus?.carryover?`Carry-over ${focus.batchDate} · finish active batch · ${reviewFocusCopy}`:focus?.status==="completed"?`Mandatory focus complete ✓ · ${reviewFocusCopy}`:`Repair · Bank Coverage · Fast Track · ${reviewFocusCopy}`}</small></span>
     <i>›</i>
    </Link>
   </section>
