@@ -154,7 +154,7 @@ select
     when all_due_mastered then 'satisfied'
     when recovered and (strict_is_exact_due or cross_credit_enabled) then 'satisfied'
     when wrong_at is not null then 'needs_repair'
-    when low_at is not null and (low_q=any((select due_question_ids from obligation)) or cross_credit_enabled) then 'low_confidence'
+    when low_at is not null and (coalesce((select low_q=any(o.due_question_ids) from obligation o),false) or cross_credit_enabled) then 'low_confidence'
     else 'remaining'
   end resolution_status,
   strict_at,
