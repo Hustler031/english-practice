@@ -94,7 +94,7 @@ export default function EnglishHome() {
  const reviewFocusCopy=!reviewDue?.snapshotReady
    ?"Review Due syncing"
    :reviewActionable===0
-     ?`Review Due ✓ ${reviewDue.dueAtStart} satisfied`
+     ?`Review Due ✓ ${reviewDue.dueAtStart} covered`
      :`Review Due ${reviewActionable} left`;
  const status=(accent:string)=>{
   if(accent==="hindu")return hinduCount===null?"…":`${hinduCount} today`;
