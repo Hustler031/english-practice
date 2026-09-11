@@ -8,6 +8,7 @@ const home = read('web-v2/app/english/page.tsx');
 const phase1 = read('supabase/migrations/20260911091322_english_review_due_today_phase1_shadow.sql');
 const lane = read('supabase/migrations/20260911100000_english_review_due_practice_lane.sql');
 const gate = read('supabase/migrations/20260911100500_english_review_due_cross_credit_deferral_gate.sql');
+const gateAware = read('supabase/migrations/20260911101000_english_review_due_gate_aware_lane.sql');
 
 function must(text, re, label) {
   if (!re.test(text)) throw new Error(`Review Due contract failed: ${label}`);
@@ -45,6 +46,12 @@ must(gate, /least\(v_base_next,v_override\)/, 'guess/context earlier-review over
 must(gate, /25 18 \* \* \*/, 'deferral reconciliation must run at 23:55 IST');
 must(gate, /enabled',false/, 'disabled deferral path must explicitly no-op');
 mustNot(gate, /insert\s+into\s+english\.attempts/i, 'deferral must never manufacture learning history');
+
+must(gateAware, /crossCreditEnabled/, 'learner summary must expose cross-credit gate state');
+must(gateAware, /p\.cross_credit or q\.question_id=any\(s\.due_question_ids\)/, 'gate-OFF practice must stay on exact due questions');
+must(gateAware, /reviewDueCrossCreditEnabled/, 'practice payload must expose gate state');
+must(gateAware, /Retry the scheduled due word after repair/, 'gate-OFF repair selection must remain exact-word based');
+mustNot(gateAware, /insert\s+into\s+english\.attempts/i, 'gate-aware lane must never manufacture attempts');
 
 must(home, /Daily Focus/, 'Home must retain Daily Focus entry point');
 
