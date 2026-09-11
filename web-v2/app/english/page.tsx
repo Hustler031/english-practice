@@ -63,11 +63,13 @@ export default function EnglishHome() {
   if(!ready)return;
   let alive=true;
   const accept=(x:HomeSnapshot)=>{if(alive){setSnapshot(x);setError("");}};
+  const acceptReviewDue=(x:ReviewDueSummary)=>{if(alive)setReviewDue(x)};
   const refreshTargeted=()=>targetedLiveRpc<TargetedSummary>("english_get_targeted_summary").then(x=>{if(alive)setTargeted(x)}).catch(()=>{});
   const refreshFocus=()=>rpc<DailyFocusSummary>("english_get_daily_focus_summary").then(x=>{if(alive)setFocus(x)}).catch(()=>{});
   const refreshDailyCurrent=()=>rpc<DailyCurrent>("english_get_daily_current").then(x=>{if(alive)setDailyCurrent(x)}).catch(()=>{});
-  const refreshReviewDue=()=>rpc<ReviewDueSummary>("english_get_review_due_today").then(x=>{if(alive)setReviewDue(x)}).catch(()=>{});
+  const refreshReviewDue=()=>rpc<ReviewDueSummary>("english_get_review_due_today").then(acceptReviewDue).catch(()=>{});
   const unsubscribe=subscribeRpcFresh<HomeSnapshot>("english_get_home_snapshot",undefined,accept);
+  const unsubscribeReviewDue=subscribeRpcFresh<ReviewDueSummary>("english_get_review_due_today",undefined,acceptReviewDue);
   const unsubscribeTargeted=subscribeTargetedDurability(()=>void refreshTargeted());
   rpc<HomeSnapshot>("english_get_home_snapshot").then(accept).catch((e:any)=>{if(alive)setError(learnerErrorMessage(e,"Home data is taking longer than usual. Please retry."))});
   void refreshTargeted();
@@ -75,7 +77,7 @@ export default function EnglishHome() {
   void refreshDailyCurrent();
   void refreshReviewDue();
   setPaused(readPausedQuiz());
-  return()=>{alive=false;unsubscribe();unsubscribeTargeted();};
+  return()=>{alive=false;unsubscribe();unsubscribeReviewDue();unsubscribeTargeted();};
  },[ready]);
 
  if(!ready)return <EnglishLoading text="Checking session…"/>;
