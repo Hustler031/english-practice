@@ -74,10 +74,11 @@ async function structuredAI(name: string, schema: any, instructions: string, inp
 const diagnosisSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["diagnosis", "action", "relatedTerms", "requiresTransfer", "urgency", "confidence", "rationale"],
+  required: ["diagnosis", "action", "contentAction", "relatedTerms", "requiresTransfer", "urgency", "confidence", "rationale"],
   properties: {
     diagnosis: { type: "string", enum: ["confusion_pair", "retention_problem", "lexical_interference", "rule_gap", "transfer_problem", "no_action"] },
     action: { type: "string", enum: ["targeted_mastery", "transfer_check", "no_action"] },
+    contentAction: { type: "string", enum: ["none", "enrich_explanation", "explain_all_options"] },
     relatedTerms: { type: "array", minItems: 0, maxItems: 3, items: { type: "string", minLength: 1, maxLength: 80 } },
     requiresTransfer: { type: "boolean" },
     urgency: { type: "string", enum: ["low", "medium", "high"] },
@@ -130,7 +131,7 @@ const transferCriticSchema = {
   },
 };
 
-const diagnosisPrompt = `You are the background learning-diagnosis specialist for an SSC CGL English learner. Interpret ONLY the learner's short Add Context note using the supplied question/concept/evidence. Do not chat with the learner and do not produce teaching prose. Classify conservatively. confusion_pair means two explicitly or strongly implied items are being mixed; lexical_interference is a vocabulary/phrase neighbour collision; retention_problem means the learner understands but repeatedly forgets; rule_gap is a grammar/usage rule gap; transfer_problem means understanding exists but application to fresh examples is uncertain; no_action means the note does not justify a learning intervention. relatedTerms must contain only concrete confusable words/phrases/rules useful for bank lookup. Use requiresTransfer=true only when a fresh discrimination/application item is genuinely useful; the database will still search the existing bank first. Never downgrade correctness or invent a weakness merely because a note exists.`;
+const diagnosisPrompt = `You are the background learning-diagnosis specialist for an SSC CGL English learner. Interpret ONLY the learner's short Add Context note using the supplied question/concept/evidence. Do not chat with the learner and do not produce teaching prose. Make TWO independent decisions: (1) whether the note reveals a learner-state problem that needs Targeted/transfer work, and (2) whether the learner explicitly asked to improve the question's explanation. For contentAction, use enrich_explanation when the learner asks to enrich, improve, expand, rewrite, strengthen, or make the explanation more detailed; use explain_all_options when the learner asks for meanings/reasons/explanations for all answer options; otherwise use none. A content request does NOT imply confusion or weakness and may correctly coexist with diagnosis=no_action and action=no_action. Never suppress an explicit contentAction merely because the learner answered correctly. For learner-state diagnosis, classify conservatively: confusion_pair means two explicitly or strongly implied items are being mixed; lexical_interference is a vocabulary/phrase neighbour collision; retention_problem means the learner understands but repeatedly forgets; rule_gap is a grammar/usage rule gap; transfer_problem means understanding exists but application to fresh examples is uncertain; no_action means the note does not justify a learning intervention. relatedTerms must contain only concrete confusable words/phrases/rules useful for bank lookup. Use requiresTransfer=true only when a fresh discrimination/application item is genuinely useful; the database will still search the existing bank first. Never downgrade correctness or invent a weakness merely because a note exists.`;
 
 const transferGeneratePrompt = `Create ONE fresh SSC CGL Tier-1 English transfer/discrimination MCQ for the supplied atomic concept. This learner is already exam-prepared, so a technically valid but obvious question is a failure. Target upper-moderate to hard SSC difficulty, not CAT/GRE obscurity. The wrong options must be close, grammatically parallel where applicable, and genuinely tempting to a prepared SSC learner. At least two distractors should encode real confusions/traps, not random alternatives. Do not allow elimination by basic grammar, length, tone, or an obviously unrelated meaning. Test the SAME concept through a meaningfully different context, not a paraphrase of the source. If explicitRelatedPractice=true, deliberately use the supplied confusableTerms and/or infer a compact, exam-useful confusable cluster around the anchor word/concept; the final choices should discriminate among those related terms. Return relatedTerms containing the actual useful cluster used. Use exactly one defensible answer. explanation must explain why the answer works and why the close distractors fail. Do not claim PYQ provenance.`;
 
@@ -162,6 +163,19 @@ Deno.serve(async (req) => {
   await Promise.allSettled(contextItems.map(async (item: any) => {
     try {
       const result = await structuredAI("english_context_diagnosis", diagnosisSchema, diagnosisPrompt, item, "low");
+
+      // Content mutation and learner-state routing are deliberately independent.
+      // Queue the existing critic-gated explanation-only revision before recording diagnosis;
+      // idempotency in SQL makes retries safe.
+      if (result.data?.contentAction && result.data.contentAction !== "none") {
+        const { error: contentError } = await db.rpc("english_queue_context_content_action", {
+          p_token: token,
+          p_note_id: item.noteId,
+          p_content_action: result.data.contentAction,
+        });
+        if (contentError) throw new Error(contentError.message);
+      }
+
       const { error } = await db.rpc("english_apply_context_ai_diagnosis", {
         p_token: token,
         p_note_id: item.noteId,
