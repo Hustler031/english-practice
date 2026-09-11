@@ -20,6 +20,7 @@ type HomeSnapshot={ok:boolean;studyDay:number;summary:Summary;intelligence:Intel
 type TargetedSummary={ok:boolean;active:number;dueNow:number;confusions:number;needLearning:number;transferChecks:number;retentionChecks:number};
 type DailyFocusSummary={ok:boolean;batchDate:string;carryover:boolean;status:"active"|"completed";total:number;completed:number;remaining:number;nominalTarget:number};
 type DailyCurrent={ok:boolean;batch_date:string|null;today:string;pending_previous_day:boolean;total:number;completed:number;remaining:number};
+type ReviewDueSummary={ok:boolean;date:string;phase:"shadow";snapshotReady:boolean;snapshotAt:string|null;dueQuestionCount:number;dueAtStart:number;satisfied:number;satisfiedElsewhere:number;needsRepair:number;lowConfidence:number;remaining:number;duplicateTouches:number;overdueConcepts:number;routingChanged:boolean;countsTowardDailyFocus:boolean};
 
 const quick = [
  ["📰", "The Hindu – Today", "Fresh vocabulary batch", "/english/hindu?return=/english", "hindu"],
@@ -54,6 +55,7 @@ export default function EnglishHome() {
  const[targeted,setTargeted]=useState<TargetedSummary|null>(null);
  const[focus,setFocus]=useState<DailyFocusSummary|null>(null);
  const[dailyCurrent,setDailyCurrent]=useState<DailyCurrent|null>(null);
+ const[reviewDue,setReviewDue]=useState<ReviewDueSummary|null>(null);
  const[error,setError]=useState("");
  const[paused,setPaused]=useState<PausedQuizSession|null>(null);
 
@@ -64,12 +66,14 @@ export default function EnglishHome() {
   const refreshTargeted=()=>targetedLiveRpc<TargetedSummary>("english_get_targeted_summary").then(x=>{if(alive)setTargeted(x)}).catch(()=>{});
   const refreshFocus=()=>rpc<DailyFocusSummary>("english_get_daily_focus_summary").then(x=>{if(alive)setFocus(x)}).catch(()=>{});
   const refreshDailyCurrent=()=>rpc<DailyCurrent>("english_get_daily_current").then(x=>{if(alive)setDailyCurrent(x)}).catch(()=>{});
+  const refreshReviewDue=()=>rpc<ReviewDueSummary>("english_get_review_due_today").then(x=>{if(alive)setReviewDue(x)}).catch(()=>{});
   const unsubscribe=subscribeRpcFresh<HomeSnapshot>("english_get_home_snapshot",undefined,accept);
   const unsubscribeTargeted=subscribeTargetedDurability(()=>void refreshTargeted());
   rpc<HomeSnapshot>("english_get_home_snapshot").then(accept).catch((e:any)=>{if(alive)setError(learnerErrorMessage(e,"Home data is taking longer than usual. Please retry."))});
   void refreshTargeted();
   void refreshFocus();
   void refreshDailyCurrent();
+  void refreshReviewDue();
   setPaused(readPausedQuiz());
   return()=>{alive=false;unsubscribe();unsubscribeTargeted();};
  },[ready]);
@@ -84,6 +88,7 @@ export default function EnglishHome() {
  const dailyComplete=!!data&&total>0&&actionableRemaining===0;
  const dailyCarryover=!!dailyCurrent?.pending_previous_day&&!!dailyCurrent?.batch_date;
  const carryoverTitle=isYesterday(dailyCurrent?.batch_date,dailyCurrent?.today)?"Pending yesterday’s Daily Mix":`Pending ${shortDate(dailyCurrent?.batch_date)} Daily Mix`;
+ const reviewDueDetail=!reviewDue?"Syncing review obligations…":!reviewDue.snapshotReady?"Snapshot pending · current routing untouched":`${reviewDue.satisfiedElsewhere} satisfied elsewhere · ${reviewDue.needsRepair} repair${reviewDue.lowConfidence?` · ${reviewDue.lowConfidence} low-confidence`:""} · ${reviewDue.remaining} remaining`;
  const status=(accent:string)=>{
   if(accent==="hindu")return hinduCount===null?"…":`${hinduCount} today`;
   if(accent==="saved")return saved?`${saved.stats.eligible} active`:"…";
@@ -121,6 +126,14 @@ export default function EnglishHome() {
     <span><b>Daily Focus · {focus?`${focus.completed} / ${focus.total||focus.nominalTarget||170}`:"0 / 170"}</b><small>{focus?.status==="completed"?"Mandatory focus complete ✓":focus?.carryover?`Carry-over ${focus.batchDate} · finish to unlock fresh batch`:"Mandatory · Repair · Bank Coverage · Fast Track"}</small></span>
     <i>›</i>
    </Link>
+  </section>
+
+  <section className="section-block">
+   <div className="resume-card" role="status" aria-label="Review Due Today shadow tracking">
+    <span>↻</span>
+    <span><b>Review Due Today · {reviewDue?.snapshotReady?`${reviewDue.dueAtStart} concepts`:"—"}</b><small>{reviewDueDetail} · separate from Daily Focus</small></span>
+    <i>◌</i>
+   </div>
   </section>
 
   {dailyComplete&&<section className="practice-more-card compact-extra-card"><div className="practice-more-copy"><span className="eyebrow">Optional · after Daily</span><h2>Focused extra practice</h2><p>Wrong, Difficult, Marked · Weak/PW</p></div><Link className="btn primary" href="/english/extra?count=20">Start 20</Link></section>}
