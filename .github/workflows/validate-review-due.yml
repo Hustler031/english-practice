@@ -7,16 +7,21 @@ on:
       - 'web-v2/app/english/focus/page.tsx'
       - 'web-v2/app/english/page.tsx'
       - 'supabase/migrations/*review_due*'
+      - 'supabase/migrations/*focus*'
       - '.github/scripts/validate-review-due.cjs'
+      - '.github/scripts/validate-focus-concept-conflict.cjs'
       - '.github/workflows/validate-review-due.yml'
   push:
     branches:
       - 'english-review-due-today-*'
+      - 'english-concept-conflict-hardening-*'
     paths:
       - 'web-v2/app/english/focus/page.tsx'
       - 'web-v2/app/english/page.tsx'
       - 'supabase/migrations/*review_due*'
+      - 'supabase/migrations/*focus*'
       - '.github/scripts/validate-review-due.cjs'
+      - '.github/scripts/validate-focus-concept-conflict.cjs'
       - '.github/workflows/validate-review-due.yml'
 
 permissions:
@@ -35,3 +40,5 @@ jobs:
           node-version: '20'
       - name: Validate Review Due Today contracts
         run: node .github/scripts/validate-review-due.cjs
+      - name: Validate Daily Focus concept-conflict contract
+        run: node .github/scripts/validate-focus-concept-conflict.cjs
