@@ -76,7 +76,10 @@ export default function GrammarWorld(){
 
  const load=useCallback(()=>{
   if(!pick)return Promise.resolve([]);
-  if(pick.kind==="daily")return rpc<any>("english_get_grammar_today").then(x=>Array.isArray(x?.items)?x.items:[]);
+  if(pick.kind==="daily")return rpc<any>("english_get_grammar_today").then(x=>{
+   const rows=Array.isArray(x?.items)?x.items:[];
+   return x?.isBacklog?rows.filter((row:any)=>!row?.attemptedBatch):rows;
+  });
   if(pick.kind==="round2")return rpc<any>("english_get_grammar_round2",{p_batch_date:pick.batchDate||null}).then(x=>Array.isArray(x?.items)?x.items:[]);
   return rpc<any[]>("english_get_grammar_history_batch",{p_from_day:pick.fromDay,p_to_day:pick.toDay});
  },[pick]);
@@ -104,7 +107,7 @@ export default function GrammarWorld(){
  const round2Focus=Number(t?.round2Focus||0);
  const dailyModule=activeDate?`grammardaily:${activeDate}`:"grammardaily";
  const dailyTitle=isBacklog?`Grammar · Catch-up ${shortDate(activeDate)}`:"Grammar · Today";
- const dailyResume=matchingSession(pausedGrammar,dailyModule,dailyTitle,activeTotal||20);
+ const dailyResume=matchingSession(pausedGrammar,dailyModule,dailyTitle,isBacklog?(activeRemaining||undefined):(activeTotal||20));
  const round2Title="Grammar · Round 2";
  const round2Module=t?.date?`grammardaily:${t.date}`:"grammardaily";
  const round2Resume=matchingSession(pausedGrammar,round2Module,round2Title,round2Focus||undefined);
