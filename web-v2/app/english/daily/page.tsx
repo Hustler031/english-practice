@@ -17,11 +17,21 @@ type DailyItem = {
   explanation:string; tip:string; usage_note:string; example_sentence:string; memory_aid:string;
   related_words:string; source_file:string; source_page:string; starred:boolean; difficult:boolean; mastered?:boolean; revisionVersion?:number;
 };
-type DailyResult = { ok:boolean; total:number; completed:number; remaining:number; batch_date:string; target_is_maximum:boolean; items:DailyItem[] };
+type DailyResult = { ok:boolean; total:number; completed:number; remaining:number; batch_date:string; today:string; pending_previous_day:boolean; target_is_maximum:boolean; items:DailyItem[] };
 type AnswerState = { selectedDisplayKey:string; correct:boolean; correctCanonicalKey:string; attemptId?:string };
 type AppliedRevision={questionId:string;version:number;payload:RevisionPayload};
 
 const positionKey=(date:string)=>`revision-v2:english:daily:${date}:current-question`;
+const months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function shortDate(value?:string|null){
+  const [y,m,d]=String(value||"").split("-").map(Number);
+  return y&&m&&d?`${d} ${months[m-1]||""}`:String(value||"");
+}
+function isYesterday(batchDate?:string|null,today?:string|null){
+  const [by,bm,bd]=String(batchDate||"").split("-").map(Number),[ty,tm,td]=String(today||"").split("-").map(Number);
+  if(!by||!bm||!bd||!ty||!tm||!td)return false;
+  return Date.UTC(ty,tm-1,td)-Date.UTC(by,bm-1,bd)===86400000;
+}
 
 async function applyDailyRevisions(batch:DailyResult):Promise<DailyResult>{
   const ids=[...new Set((batch.items||[]).map(x=>String(x.question_id||"").trim()).filter(Boolean))].slice(0,120);
@@ -44,8 +54,10 @@ export default function DailyPage(){
   const [idx,setIdx]=useState(0);
   const [answers,setAnswers]=useState<Record<string,AnswerState>>({});
   const [busy,setBusy]=useState(false);
+  const [handoffBusy,setHandoffBusy]=useState(false);
   const [masterBusy,setMasterBusy]=useState(false);
   const [error,setError]=useState("");
+  const [transitionMessage,setTransitionMessage]=useState("");
   const [intelOpen,setIntelOpen]=useState(false);
   const [contextOpen,setContextOpen]=useState(false);
   const [contextNote,setContextNote]=useState("");
@@ -79,6 +91,8 @@ export default function DailyPage(){
   const sentenceDisplay=item?splitSentenceQuestionForDisplay(item.question):null;
   const answerState=item?answers[item.question_id]:undefined;
   const answeredCount=Object.keys(answers).length;
+  const carryoverRemaining=batch?.pending_previous_day?Math.max(0,batch.items.length-answeredCount):0;
+  const carryoverName=batch?.pending_previous_day?(isYesterday(batch.batch_date,batch.today)?"yesterday’s":shortDate(batch.batch_date)):"";
   const options=useMemo(()=>{
     if(!item)return[];
     const hit=optionCache.current.get(item.question_id); if(hit)return hit;
@@ -95,7 +109,7 @@ export default function DailyPage(){
   function goHome(){router.replace("/english")}
   function move(next:number){
     const target=batch?.items?.[next]; if(!target)return;
-    setError(""); setIntelOpen(false); setIdx(next);
+    setError(""); setTransitionMessage(""); setIntelOpen(false); setIdx(next);
     try{localStorage.setItem(positionKey(batch!.batch_date),target.question_id)}catch{}
     started.current=Date.now(); window.scrollTo({top:0,left:0,behavior:"auto"});
   }
@@ -155,12 +169,43 @@ export default function DailyPage(){
     finally{setMasterBusy(false);}
   }
 
+  async function finishDaily(){
+    if(!batch)return;
+    if(!batch.pending_previous_day){goHome();return;}
+    if(!answerState||busy||handoffBusy)return;
+    const previousDate=batch.batch_date;
+    setHandoffBusy(true); setError(""); setTransitionMessage("");
+    try{
+      const next=await applyDailyRevisions(await rpc<DailyResult>("english_resume_daily"));
+      optionCache.current.clear();
+      setAnswers({});
+      setBatch(next); setIdx(0);
+      try{
+        localStorage.removeItem(positionKey(previousDate));
+        if(next.items[0])localStorage.setItem(positionKey(next.batch_date),next.items[0].question_id);
+      }catch{}
+      if(next.batch_date!==previousDate){
+        setTransitionMessage(next.pending_previous_day?`✓ ${shortDate(previousDate)} complete. Next pending Daily Mix loaded.`:"✓ Pending Daily Mix complete. Today’s Daily Mix is ready.");
+      }else if(next.items.length){
+        setTransitionMessage(`Catch-up refreshed · ${next.items.length} still left.`);
+      }
+      started.current=Date.now(); window.scrollTo({top:0,left:0,behavior:"auto"});
+    }catch(e:any){setError(learnerErrorMessage(e,"Pending Daily Mix was saved, but the next batch could not be opened. Please retry."));}
+    finally{setHandoffBusy(false);}
+  }
+
   if(!ready||!batch)return <main className="shell quiz"><div className="loading-shell"><i/><i/><i/><span>{error||"Opening Daily from cache and syncing fresh data…"}</span></div></main>;
   if(!batch.items.length)return <main className="shell quiz"><div className="quiz-top"><button className="btn ghost" onClick={goHome}>← Back</button><div className="quiz-title"><div className="brand">Daily Practice</div></div><div/></div><div className="empty-state"><h2>Daily complete</h2><p className="muted">No currently actionable pending questions remain.</p></div></main>;
   if(!item)return <main className="shell"><div className="error-box">Daily position unavailable.</div></main>;
 
+  const lastQuestion=idx===batch.items.length-1;
+  const finalDisabled=lastQuestion&&!!batch.pending_previous_day&&(!answerState||busy||handoffBusy);
+  const finalLabel=lastQuestion?(batch.pending_previous_day?(handoffBusy?"Loading next…":isYesterday(batch.batch_date,batch.today)?"Finish pending → Today":"Finish pending → Next batch"):"Finish"):"Next →";
+
   return <main className="shell quiz quiz-with-tools">
-    <div className="quiz-top"><button className="btn ghost" onClick={goHome}>← Back</button><div className="quiz-title"><div className="brand">Daily Practice</div><div className="quiz-count">{idx+1} / {batch.items.length}</div></div><div/></div>
+    <div className="quiz-top"><button className="btn ghost" onClick={goHome}>← Back</button><div className="quiz-title"><div className="brand">Daily Practice{batch.pending_previous_day?" · Catch-up":""}</div><div className="quiz-count">{idx+1} / {batch.items.length}</div></div><div/></div>
+    {batch.pending_previous_day&&<div className="context-saved">↩ Pending {carryoverName} Daily Mix · {carryoverRemaining} left · finish this batch to unlock today’s Daily Mix.</div>}
+    {transitionMessage&&<div className="context-saved">{transitionMessage}</div>}
     <div className="quiz-progress-meta"><span>Question {idx+1} of {batch.items.length}</span><b>{answeredCount} answered</b></div>
     <div className="progress"><span style={{width:`${batch.items.length?(answeredCount/batch.items.length)*100:0}%`}}/></div>
     <section className="quiz-card">
@@ -182,7 +227,7 @@ export default function DailyPage(){
       </div>}
     </section>
     <div className="quiz-tools quiz-tools-four"><button className={`btn ghost ${item.starred?"warn":""}`} onClick={()=>void mark()}>{item.starred?"★ Marked":"☆ Mark"}</button><AddWordSheet questionId={item.question_id} initialWord={item.word||""} source="Daily Practice" label="📝 Add Word"/><button className={`btn ghost ${item.mastered?"good":""}`} aria-pressed={!!item.mastered} disabled={masterBusy} onClick={()=>void toggleMastered()}>{item.mastered?"↶ Unmaster":"✓ Mastered"}</button><button className="btn ghost" onClick={goHome}>Ⅱ Pause</button></div>
-    <div className="quiz-nav"><button className="btn ghost" disabled={idx===0} onClick={()=>move(idx-1)}>← Previous</button><button className="btn primary" onClick={()=>idx<batch.items.length-1?move(idx+1):goHome()}>{idx===batch.items.length-1?"Finish":"Next →"}</button></div>
+    <div className="quiz-nav"><button className="btn ghost" disabled={idx===0} onClick={()=>move(idx-1)}>← Previous</button><button className="btn primary" disabled={finalDisabled} onClick={()=>lastQuestion?void finishDaily():move(idx+1)}>{finalLabel}</button></div>
     {intelOpen&&<div className="sheet-backdrop" role="dialog" aria-modal="true" onMouseDown={e=>{if(e.target===e.currentTarget)setIntelOpen(false)}}><section className="add-word-sheet intelligence-sheet"><div className="sheet-heading"><div><strong>Question Intelligence</strong><span>Why this item is in today’s set.</span></div><button className="control-icon" onClick={()=>setIntelOpen(false)} type="button">×</button></div><div className="intelligence-list"><div><span>Selection</span><b>{item.reason}</b></div><div><span>Learning state</span><b>{item.status||"Not available"}</b></div><div><span>Module</span><b>Daily Practice</b></div>{item.revisionVersion&&<div><span>Question version</span><b>Revision {item.revisionVersion}</b></div>}</div></section></div>}
   </main>;
 }
