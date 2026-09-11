@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import QuizRunner from "@/components/quiz-runner";
 import { EnglishLoading } from "@/components/english-frame";
-import { learnerErrorMessage, localProductionSafetyMode, rpc, subscribeRpcFresh } from "@/lib/supabase";
+import { flushPendingAnswers, learnerErrorMessage, localProductionSafetyMode, pendingAnswerSaves, rpc, subscribeRpcFresh } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
 
 type LaneKey = "repair" | "coverage" | "fast_track";
@@ -48,6 +48,14 @@ const lanes:{key:LaneKey;summaryKey:keyof FocusSummary["lanes"];icon:string;titl
   { key:"fast_track", summaryKey:"fastTrack", icon:"⚡", title:"Fast-Track Mastery", subtitle:"Existing Central Intelligence Fast Track queue", module:"fasttrack", fastTrack:true, accent:"accent-phrasal" },
 ];
 
+async function settlePendingAnswers(maxMs=1600){
+  flushPendingAnswers();
+  const deadline=Date.now()+maxMs;
+  while(pendingAnswerSaves()>0&&Date.now()<deadline){
+    await new Promise(resolve=>window.setTimeout(resolve,75));
+  }
+}
+
 export default function DailyFocusPage(){
   const ready=useAuthGuard();
   const[summary,setSummary]=useState<FocusSummary|null>(null);
@@ -71,13 +79,16 @@ export default function DailyFocusPage(){
   useEffect(()=>{
     if(!ready)return;
     const unsubscribe=subscribeRpcFresh<ReviewDueSummary>("english_get_review_due_today",undefined,setReviewDue);
+    const onDurable=()=>{void refresh();void refreshReview();};
+    window.addEventListener("ep:answer-durable",onDurable);
     void Promise.all([refresh(),refreshReview()]).catch((e:any)=>setError(learnerErrorMessage(e,"Daily Focus is taking longer than usual. Please retry.")));
-    return unsubscribe;
+    return()=>{unsubscribe();window.removeEventListener("ep:answer-durable",onDurable);};
   },[ready,refresh,refreshReview]);
 
   const load=useCallback(async()=>{
     if(!running)return [];
     if(running==="review_due"){
+      await settlePendingAnswers();
       return rpc<Question[]>("english_get_review_due_lane",{p_nonce:`${Date.now()}-${Math.random().toString(36).slice(2,8)}`});
     }
     return rpc<Question[]>("english_get_daily_focus_lane",{p_lane:running});
@@ -151,7 +162,7 @@ export default function DailyFocusPage(){
             <i>{done?"✓":"›"}</i>
           </button>;
         })}
-        <button type="button" className="study-row home-quick-row accent-targeted" disabled={!reviewDue?.snapshotReady||reviewDone||localSafe||reviewDue?.practiceEnabled===false} onClick={()=>{if(!reviewDone)setRunning("review_due");}}>
+        <button type="button" className="study-row home-quick-row accent-bank" disabled={!reviewDue?.snapshotReady||reviewDone||localSafe||reviewDue?.practiceEnabled===false} onClick={()=>{if(!reviewDone)setRunning("review_due");}}>
           <span className="row-icon">{reviewDone?"✓":"↻"}</span>
           <span className="row-copy"><b>Review Due Today</b><small>{reviewSubtitle}</small></span>
           <span className="row-status">{reviewDue?.snapshotReady?(reviewDone?"Done":`${reviewActionable} left`):"…"}</span>
@@ -163,7 +174,7 @@ export default function DailyFocusPage(){
 
     <section className="route-start">
       <h2>Routing contract</h2>
-      <p>Repair reuses Weak/PW, Starred Intelligence and My Saved Intelligence. Bank Coverage is Central Intelligence-owned: 20 questions come from unattempted siblings inside canonical concepts you have already seen, while 50 come from genuinely new canonical concepts with category-balanced routing. Fast-Track reuses the existing Fast Track route. Review Due Today is concept-deduped but scheduled by the original question/word clock; it does not count toward the 170 denominator. A concept already satisfied by strong evidence elsewhere disappears from this row, while wrong or low-confidence evidence stays actionable. The same canonical concept cannot appear twice in one Daily Focus batch.</p>
+      <p>Repair reuses Weak/PW, Starred Intelligence and My Saved Intelligence. Bank Coverage is Central Intelligence-owned: 20 questions come from unattempted siblings inside canonical concepts you have already seen, while 50 come from genuinely new canonical concepts with category-balanced routing. Fast-Track reuses the existing Fast Track route. Review Due Today is concept-deduped but scheduled by the original question/word clock; it does not count toward the 170 denominator. A concept already satisfied by valid enabled evidence disappears from this row, while wrong or low-confidence evidence stays actionable. The same canonical concept cannot appear twice in one Daily Focus batch.</p>
     </section>
   </section>;
 }
