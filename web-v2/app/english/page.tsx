@@ -20,6 +20,7 @@ type HomeSnapshot={ok:boolean;studyDay:number;summary:Summary;intelligence:Intel
 type TargetedSummary={ok:boolean;active:number;dueNow:number;confusions:number;needLearning:number;transferChecks:number;retentionChecks:number};
 type DailyFocusSummary={ok:boolean;batchDate:string;carryover:boolean;status:"active"|"completed";total:number;completed:number;remaining:number;nominalTarget:number};
 type DailyCurrent={ok:boolean;batch_date:string|null;today:string;pending_previous_day:boolean;total:number;completed:number;remaining:number};
+type ReviewDueSummary={ok:boolean;date:string;phase:string;snapshotReady:boolean;snapshotAt:string|null;dueQuestionCount:number;dueAtStart:number;satisfied:number;satisfiedElsewhere:number;needsRepair:number;lowConfidence:number;remaining:number;actionable?:number;duplicateTouches:number;overdueConcepts:number|null;routingChanged:boolean;countsTowardDailyFocus:boolean;practiceEnabled?:boolean;crossCreditEnabled?:boolean};
 
 const quick = [
  ["📰", "The Hindu – Today", "Fresh vocabulary batch", "/english/hindu?return=/english", "hindu"],
@@ -54,6 +55,7 @@ export default function EnglishHome() {
  const[targeted,setTargeted]=useState<TargetedSummary|null>(null);
  const[focus,setFocus]=useState<DailyFocusSummary|null>(null);
  const[dailyCurrent,setDailyCurrent]=useState<DailyCurrent|null>(null);
+ const[reviewDue,setReviewDue]=useState<ReviewDueSummary|null>(null);
  const[error,setError]=useState("");
  const[paused,setPaused]=useState<PausedQuizSession|null>(null);
 
@@ -61,17 +63,21 @@ export default function EnglishHome() {
   if(!ready)return;
   let alive=true;
   const accept=(x:HomeSnapshot)=>{if(alive){setSnapshot(x);setError("");}};
+  const acceptReviewDue=(x:ReviewDueSummary)=>{if(alive)setReviewDue(x)};
   const refreshTargeted=()=>targetedLiveRpc<TargetedSummary>("english_get_targeted_summary").then(x=>{if(alive)setTargeted(x)}).catch(()=>{});
   const refreshFocus=()=>rpc<DailyFocusSummary>("english_get_daily_focus_summary").then(x=>{if(alive)setFocus(x)}).catch(()=>{});
   const refreshDailyCurrent=()=>rpc<DailyCurrent>("english_get_daily_current").then(x=>{if(alive)setDailyCurrent(x)}).catch(()=>{});
+  const refreshReviewDue=()=>rpc<ReviewDueSummary>("english_get_review_due_today").then(acceptReviewDue).catch(()=>{});
   const unsubscribe=subscribeRpcFresh<HomeSnapshot>("english_get_home_snapshot",undefined,accept);
+  const unsubscribeReviewDue=subscribeRpcFresh<ReviewDueSummary>("english_get_review_due_today",undefined,acceptReviewDue);
   const unsubscribeTargeted=subscribeTargetedDurability(()=>void refreshTargeted());
   rpc<HomeSnapshot>("english_get_home_snapshot").then(accept).catch((e:any)=>{if(alive)setError(learnerErrorMessage(e,"Home data is taking longer than usual. Please retry."))});
   void refreshTargeted();
   void refreshFocus();
   void refreshDailyCurrent();
+  void refreshReviewDue();
   setPaused(readPausedQuiz());
-  return()=>{alive=false;unsubscribe();unsubscribeTargeted();};
+  return()=>{alive=false;unsubscribe();unsubscribeReviewDue();unsubscribeTargeted();};
  },[ready]);
 
  if(!ready)return <EnglishLoading text="Checking session…"/>;
@@ -84,6 +90,12 @@ export default function EnglishHome() {
  const dailyComplete=!!data&&total>0&&actionableRemaining===0;
  const dailyCarryover=!!dailyCurrent?.pending_previous_day&&!!dailyCurrent?.batch_date;
  const carryoverTitle=isYesterday(dailyCurrent?.batch_date,dailyCurrent?.today)?"Pending yesterday’s Daily Mix":`Pending ${shortDate(dailyCurrent?.batch_date)} Daily Mix`;
+ const reviewActionable=reviewDue?.actionable??((reviewDue?.needsRepair||0)+(reviewDue?.lowConfidence||0)+(reviewDue?.remaining||0));
+ const reviewFocusCopy=!reviewDue?.snapshotReady
+   ?"Review Due syncing"
+   :reviewActionable===0
+     ?`Review Due ✓ ${reviewDue.dueAtStart} satisfied`
+     :`Review Due ${reviewActionable} left`;
  const status=(accent:string)=>{
   if(accent==="hindu")return hinduCount===null?"…":`${hinduCount} today`;
   if(accent==="saved")return saved?`${saved.stats.eligible} active`:"…";
@@ -118,7 +130,7 @@ export default function EnglishHome() {
   <section className="section-block">
    <Link className="resume-card" href="/english/focus">
     <span>◎</span>
-    <span><b>Daily Focus · {focus?`${focus.completed} / ${focus.total||focus.nominalTarget||170}`:"0 / 170"}</b><small>{focus?.status==="completed"?"Mandatory focus complete ✓":focus?.carryover?`Carry-over ${focus.batchDate} · finish to unlock fresh batch`:"Mandatory · Repair · Bank Coverage · Fast Track"}</small></span>
+    <span><b>Daily Focus · {focus?`${focus.completed} / ${focus.total||focus.nominalTarget||170}`:"0 / 170"}</b><small>{focus?.carryover?`Carry-over ${focus.batchDate} · finish active batch · ${reviewFocusCopy}`:focus?.status==="completed"?`Mandatory focus complete ✓ · ${reviewFocusCopy}`:`Repair · Bank Coverage · Fast Track · ${reviewFocusCopy}`}</small></span>
     <i>›</i>
    </Link>
   </section>

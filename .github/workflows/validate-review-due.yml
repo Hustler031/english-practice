@@ -1,0 +1,37 @@
+name: Validate Review Due Today
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'web-v2/app/english/focus/page.tsx'
+      - 'web-v2/app/english/page.tsx'
+      - 'supabase/migrations/*review_due*'
+      - '.github/scripts/validate-review-due.cjs'
+      - '.github/workflows/validate-review-due.yml'
+  push:
+    branches:
+      - 'english-review-due-today-*'
+    paths:
+      - 'web-v2/app/english/focus/page.tsx'
+      - 'web-v2/app/english/page.tsx'
+      - 'supabase/migrations/*review_due*'
+      - '.github/scripts/validate-review-due.cjs'
+      - '.github/workflows/validate-review-due.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  review-due-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validate Review Due Today contracts
+        run: node .github/scripts/validate-review-due.cjs
