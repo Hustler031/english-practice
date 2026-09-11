@@ -27,8 +27,9 @@ Already applied in production:
 5. `20260911092003_english_review_due_today_phase1_anon_acl.sql`
 6. `20260911092538_english_review_due_phase2_shadow_decision.sql`
 7. `20260911092709_english_review_due_phase2_selection_ledger.sql`
+8. `20260911095447_english_review_due_shadow_security_hardening.sql`
 
-These existing production migrations are accounting/observability only. They do not change Daily Mix or Daily Focus routing.
+These existing production migrations are accounting/observability/security only. They do not change Daily Mix or Daily Focus routing. The security hardening fixes the Review-Due helper search path and enables RLS on the active internal Review-Due tables.
 
 ## Migrations to apply with the learner-facing release
 
@@ -50,6 +51,12 @@ Apply in this exact order:
    - while cross-credit is OFF, learner-facing practice is restricted to exact due question IDs;
    - when cross-credit is eventually enabled, fresh sibling recovery becomes eligible;
    - exposes gate state in summary/payload.
+
+4. `20260911101500_english_review_due_release_security_hardening.sql`
+   - enables RLS on the new internal runtime/deferral tables;
+   - keeps internal helper functions owner-only;
+   - fixes the deferral helper search path;
+   - explicitly denies anonymous execution of learner-facing Review Due RPCs.
 
 ## Initial production configuration
 
@@ -163,18 +170,19 @@ The deferral ledger:
 
 1. Confirm PR CI is green.
 2. Confirm branch is not behind `main`.
-3. Apply the three learner-facing migrations in timestamp order.
+3. Apply the four learner-facing migrations in timestamp order.
 4. Verify both runtime gates remain `false`.
 5. Verify authenticated Review Due summary and lane RPCs; anon access must remain denied.
-6. Verify Review Due lane with cross-credit OFF serves only exact due question IDs.
-7. Deploy the web branch.
-8. Smoke-test Home -> Daily Focus -> Review Due Today.
-9. Answer one safe test item and verify:
+6. Verify internal Review-Due runtime/deferral tables have RLS enabled and no client grants.
+7. Verify Review Due lane with cross-credit OFF serves only exact due question IDs.
+8. Deploy the web branch.
+9. Smoke-test Home -> Daily Focus -> Review Due Today.
+10. Answer one safe test item and verify:
    - attempt is durable;
    - Review Due count refreshes;
    - that question's scheduler moves through the normal recompute path;
    - Daily Focus 170 denominator is unchanged.
-10. Leave cross-concept credit OFF and continue shadow collection.
+11. Leave cross-concept credit OFF and continue shadow collection.
 
 ## Rollback
 
@@ -196,17 +204,18 @@ Completed before release readiness:
 - English V2 contracts: PASS.
 - TypeScript: PASS.
 - production web build: PASS.
-- GK boundary validation: PASS.
+- GK boundary validation: PASS on validated release commits; final-head workflow must also complete successfully before merge.
 - gate-aware SQL rollback test: 153 lane rows, 0 non-exact rows with cross-credit OFF.
 - cross-credit behavior rollback simulation:
   - sibling strong evidence stays shadow-only with gate OFF;
   - same evidence resolves with gate ON;
   - wrong -> fresh sibling recovery resolves only with gate ON;
   - guessed / too-easy evidence does not falsely satisfy.
+- active production Review-Due shadow security hardening applied: fixed search path + RLS on internal shadow tables.
 - production Phase 1 summary path had previously been optimized to approximately 10 ms order-of-magnitude latency.
 
 ## Release posture
 
-**GO for deployment of the exact-due learner-facing practice lane with cross-concept credit OFF.**
+**GO for deployment of the exact-due learner-facing practice lane with cross-concept credit OFF, subject to final-head CI success.**
 
 **NO-GO for enabling cross-concept sibling credit until the shadow GO criteria are met.**
