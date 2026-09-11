@@ -3,6 +3,70 @@ type Json = Record<string, any>;
 
 const normWord=(v:string)=>v.toLowerCase().replace(/[^a-z0-9]/g,"");
 const errorText=(e:unknown)=>e instanceof Error?e.message:String(e||"Unknown Hindu ingest error");
+const HINDU_NOVELTY_TYPES=new Set([
+  "new_sense","new_collocation","new_construction","different_pos","new_confusable",
+  "new_domain_usage","sense_contrast","morphology_plus_usage","polysemy","degree_distinction",
+]);
+const HINDU_TARGET_HIT_KINDS=new Set(["hindu_word","hindu_family","question_word"]);
+
+function compactDate(v:string){return String(v||"").replace(/[^0-9]/g,"").slice(0,8)}
+
+function documentedLearningException(item:Json){
+  const distinctLearningException=item?.distinctLearningException===true;
+  const distinctSenseException=item?.distinctSenseException===true;
+  const noveltyType=String(item?.noveltyType||"").trim();
+  const noveltyEvidence=String(item?.noveltyEvidence||"").trim();
+  const senseKey=String(item?.senseKey||"").trim();
+  const validType=HINDU_NOVELTY_TYPES.has(noveltyType);
+  const specificEvidence=noveltyEvidence.length>=40;
+  const senseKeyValid=noveltyType!=="new_sense"||senseKey.length>=3;
+  return{
+    allowed:distinctLearningException&&distinctSenseException&&validType&&specificEvidence&&senseKeyValid,
+    distinctLearningException,distinctSenseException,noveltyType,noveltyEvidence,senseKey,
+    validType,specificEvidence,senseKeyValid,
+  };
+}
+
+function reviewHistoricalCollision(item:Json,result:Json|undefined,batchDate:string){
+  if(!result?.duplicate)return{allow:true,stage:"no_historical_collision",reason:"no_collision",hits:[]};
+  const hits=Array.isArray(result?.hits)?result.hits:[];
+  const targetHits=hits.filter((hit:Json)=>HINDU_TARGET_HIT_KINDS.has(String(hit?.kind||"")));
+
+  // related_words / metadata references are useful discovery evidence, but they are not prior learning targets.
+  if(!targetHits.length){
+    return{allow:true,stage:"reference_only_not_duplicate",reason:"reference_only_not_duplicate",hits};
+  }
+
+  // Never allow the same target twice on the same editorial day, even when novelty metadata is supplied.
+  const dayKey=compactDate(batchDate);
+  const sameDayTarget=Boolean(dayKey)&&targetHits.some((hit:Json)=>String(hit?.id||"").replace(/[^0-9]/g,"").includes(dayKey));
+  if(sameDayTarget){
+    return{allow:false,stage:"central_duplicate_gate",reason:"same_day_target",hits:targetHits};
+  }
+
+  const exactTarget=targetHits.some((hit:Json)=>normWord(String(hit?.word||""))===normWord(String(item?.word||"")));
+  const exception=documentedLearningException(item);
+  if(exception.allowed){
+    return{
+      allow:true,stage:"distinct_learning_exception",reason:exception.noveltyType,hits:targetHits,
+      noveltyType:exception.noveltyType,noveltyEvidence:exception.noveltyEvidence,senseKey:exception.senseKey,
+    };
+  }
+
+  return{
+    allow:false,stage:"central_duplicate_gate",
+    reason:exactTarget?"exact_historical_target":"family_target_requires_novelty",
+    hits:targetHits,
+    noveltyValidation:{
+      distinctLearningException:exception.distinctLearningException,
+      distinctSenseException:exception.distinctSenseException,
+      noveltyType:exception.noveltyType,
+      validType:exception.validType,
+      specificEvidence:exception.specificEvidence,
+      senseKeyValid:exception.senseKeyValid,
+    },
+  };
+}
 
 function structuralError(item:Json):string|null{
   const required=["word","meaning","question","explanation","optionA","optionB","optionC","optionD","correctKey","sourceUrl","articleTitle","sourceName"];
@@ -124,23 +188,24 @@ export async function ingestSubmittedHinduItems(db:Db,submitted:Json[],toneItems
     if(checkError)throw new Error(`HINDU_CHECK_FAILED: ${checkError.message}`);
 
     const checkMap=new Map((check?.items||[]).map((x:Json)=>[normWord(String(x?.word||"")),x]));
-    const approved:{item:Json;index:number}[]=[];
+    const approved:{item:Json;index:number;duplicateReview:Json}[]=[];
     for(const row of clean){
       const result=checkMap.get(normWord(String(row.item.word)))as Json|undefined;
-      if(result?.duplicate){
-        setDecision({index:row.index,word:row.item.word,status:"rejected",stage:"central_duplicate_gate",reason:"historical_or_family_collision",hits:result.hits||[]});
+      const duplicateReview=reviewHistoricalCollision(row.item,result,batchDate);
+      if(!duplicateReview.allow){
+        setDecision({index:row.index,word:row.item.word,status:"rejected",stage:duplicateReview.stage,reason:duplicateReview.reason,hits:duplicateReview.hits||[],noveltyValidation:duplicateReview.noveltyValidation});
         continue;
       }
       const item:Json={...row.item,generatorProvider:String(row.item.generatorProvider||"chatgpt"),generatorModel:String(row.item.generatorModel||"scheduled_chatgpt")};
-      approved.push({item,index:row.index});
-      setDecision({index:row.index,word:item.word,status:"submitted",stage:"approved_by_chatgpt_and_deterministic_gates",secondAiCritic:false});
+      approved.push({item,index:row.index,duplicateReview});
+      setDecision({index:row.index,word:item.word,status:"submitted",stage:duplicateReview.stage,reason:duplicateReview.reason,hits:duplicateReview.hits||[],noveltyType:duplicateReview.noveltyType||"",noveltyEvidence:duplicateReview.noveltyEvidence||"",secondAiCritic:false});
     }
 
     if(approved.length>capacity)throw new Error(`HINDU_CAPACITY_CHANGED: ${approved.length} clean items but only ${capacity} slots remain`);
     await persistLedger(db,batchDate,runId,submitted,decisions);
 
     if(!approved.length){
-      await releaseClaim(db,runId,"No submitted Hindu item passed structural + duplicate/family gates");
+      await releaseClaim(db,runId,"No submitted Hindu item passed structural + editorial redundancy gates");
       const list=[...decisions.values()].sort((a,b)=>Number(a.index)-Number(b.index));
       return{ok:true,lane:"hindu",mode:"sheet_ingest",runId,submitted:submitted.length,accepted:0,published:0,retained:0,rejected:list.filter(x=>x.status==="rejected").length,completeTarget:false,decisions:list,tone:await ingestToneItems(db,toneItems)};
     }
@@ -148,14 +213,23 @@ export async function ingestSubmittedHinduItems(db:Db,submitted:Json[],toneItems
     const{data:applied,error:applyError}=await db.rpc("english_hindu_task_apply",{p_run_id:runId,p_items:approved.map(x=>x.item)});
     if(applyError)throw new Error(`HINDU_APPLY_FAILED: ${applyError.message}`);
 
-    for(const row of approved)setDecision({index:row.index,word:row.item.word,status:"published",stage:"published",editor:"scheduled_chatgpt",secondAiCritic:false});
+    for(const row of approved)setDecision({
+      index:row.index,word:row.item.word,status:"published",stage:"published",editor:"scheduled_chatgpt",secondAiCritic:false,
+      duplicateDisposition:row.duplicateReview.stage,duplicateReason:row.duplicateReview.reason,
+      noveltyType:row.duplicateReview.noveltyType||"",noveltyEvidence:row.duplicateReview.noveltyEvidence||"",
+    });
     await persistLedger(db,batchDate,runId,submitted,decisions);
 
     await recordAudits(db,approved.map(row=>({
       lane:"hindu",entityKey:String(row.item.word),
       generatorProvider:String(row.item.generatorProvider||"chatgpt"),generatorModel:String(row.item.generatorModel||"scheduled_chatgpt"),
       repairCount:0,publicationResult:"applied",
-      metadata:{mode:"chatgpt_sheet_submission",secondAiCritic:false,sourceName:row.item.sourceName,sourceUrl:row.item.sourceUrl,candidateType:row.item.candidateType||"vocabulary",fixedPreposition:row.item.fixedPreposition||"",confusableWith:row.item.confusableWith||"",examValueReason:row.item.examValueReason||""},
+      metadata:{
+        mode:"chatgpt_sheet_submission",secondAiCritic:false,sourceName:row.item.sourceName,sourceUrl:row.item.sourceUrl,
+        candidateType:row.item.candidateType||"vocabulary",fixedPreposition:row.item.fixedPreposition||"",confusableWith:row.item.confusableWith||"",examValueReason:row.item.examValueReason||"",
+        duplicateDisposition:row.duplicateReview.stage,duplicateReason:row.duplicateReview.reason,
+        noveltyType:row.duplicateReview.noveltyType||"",noveltyEvidence:row.duplicateReview.noveltyEvidence||"",senseKey:row.duplicateReview.senseKey||"",
+      },
     })));
 
     const tone=await ingestToneItems(db,toneItems),list=[...decisions.values()].sort((a,b)=>Number(a.index)-Number(b.index));
