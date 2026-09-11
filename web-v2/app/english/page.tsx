@@ -19,6 +19,7 @@ type Intelligence={queues?:Record<string,number>;daily?:{actionableRemaining:num
 type HomeSnapshot={ok:boolean;studyDay:number;summary:Summary;intelligence:Intelligence;phrasal:PhrasalHub;bank:BankHub;saved:SavedHub;starred:StarredHub;hindu:HinduWord[]};
 type TargetedSummary={ok:boolean;active:number;dueNow:number;confusions:number;needLearning:number;transferChecks:number;retentionChecks:number};
 type DailyFocusSummary={ok:boolean;batchDate:string;carryover:boolean;status:"active"|"completed";total:number;completed:number;remaining:number;nominalTarget:number};
+type DailyCurrent={ok:boolean;batch_date:string|null;today:string;pending_previous_day:boolean;total:number;completed:number;remaining:number};
 
 const quick = [
  ["📰", "The Hindu – Today", "Fresh vocabulary batch", "/english/hindu?return=/english", "hindu"],
@@ -28,6 +29,16 @@ const quick = [
  ["★", "Starred Revision", "Marked and difficult focus", "/english/starred", "starred"],
 ] as const;
 
+const months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function shortDate(value?:string|null){
+ const [y,m,d]=String(value||"").split("-").map(Number);
+ return y&&m&&d?`${d} ${months[m-1]||""}`:String(value||"");
+}
+function isYesterday(batchDate?:string|null,today?:string|null){
+ const [by,bm,bd]=String(batchDate||"").split("-").map(Number),[ty,tm,td]=String(today||"").split("-").map(Number);
+ if(!by||!bm||!bd||!ty||!tm||!td)return false;
+ return Date.UTC(ty,tm-1,td)-Date.UTC(by,bm-1,bd)===86400000;
+}
 function fallbackStudyDay(){
  try{
   const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Kolkata",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
@@ -42,6 +53,7 @@ export default function EnglishHome() {
  const[snapshot,setSnapshot]=useState<HomeSnapshot|null>(null);
  const[targeted,setTargeted]=useState<TargetedSummary|null>(null);
  const[focus,setFocus]=useState<DailyFocusSummary|null>(null);
+ const[dailyCurrent,setDailyCurrent]=useState<DailyCurrent|null>(null);
  const[error,setError]=useState("");
  const[paused,setPaused]=useState<PausedQuizSession|null>(null);
 
@@ -51,11 +63,13 @@ export default function EnglishHome() {
   const accept=(x:HomeSnapshot)=>{if(alive){setSnapshot(x);setError("");}};
   const refreshTargeted=()=>targetedLiveRpc<TargetedSummary>("english_get_targeted_summary").then(x=>{if(alive)setTargeted(x)}).catch(()=>{});
   const refreshFocus=()=>rpc<DailyFocusSummary>("english_get_daily_focus_summary").then(x=>{if(alive)setFocus(x)}).catch(()=>{});
+  const refreshDailyCurrent=()=>rpc<DailyCurrent>("english_get_daily_current").then(x=>{if(alive)setDailyCurrent(x)}).catch(()=>{});
   const unsubscribe=subscribeRpcFresh<HomeSnapshot>("english_get_home_snapshot",undefined,accept);
   const unsubscribeTargeted=subscribeTargetedDurability(()=>void refreshTargeted());
   rpc<HomeSnapshot>("english_get_home_snapshot").then(accept).catch((e:any)=>{if(alive)setError(learnerErrorMessage(e,"Home data is taking longer than usual. Please retry."))});
   void refreshTargeted();
   void refreshFocus();
+  void refreshDailyCurrent();
   setPaused(readPausedQuiz());
   return()=>{alive=false;unsubscribe();unsubscribeTargeted();};
  },[ready]);
@@ -68,6 +82,8 @@ export default function EnglishHome() {
  const actionableRemaining=snapshot?.intelligence?.daily?.actionableRemaining??fallbackRemaining;
  const suppressedToday=Math.max(0,Number(snapshot?.intelligence?.daily?.suppressed??Math.max(0,fallbackRemaining-actionableRemaining)));
  const dailyComplete=!!data&&total>0&&actionableRemaining===0;
+ const dailyCarryover=!!dailyCurrent?.pending_previous_day&&!!dailyCurrent?.batch_date;
+ const carryoverTitle=isYesterday(dailyCurrent?.batch_date,dailyCurrent?.today)?"Pending yesterday’s Daily Mix":`Pending ${shortDate(dailyCurrent?.batch_date)} Daily Mix`;
  const status=(accent:string)=>{
   if(accent==="hindu")return hinduCount===null?"…":`${hinduCount} today`;
   if(accent==="saved")return saved?`${saved.stats.eligible} active`:"…";
@@ -92,8 +108,8 @@ export default function EnglishHome() {
    :
    <section className="daily-active-card">
     <div className="daily-active-top">
-     <div className="daily-active-copy"><span className="eyebrow">Day {dayNo} · Daily Practice</span><h1>Today’s due practice</h1><p>{data?`${actionableRemaining} due now`:"Syncing today’s queue…"}</p></div>
-     <div className="daily-active-side"><strong>{data?`${completed} / ${total}`:"—"}</strong><Link className="btn primary" href="/english/daily">{completed?"Continue":"Start Daily"}</Link></div>
+     <div className="daily-active-copy"><span className="eyebrow">Day {dayNo} · Daily Practice{dailyCarryover?" · CATCH-UP":""}</span><h1>{dailyCarryover?carryoverTitle:"Today’s due practice"}</h1><p>{data?(dailyCarryover?`${actionableRemaining} left · finish this batch to unlock today’s Daily Mix.`:`${actionableRemaining} due now`):"Syncing today’s queue…"}</p></div>
+     <div className="daily-active-side"><strong>{data?`${completed} / ${total}`:"—"}</strong><Link className="btn primary" href="/english/daily">{dailyCarryover?"Continue pending":completed?"Continue":"Start Daily"}</Link></div>
     </div>
     <div className="progress-track daily-active-progress"><i style={{width:`${percent}%`}}/></div>
    </section>
