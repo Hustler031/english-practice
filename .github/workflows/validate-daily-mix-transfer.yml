@@ -1,0 +1,33 @@
+name: Validate Daily Mix Transfer
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/*daily_mix*'
+      - '.github/scripts/validate-daily-mix-transfer.cjs'
+      - '.github/workflows/validate-daily-mix-transfer.yml'
+  push:
+    branches:
+      - 'english-daily-mix-transfer-validation-*'
+    paths:
+      - 'supabase/migrations/*daily_mix*'
+      - '.github/scripts/validate-daily-mix-transfer.cjs'
+      - '.github/workflows/validate-daily-mix-transfer.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  daily-mix-transfer-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validate transfer clock separation
+        run: node .github/scripts/validate-daily-mix-transfer.cjs
