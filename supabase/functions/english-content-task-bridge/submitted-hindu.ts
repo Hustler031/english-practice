@@ -89,8 +89,7 @@ async function ingestToneItems(db:Db,toneItems:Json[]){
 }
 
 export async function ingestSubmittedHinduItems(db:Db,submitted:Json[],toneItems:Json[]=[]){
-  // Normal Scheduled ChatGPT first submission is 25-30 items. Smaller payloads are
-  // supported only for deterministic refill/recovery after a partial publication.
+  // Exact-10 daily publication; smaller payloads are supported for deterministic refill/recovery.
   if(!Array.isArray(submitted)||submitted.length<1||submitted.length>30)throw new Error("HINDU_SUBMITTED_COUNT: 1-30 fully generated vocabulary items are required");
 
   const{data:claim,error:claimError}=await db.rpc("english_hindu_task_claim");
@@ -119,7 +118,23 @@ export async function ingestSubmittedHinduItems(db:Db,submitted:Json[],toneItems
 
     const{data:check,error:checkError}=await db.rpc("english_hindu_task_check_candidates",{
       p_run_id:runId,
-      p_candidates:clean.map(({item})=>({word:item.word,familyKeys:Array.isArray(item.familyKeys)?item.familyKeys:[]})),
+      p_candidates:clean.map(({item})=>({
+        word:item.word,
+        familyKeys:Array.isArray(item.familyKeys)?item.familyKeys:[],
+        partOfSpeech:item.partOfSpeech||"",
+        meaning:item.meaning||"",
+        questionType:item.questionType||"",
+        candidateType:item.candidateType||"",
+        fixedPreposition:item.fixedPreposition||"",
+        confusableWith:item.confusableWith||"",
+        examValueReason:item.examValueReason||"",
+        usageNote:item.usageNote||"",
+        distinctLearningException:Boolean(item.distinctLearningException),
+        distinctSenseException:Boolean(item.distinctSenseException),
+        noveltyType:item.noveltyType||"",
+        noveltyEvidence:item.noveltyEvidence||"",
+        senseKey:item.senseKey||"",
+      })),
     });
     if(checkError)throw new Error(`HINDU_CHECK_FAILED: ${checkError.message}`);
 
@@ -128,19 +143,36 @@ export async function ingestSubmittedHinduItems(db:Db,submitted:Json[],toneItems
     for(const row of clean){
       const result=checkMap.get(normWord(String(row.item.word)))as Json|undefined;
       if(result?.duplicate){
-        setDecision({index:row.index,word:row.item.word,status:"rejected",stage:"central_duplicate_gate",reason:"historical_or_family_collision",hits:result.hits||[]});
+        setDecision({
+          index:row.index,
+          word:row.item.word,
+          status:"rejected",
+          stage:"central_duplicate_gate",
+          reason:String(result.reason||"genuinely_redundant_repeat"),
+          collisionClass:String(result.collisionClass||"unknown"),
+          hits:result.hits||[],
+        });
         continue;
       }
       const item:Json={...row.item,generatorProvider:String(row.item.generatorProvider||"chatgpt"),generatorModel:String(row.item.generatorModel||"scheduled_chatgpt")};
       approved.push({item,index:row.index});
-      setDecision({index:row.index,word:item.word,status:"submitted",stage:"approved_by_chatgpt_and_deterministic_gates",secondAiCritic:false});
+      setDecision({
+        index:row.index,
+        word:item.word,
+        status:"submitted",
+        stage:"approved_by_chatgpt_and_deterministic_gates",
+        collisionClass:String(result?.collisionClass||"none"),
+        duplicateGateReason:String(result?.reason||"fresh_target"),
+        documentedNovelty:Boolean(result?.documentedNovelty),
+        secondAiCritic:false,
+      });
     }
 
     if(approved.length>capacity)throw new Error(`HINDU_CAPACITY_CHANGED: ${approved.length} clean items but only ${capacity} slots remain`);
     await persistLedger(db,batchDate,runId,submitted,decisions);
 
     if(!approved.length){
-      await releaseClaim(db,runId,"No submitted Hindu item passed structural + duplicate/family gates");
+      await releaseClaim(db,runId,"No submitted Hindu item passed structural + editorial redundancy gates");
       const list=[...decisions.values()].sort((a,b)=>Number(a.index)-Number(b.index));
       return{ok:true,lane:"hindu",mode:"sheet_ingest",runId,submitted:submitted.length,accepted:0,published:0,retained:0,rejected:list.filter(x=>x.status==="rejected").length,completeTarget:false,decisions:list,tone:await ingestToneItems(db,toneItems)};
     }
@@ -155,7 +187,20 @@ export async function ingestSubmittedHinduItems(db:Db,submitted:Json[],toneItems
       lane:"hindu",entityKey:String(row.item.word),
       generatorProvider:String(row.item.generatorProvider||"chatgpt"),generatorModel:String(row.item.generatorModel||"scheduled_chatgpt"),
       repairCount:0,publicationResult:"applied",
-      metadata:{mode:"chatgpt_sheet_submission",secondAiCritic:false,sourceName:row.item.sourceName,sourceUrl:row.item.sourceUrl,candidateType:row.item.candidateType||"vocabulary",fixedPreposition:row.item.fixedPreposition||"",confusableWith:row.item.confusableWith||"",examValueReason:row.item.examValueReason||""},
+      metadata:{
+        mode:"chatgpt_sheet_submission",
+        secondAiCritic:false,
+        sourceName:row.item.sourceName,
+        sourceUrl:row.item.sourceUrl,
+        candidateType:row.item.candidateType||"vocabulary",
+        fixedPreposition:row.item.fixedPreposition||"",
+        confusableWith:row.item.confusableWith||"",
+        examValueReason:row.item.examValueReason||"",
+        distinctLearningException:Boolean(row.item.distinctLearningException||row.item.distinctSenseException),
+        noveltyType:row.item.noveltyType||"",
+        noveltyEvidence:row.item.noveltyEvidence||"",
+        senseKey:row.item.senseKey||"",
+      },
     })));
 
     const tone=await ingestToneItems(db,toneItems),list=[...decisions.values()].sort((a,b)=>Number(a.index)-Number(b.index));
