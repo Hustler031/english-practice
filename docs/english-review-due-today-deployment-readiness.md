@@ -52,7 +52,13 @@ Apply in this exact order:
    - when cross-credit is eventually enabled, fresh sibling recovery becomes eligible;
    - exposes gate state in summary/payload.
 
-4. `20260911101500_english_review_due_release_security_hardening.sql`
+4. `20260911101200_english_review_due_exact_question_quality_semantics.sql`
+   - prevents an exact due word from becoming unfinishable merely because that question is learner-flagged `too_easy`;
+   - a correct non-guessed answer to the exact due question can resolve its own scheduled obligation because its normal submit path advances that exact question clock;
+   - `too_easy` still disqualifies sibling/cross-credit evidence;
+   - guessed/low-confidence same-question recovery requires fresh or aged confirmation.
+
+5. `20260911101500_english_review_due_release_security_hardening.sql`
    - enables RLS on the new internal runtime/deferral tables;
    - keeps internal helper functions owner-only;
    - fixes the deferral helper search path;
@@ -71,8 +77,9 @@ Do not change either flag as part of the first learner-facing deployment.
 
 With both flags OFF:
 
-- exact due question answered correctly with strong evidence can resolve today's obligation;
+- exact due question answered correctly with valid non-guessed evidence can resolve today's obligation;
 - the exact question's normal `english_submit_answer -> recompute_question_state` path advances its own word/question review clock;
+- an exact due question being `too_easy` does not keep the scheduled obligation artificially open;
 - sibling answers remain visible to the shadow analytics but do not close the learner-facing obligation;
 - no cross-concept deferrals are written;
 - the end-of-day deferral cron is a no-op.
@@ -117,21 +124,24 @@ A concept may still be served by another module on the same or following day whe
 
 ## Evidence rules
 
-Strong evidence requires:
+For sibling/cross-module concept credit, strong evidence requires:
 
 - qualifying learner-facing module provenance;
 - correct answer;
 - not marked `I Guessed` for that attempt;
 - question not flagged `too_easy` for the learner.
 
+For the exact scheduled due question, a correct non-guessed answer is allowed to resolve its own obligation even if the question is flagged `too_easy`, because the canonical submit path advances that exact word/question's scheduler. The quality signal may still drive independent content-quality or transfer work; it does not create an impossible due obligation.
+
 Learner-facing resolution:
 
-- strong exact due answer: satisfied;
+- correct non-guessed exact due answer: satisfied;
 - wrong answer: needs repair;
-- guessed/too-easy correct: low confidence;
+- guessed exact answer: low confidence;
 - no qualifying exact evidence: remaining;
-- later recovery may clear a wrong only under the configured recovery rules;
-- sibling recovery is learner-effective only when cross-concept credit is enabled.
+- later recovery may clear a wrong/guess only under the configured recovery rules;
+- sibling recovery is learner-effective only when cross-concept credit is enabled;
+- too-easy sibling evidence never earns strong cross-credit by itself.
 
 The conservative shadow status is retained separately for audit comparisons.
 
@@ -146,7 +156,7 @@ Do not enable cross-concept credit until all GO criteria are met:
 4. No duplicate obligation identity for the same user + date + concept.
 5. No Review-Due-attributable answer-save or latency regression.
 6. No unresolved/ambiguous concept mapping in the due set.
-7. No guessed-only or too-easy-only false satisfaction.
+7. No guessed-only or too-easy-sibling false satisfaction.
 8. Independent Repair/Targeted/Starred/Saved/Grammar/Phrasal reasons remain preserved.
 9. Avoidable Daily Mix overlap is materially useful (recommended >=5% of Daily Mix capacity).
 10. New-canonical Bank Coverage remains non-starved.
@@ -170,7 +180,7 @@ The deferral ledger:
 
 1. Confirm PR CI is green.
 2. Confirm branch is not behind `main`.
-3. Apply the four learner-facing migrations in timestamp order.
+3. Apply the five learner-facing migrations in timestamp order.
 4. Verify both runtime gates remain `false`.
 5. Verify authenticated Review Due summary and lane RPCs; anon access must remain denied.
 6. Verify internal Review-Due runtime/deferral tables have RLS enabled and no client grants.
@@ -200,17 +210,18 @@ If a backend rollback is required before any cross-credit activation, the new le
 
 Completed before release readiness:
 
-- Review Due dedicated CI contracts: PASS.
-- English V2 contracts: PASS.
-- TypeScript: PASS.
-- production web build: PASS.
+- Review Due dedicated CI contracts: PASS on validated release commits; final-head workflow must also pass before merge.
+- English V2 contracts: PASS on validated release commits; final-head workflow must also pass before merge.
+- TypeScript: PASS on validated release commits.
+- production web build: PASS on validated release commits.
 - GK boundary validation: PASS on validated release commits; final-head workflow must also complete successfully before merge.
 - gate-aware SQL rollback test: 153 lane rows, 0 non-exact rows with cross-credit OFF.
+- exact-due quality rollback test: exact scheduled question resolved successfully while explicitly forced `too_easy=true`; no sibling credit was involved.
 - cross-credit behavior rollback simulation:
   - sibling strong evidence stays shadow-only with gate OFF;
   - same evidence resolves with gate ON;
   - wrong -> fresh sibling recovery resolves only with gate ON;
-  - guessed / too-easy evidence does not falsely satisfy.
+  - guessed / low-information sibling evidence does not falsely satisfy.
 - active production Review-Due shadow security hardening applied: fixed search path + RLS on internal shadow tables.
 - production Phase 1 summary path had previously been optimized to approximately 10 ms order-of-magnitude latency.
 
