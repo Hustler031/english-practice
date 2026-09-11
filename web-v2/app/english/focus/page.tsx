@@ -104,7 +104,7 @@ export default function DailyFocusPage(){
         backHref="/english/focus"
         load={load}
         module="reviewduetoday"
-        emptyText="Today’s scheduled review obligations are already satisfied."
+        emptyText="Today’s scheduled reviews are already covered."
         onExit={()=>{setRunning(null);void refresh();void refreshReview();}}
       />;
     }
@@ -126,24 +126,25 @@ export default function DailyFocusPage(){
   const percent=total?Math.min(100,Math.round((completed/total)*100)):0;
   const allDone=!!summary&&summary.status==="completed";
   const reviewActionable=reviewDue?.actionable??((reviewDue?.needsRepair||0)+(reviewDue?.lowConfidence||0)+(reviewDue?.remaining||0));
+  const reviewCovered=reviewDue?.satisfied||0;
   const reviewDone=!!reviewDue?.snapshotReady&&reviewActionable===0;
   const reviewSubtitle=!reviewDue?.snapshotReady
     ?"Exact midnight snapshot is not ready yet"
     :reviewDone
-      ?`All ${reviewDue.dueAtStart} scheduled concepts satisfied for today`
-      :`${reviewDue.satisfiedElsewhere} satisfied elsewhere · ${reviewDue.needsRepair} repair · ${reviewDue.lowConfidence} confirm · separate from 170`;
+      ?`All ${reviewDue.dueAtStart} scheduled reviews covered today`
+      :`${reviewCovered} covered${reviewDue.satisfiedElsewhere?` · ${reviewDue.satisfiedElsewhere} elsewhere`:""} · ${reviewActionable} left · separate from 170`;
 
   return <section className="route-page">
     <div className="route-head">
       <Link className="btn ghost" href="/english">← Home</Link>
-      <div><span className="eyebrow">Central Intelligence · mandatory routing</span><h1>Daily Focus</h1><p>One frozen 170-question mission plus today’s dynamic scheduled-review obligation.</p></div>
+      <div><span className="eyebrow">Central Intelligence · mandatory routing</span><h1>Daily Focus</h1><p>One frozen 170-question mission plus today’s dynamic scheduled-review coverage obligation.</p></div>
     </div>
 
     {error&&<div className="error-box">{error}</div>}
 
     <section className="daily-active-card">
       <div className="daily-active-top">
-        <div className="daily-active-copy"><span className="eyebrow">{summary?.carryover?"Carry-over batch":"Today’s Focus"}</span><h1>{allDone?"Daily Focus complete":"Mandatory focus work"}</h1><p>{summary?.carryover?`Finish ${summary.batchDate} before a fresh batch unlocks.`:"Repair, expose the canonical bank, then clear Fast Track. Review Due Today remains a separate dynamic obligation."}</p></div>
+        <div className="daily-active-copy"><span className="eyebrow">{summary?.carryover?"Carry-over batch":"Today’s Focus"}</span><h1>{allDone?"Daily Focus complete":"Mandatory focus work"}</h1><p>{summary?.carryover?`Finish ${summary.batchDate} before a fresh batch unlocks.`:"Repair, expose the canonical bank, then clear Fast Track. Review Due Today remains a separate dynamic coverage obligation."}</p></div>
         <div className="daily-active-side"><strong>{summary?`${completed} / ${total}`:"—"}</strong>{allDone&&<span className="today-badge">✓ Done</span>}</div>
       </div>
       <div className="progress-track daily-active-progress"><i style={{width:`${percent}%`}}/></div>
@@ -174,7 +175,7 @@ export default function DailyFocusPage(){
 
     <section className="route-start">
       <h2>Routing contract</h2>
-      <p>Repair reuses Weak/PW, Starred Intelligence and My Saved Intelligence. Bank Coverage is Central Intelligence-owned: 20 questions come from unattempted siblings inside canonical concepts you have already seen, while 50 come from genuinely new canonical concepts with category-balanced routing. Fast-Track reuses the existing Fast Track route. Review Due Today is concept-deduped but scheduled by the original question/word clock; it does not count toward the 170 denominator. A concept already satisfied by valid enabled evidence disappears from this row, while wrong or low-confidence evidence stays actionable. The same canonical concept cannot appear twice in one Daily Focus batch.</p>
+      <p>Repair reuses Weak/PW, Starred Intelligence and My Saved Intelligence. Bank Coverage is Central Intelligence-owned: 20 questions come from unattempted siblings inside canonical concepts you have already seen, while 50 come from genuinely new canonical concepts with category-balanced routing. Fast-Track reuses the existing Fast Track route. Review Due Today is concept-deduped but scheduled by the original question/word clock; it does not count toward the 170 denominator. Any durable attempt made inside Review Due Today covers that concept’s obligation for today, whether the answer is correct or wrong; the answer quality still feeds Central Intelligence and the normal next-review scheduler. A wrong answer in another module does not cover Review Due Today while cross-credit is disabled. The same canonical concept cannot appear twice in one Daily Focus batch.</p>
     </section>
   </section>;
 }
