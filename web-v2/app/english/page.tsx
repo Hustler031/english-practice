@@ -21,9 +21,10 @@ type TargetedSummary={ok:boolean;active:number;dueNow:number;confusions:number;n
 type DailyFocusSummary={ok:boolean;batchDate:string;carryover:boolean;status:"active"|"completed";total:number;completed:number;remaining:number;nominalTarget:number;buildVersion?:string};
 type DailyCurrent={ok:boolean;batch_date:string|null;today:string;pending_previous_day:boolean;total:number;completed:number;remaining:number};
 type ReviewDueSummary={ok:boolean;date:string;phase:string;snapshotReady:boolean;snapshotAt:string|null;dueQuestionCount:number;dueAtStart:number;carryoverConcepts?:number;satisfied:number;satisfiedElsewhere:number;needsRepair:number;lowConfidence:number;remaining:number;actionable?:number;duplicateTouches:number;overdueConcepts:number|null;routingChanged:boolean;countsTowardDailyFocus:boolean;practiceEnabled?:boolean;crossCreditEnabled?:boolean};
+type ConfusionProgress={total:number;completed:number;roundsCompleted:number;nextRound:number;target?:number};
 
 const quick = [
- ["📰", "The Hindu – Today", "Fresh vocabulary batch", "/english/hindu?return=/english", "hindu"],
+ ["⇄", "Daily Confusion 15", "Confusables · Phrasal contrasts · Usage traps", "/english/hindu?return=/english", "confusion"],
  ["🔖", "My Saved Words", "Personal recall queue", "/english/saved", "saved"],
  ["◎", "Targeted Mastery", "Focused concept repair + transfer proof", "/english/targeted", "targeted"],
  ["↗", "Phrasal Verb", "Today’s batch + smart revision", "/english/phrasal", "phrasal"],
@@ -56,6 +57,7 @@ export default function EnglishHome() {
  const[focus,setFocus]=useState<DailyFocusSummary|null>(null);
  const[dailyCurrent,setDailyCurrent]=useState<DailyCurrent|null>(null);
  const[reviewDue,setReviewDue]=useState<ReviewDueSummary|null>(null);
+ const[confusion,setConfusion]=useState<ConfusionProgress|null>(null);
  const[error,setError]=useState("");
  const[paused,setPaused]=useState<PausedQuizSession|null>(null);
 
@@ -64,25 +66,29 @@ export default function EnglishHome() {
   let alive=true;
   const accept=(x:HomeSnapshot)=>{if(alive){setSnapshot(x);setError("");}};
   const acceptReviewDue=(x:ReviewDueSummary)=>{if(alive)setReviewDue(x)};
+  const acceptConfusion=(x:ConfusionProgress)=>{if(alive)setConfusion(x)};
   const refreshTargeted=()=>targetedLiveRpc<TargetedSummary>("english_get_targeted_summary").then(x=>{if(alive)setTargeted(x)}).catch(()=>{});
   const refreshFocus=()=>rpc<DailyFocusSummary>("english_get_daily_focus_summary").then(x=>{if(alive)setFocus(x)}).catch(()=>{});
   const refreshDailyCurrent=()=>rpc<DailyCurrent>("english_get_daily_current").then(x=>{if(alive)setDailyCurrent(x)}).catch(()=>{});
   const refreshReviewDue=()=>rpc<ReviewDueSummary>("english_get_review_due_today").then(acceptReviewDue).catch(()=>{});
+  const refreshConfusion=()=>rpc<ConfusionProgress>("english_confusion_progress").then(acceptConfusion).catch(()=>{});
   const unsubscribe=subscribeRpcFresh<HomeSnapshot>("english_get_home_snapshot",undefined,accept);
   const unsubscribeReviewDue=subscribeRpcFresh<ReviewDueSummary>("english_get_review_due_today",undefined,acceptReviewDue);
   const unsubscribeTargeted=subscribeTargetedDurability(()=>void refreshTargeted());
+  const unsubscribeConfusion=subscribeRpcFresh<ConfusionProgress>("english_confusion_progress",undefined,acceptConfusion);
   rpc<HomeSnapshot>("english_get_home_snapshot").then(accept).catch((e:any)=>{if(alive)setError(learnerErrorMessage(e,"Home data is taking longer than usual. Please retry."))});
   void refreshTargeted();
   void refreshFocus();
   void refreshDailyCurrent();
   void refreshReviewDue();
+  void refreshConfusion();
   setPaused(readPausedQuiz());
-  return()=>{alive=false;unsubscribe();unsubscribeReviewDue();unsubscribeTargeted();};
+  return()=>{alive=false;unsubscribe();unsubscribeReviewDue();unsubscribeTargeted();unsubscribeConfusion();};
  },[ready]);
 
  if(!ready)return <EnglishLoading text="Checking session…"/>;
 
- const data=snapshot?.summary,phrasal=snapshot?.phrasal,saved=snapshot?.saved,starred=snapshot?.starred,hinduCount=snapshot?.hindu?.length??null;
+ const data=snapshot?.summary,phrasal=snapshot?.phrasal,saved=snapshot?.saved,starred=snapshot?.starred;
  const total=data?.daily_total??0,completed=data?.daily_completed??0,percent=total?Math.min(100,Math.round((completed/total)*100)):0,dayNo=snapshot?.studyDay??fallbackStudyDay();
  const fallbackRemaining=Math.max(0,total-completed);
  const actionableRemaining=snapshot?.intelligence?.daily?.actionableRemaining??fallbackRemaining;
@@ -103,7 +109,7 @@ export default function EnglishHome() {
      :`${actionableRemaining} left · Review Due is separate.`
    :"Syncing today’s queue…";
  const status=(accent:string)=>{
-  if(accent==="hindu")return hinduCount===null?"…":`${hinduCount} today`;
+  if(accent==="confusion")return confusion?`${confusion.completed} / ${confusion.total||confusion.target||15}`:"…";
   if(accent==="saved")return saved?`${saved.stats.eligible} active`:"…";
   if(accent==="phrasal")return phrasal?`Smart + Today’s ${phrasal.today.count||20}`:"…";
   if(accent==="starred"){
