@@ -1,7 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { createRemoteJWKSet, jwtVerify } from "npm:jose@5.9.6";
-import { runHinduGeneration } from "./generation.ts";
-import { ingestSubmittedHinduItems } from "./submitted-hindu.ts";
+import { ingestSubmittedConfusionItems } from "./submitted-confusion.ts";
 import { claimSubmittedPhrasal, ingestSubmittedPhrasal } from "./submitted-phrasal.ts";
 import { claimSubmittedGrammar, ingestSubmittedGrammar } from "./submitted-grammar.ts";
 
@@ -9,6 +8,7 @@ const ISSUER = "https://token.actions.githubusercontent.com";
 const AUDIENCE = "english-content-automation";
 const REPOSITORY = "Hustler031/telegram-media-bot";
 const PHRASE_REF = "refs/heads/automation/english-phrasal";
+// Kept as a transport compatibility ref. Content semantics are Daily Confusion 15.
 const HINDU_REF = "refs/heads/automation/english-hindu";
 const GRAMMAR_REF = "refs/heads/automation/english-grammar";
 const JWKS = createRemoteJWKSet(new URL(`${ISSUER}/.well-known/jwks`));
@@ -38,7 +38,7 @@ Deno.serve(async(req)=>{
   if(action==="run"){
     if(lane==="phrasal")return json({ok:false,lane:"phrasal",error:"Legacy server-side Phrasal AI generation is disabled; use claim + ingest ChatGPT-owned workflow"},409);
     if(lane==="grammar")return json({ok:false,lane:"grammar",error:"Legacy/server-side Grammar AI generation is disabled; use claim + ingest ChatGPT-owned workflow"},409);
-    try{return json((await runHinduGeneration(db))??{ok:true})}catch(e){return json({ok:false,lane,error:errorText(e)},500)}
+    return json({ok:false,lane:"hindu",contentLane:"daily_confusion",error:"Legacy Hindu/current-news generation is disabled; submit ChatGPT-owned Daily Confusion items from Confusion_Master_Bank"},409);
   }
 
   if(lane==="phrasal"){
@@ -65,14 +65,30 @@ Deno.serve(async(req)=>{
     return json({error:"Unknown Grammar action"},400);
   }
 
+  // Legacy transport ref `automation/english-hindu` now carries Daily Confusion 15.
   if(action==="ingest"){
-    const items=Array.isArray(body?.items)?body.items:null;const toneItems=Array.isArray(body?.toneItems)?body.toneItems:[];
-    if(!items||items.length<1||items.length>30)return json({error:"Hindu ingest requires 1-30 fully generated vocabulary items; normal first submission remains 25-30"},400);
-    if(toneItems.length>3)return json({error:"Hindu ingest accepts at most 3 tone/mood items"},400);
-    try{return json(await ingestSubmittedHinduItems(db,items,toneItems))}catch(e){return json({ok:false,lane:"hindu",mode:"sheet_ingest",error:errorText(e)},500)}
+    const items=Array.isArray(body?.items)?body.items:null;
+    if(!items||items.length<1||items.length>15)return json({error:"Daily Confusion ingest requires 1-15 ChatGPT-generated master-bank items"},400);
+    try{return json(await ingestSubmittedConfusionItems(db,items))}catch(e){return json({ok:false,lane:"hindu",contentLane:"daily_confusion",mode:"sheet_ingest",error:errorText(e)},500)}
   }
-  if(action==="claim"){const{data,error}=await db.rpc("english_hindu_task_claim");if(error)return json({error:error.message},500);return json(data??{ok:true,count:0})}
-  if(action==="check"){const runId=String(body?.runId||""),candidates=Array.isArray(body?.candidates)?body.candidates:null;if(!runId||!candidates||candidates.length<1||candidates.length>60)return json({error:"Hindu runId and 1-60 candidates are required"},400);const{data,error}=await db.rpc("english_hindu_task_check_candidates",{p_run_id:runId,p_candidates:candidates});if(error)return json({error:error.message},500);return json(data??{ok:true,items:[]})}
-  if(action==="apply"){const runId=String(body?.runId||""),items=Array.isArray(body?.items)?body.items:null;if(!runId||!items||items.length<1||items.length>30)return json({error:"Hindu runId and 1-30 items are required"},400);const{data,error}=await db.rpc("english_hindu_task_apply",{p_run_id:runId,p_items:items});if(error)return json({error:error.message},500);return json(data??{ok:true})}
-  return json({error:"Unknown Hindu action"},400);
+  if(action==="claim"){
+    const{data,error}=await db.rpc("english_hindu_task_claim");
+    if(error)return json({error:error.message},500);
+    return json(data??{ok:true,count:0,contentLane:"daily_confusion"});
+  }
+  if(action==="check"){
+    const runId=String(body?.runId||""),candidates=Array.isArray(body?.candidates)?body.candidates:null;
+    if(!runId||!candidates||candidates.length<1||candidates.length>30)return json({error:"Daily Confusion runId and 1-30 candidates are required"},400);
+    const{data,error}=await db.rpc("english_hindu_task_check_candidates",{p_run_id:runId,p_candidates:candidates});
+    if(error)return json({error:error.message},500);
+    return json(data??{ok:true,items:[],contentLane:"daily_confusion"});
+  }
+  if(action==="apply"){
+    const runId=String(body?.runId||""),items=Array.isArray(body?.items)?body.items:null;
+    if(!runId||!items||items.length<1||items.length>15)return json({error:"Daily Confusion runId and 1-15 items are required"},400);
+    const{data,error}=await db.rpc("english_hindu_task_apply",{p_run_id:runId,p_items:items});
+    if(error)return json({error:error.message},500);
+    return json(data??{ok:true,contentLane:"daily_confusion"});
+  }
+  return json({error:"Unknown Daily Confusion action"},400);
 });

@@ -1,0 +1,49 @@
+name: Validate Daily Confusion Phase 1
+
+on:
+  push:
+    branches:
+      - english-daily-confusion-phase1-20260912
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web-v2/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: web-v2
+        run: npm ci
+
+      - name: Daily Confusion contract audit
+        working-directory: web-v2
+        run: npm run contracts:daily-confusion-phase1
+
+      - name: TypeScript
+        working-directory: web-v2
+        run: npm run typecheck
+
+      - name: Production build
+        working-directory: web-v2
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: phase1-ci-placeholder
+        run: npm run build
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Edge bridge type-check
+        run: deno check supabase/functions/english-content-task-bridge/index.ts
+
+      - name: Confirm no deployment step
+        run: echo "Validation only — no Supabase migration, Edge deploy, Cloudflare deploy, or main merge performed."
