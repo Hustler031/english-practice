@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/learner-ui";
-import { DAILY_ANALYSIS_RANGES,categoryMeta,dailyAnalysisNavigationKey,dailyAnalysisRowNote,isDailyAnalysisCategory,isDailyAnalysisRange,rangeLabel,stateLabel,type DailyAnalysisList,type DailyAnalysisRange } from "@/lib/daily-analysis";
+import { DAILY_ANALYSIS_RANGES,categoryMeta,dailyAnalysisNavigationKey,dailyAnalysisRowNote,formatAttemptTime,isDailyAnalysisCategory,isDailyAnalysisRange,rangeLabel,stateLabel,type DailyAnalysisList,type DailyAnalysisRange,type DailyAnalysisRow } from "@/lib/daily-analysis";
 import { learnerErrorMessage,rpc } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
 
@@ -28,7 +28,7 @@ export default function DailyAnalysisQuestionsPage(){
   if(!isDailyAnalysisCategory(category)){setError("Unknown Daily Analysis category.");setLoading(false);return;}
   let alive=true;
   setLoading(true);setError("");
-  rpc<DailyAnalysisList>("english_get_daily_analysis_questions_filtered",{p_category:category,p_range:range,p_limit:200})
+  rpc<DailyAnalysisList>("english_get_daily_analysis_questions_filtered",{p_category:category,p_range:range,p_limit:300})
    .then(x=>{
     if(!alive)return;
     setData(x);
@@ -49,19 +49,28 @@ export default function DailyAnalysisQuestionsPage(){
 
  if(!ready)return null;
  const meta=categoryMeta(category);
- const periodCopy=range==="today"?"Today’s Daily plan":range==="7d"?"Daily plans from the last 7 days":"All recorded Daily plans";
+ const periodCopy=range==="today"?"All English practice today":range==="7d"?"All English practice from the last 7 days":"All recorded English practice";
  return <main className="top-level-parity learner-rebuild-page learner-insights-page daily-analysis-page daily-analysis-list-page">
-  <PageHeader back={<Link href="/english/revision/ai-intelligence/daily-analysis" className="back-link">← Daily Analysis</Link>} eyebrow="Daily review" title={meta?.title||"Daily Analysis"} subtitle={meta?.subtitle||"Review Daily questions."}/>
+  <PageHeader back={<Link href={`/english/revision/ai-intelligence/daily-analysis?range=${range}`} className="back-link">← Daily Analysis</Link>} eyebrow="Learning analysis" title={meta?.title||"Daily Analysis"} subtitle={meta?.subtitle||"Review English practice questions."}/>
   <div className="daily-analysis-filter-row">
    <span><b>{rangeLabel(range)}</b><small>{periodCopy}</small></span>
    <RangeFilter value={range} onChange={changeRange}/>
   </div>
   {error&&<div className="error-box">{error}</div>}
   {loading?<div className="loading-copy">Loading {rangeLabel(range).toLowerCase()} questions…</div>:data?.questions?.length?<section className="daily-analysis-question-list">{data.questions.map(row=><Link key={row.questionId} className="daily-analysis-question-row" href={`/english/revision/ai-intelligence/daily-analysis/review?category=${encodeURIComponent(category)}&questionId=${encodeURIComponent(row.questionId)}&range=${range}&attemptRange=${range}`}>
-    <span className="daily-analysis-question-main"><b>{row.displayName}</b><small>{row.topic} · {dailyAnalysisRowNote(row,range)}</small></span>
-    <span className={`daily-analysis-state ${(row.periodWrong??row.wrongToday??0)>0?"has-wrong":""}`}>{(row.periodWrong??row.wrongToday??0)>0?`${row.periodWrong??row.wrongToday} wrong`:stateLabel(row.currentState)}</span><i>›</i>
+    <span className="daily-analysis-question-main"><b>{row.displayName}</b><small>{row.topic} · {rowNote(row,category,range)}</small></span>
+    <span className={`daily-analysis-state ${(row.periodWrong??row.wrongToday??0)>0&&category!=="proven_mastered"?"has-wrong":""}`}>{category==="proven_mastered"?"Proven Mastered":(row.periodWrong??row.wrongToday??0)>0?`${row.periodWrong??row.wrongToday} wrong`:stateLabel(row.currentState)}</span><i>›</i>
    </Link>)}</section>:<div className="learner-empty">No {meta?.title?.toLowerCase()||"review"} questions in {rangeLabel(range).toLowerCase()}.</div>}
  </main>;
+}
+
+function rowNote(row:DailyAnalysisRow,category:string,range:DailyAnalysisRange){
+ if(category==="proven_mastered"){
+  const when=formatAttemptTime(row.masteredOn);
+  const attempts=row.periodAttempts??0;
+  return `${when?`Mastered ${when}`:"Mastery transition recorded"}${attempts?` · ${attempts} attempt${attempts===1?"":"s"} in period`:""}`;
+ }
+ return dailyAnalysisRowNote(row,range);
 }
 
 function RangeFilter({value,onChange}:{value:DailyAnalysisRange;onChange:(value:DailyAnalysisRange)=>void}){
