@@ -1,15 +1,16 @@
 export const DAILY_ANALYSIS_CATEGORIES = [
+  { key:"proven_mastered", title:"Proven Mastered", subtitle:"New mastery transitions in the selected period." },
   { key:"persistent_weak", title:"Persistent Weak", subtitle:"Repeated weakness still needs repair." },
   { key:"weak", title:"Weak", subtitle:"Repeated errors need focused review." },
   { key:"retention_risk", title:"Retention Risk", subtitle:"Previously learned, but recall is slipping." },
   { key:"fragile_learning", title:"Fragile / Learning", subtitle:"Still stabilising after recent practice." },
-  { key:"due_revision", title:"Due Revision", subtitle:"Spaced review scheduled in Daily." },
+  { key:"due_revision", title:"Due Revision", subtitle:"Spaced review is currently due." },
 ] as const;
 
 export const DAILY_ANALYSIS_RANGES = [
   { key:"today", label:"Today" },
   { key:"7d", label:"7 Days" },
-  { key:"overall", label:"Overall" },
+  { key:"overall", label:"All" },
 ] as const;
 
 export type DailyAnalysisCategory = typeof DAILY_ANALYSIS_CATEGORIES[number]["key"];
@@ -17,9 +18,14 @@ export type DailyAnalysisRange = typeof DAILY_ANALYSIS_RANGES[number]["key"];
 export type DailyAnalysisSummary = {
   ok:boolean;
   date:string;
+  range?:DailyAnalysisRange;
   relevantCount:number;
-  attemptedToday:number;
-  wrongToday:number;
+  attemptedQuestions:number;
+  attemptCount:number;
+  wrongAttempts:number;
+  wrongQuestions?:number;
+  attemptedToday?:number;
+  wrongToday?:number;
   categories:Record<DailyAnalysisCategory,number>;
 };
 
@@ -40,6 +46,7 @@ export type DailyAnalysisRow = {
   latestSelected?:string;
   latestCorrect?:boolean;
   lastAttempt?:string;
+  masteredOn?:string;
   totalAttempts:number;
   totalWrong:number;
   accuracy:number;
@@ -81,8 +88,8 @@ export function dailyAnalysisRowNote(row:DailyAnalysisRow,range:DailyAnalysisRan
     if(range==="today")return wrong>0?`${wrong} wrong today · ${row.totalWrong} wrong overall`:`Correct today · ${row.totalAttempts} total attempts`;
     return `${correct} correct · ${wrong} wrong · ${attempts} attempts`;
   }
-  if(range!=="today"&&row.daysSeen)return `${row.daysSeen} Daily day${row.daysSeen===1?"":"s"} · no attempts in this period`;
-  return row.dailyReason?`Planned today · ${row.dailyReason}`:"Planned in today’s Daily";
+  if(range!=="today"&&row.daysSeen)return `${row.daysSeen} active day${row.daysSeen===1?"":"s"} in this period`;
+  return "Included from your English practice activity.";
 }
 
 export function stateLabel(value?:string){
