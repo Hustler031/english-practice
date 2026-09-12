@@ -108,6 +108,7 @@ export default function EnglishHome() {
      ?`${actionableRemaining} left · Finish pending batch first.`
      :`${actionableRemaining} left · Review Due is separate.`
    :"Syncing today’s queue…";
+ const focusComplete=focus?.status==="completed";
  const status=(accent:string)=>{
   if(accent==="confusion")return confusion?`${confusion.completed} / ${confusion.total||confusion.target||15}`:"…";
   if(accent==="saved")return saved?`${saved.stats.eligible} active`:"…";
@@ -140,14 +141,16 @@ export default function EnglishHome() {
   }
 
   <section className="section-block">
-   <Link className="resume-card" href="/english/focus">
-    <span>◎</span>
-    <span><b>Daily Focus · {focus?`${focus.completed} / ${focus.total||focus.nominalTarget}`:"Syncing"}</b><small>{focus?.carryover?`Carry-over ${focus.batchDate} · finish active batch · ${reviewFocusCopy}`:focus?.status==="completed"?`Mandatory focus complete ✓ · ${reviewFocusCopy}`:`Repair · Bank Coverage · Fast Track · Grammar/Phrasal 30 · ${reviewFocusCopy}`}</small></span>
-    <i>›</i>
+   <Link
+    className="resume-card"
+    href="/english/focus"
+    style={focusComplete?{borderColor:"#296141",background:"var(--ok-bg)"}:{borderColor:"var(--line)",background:"var(--card)"}}
+   >
+    <span style={focusComplete?{background:"var(--ok)",color:"#0e2918"}:{background:"#202833",color:"var(--muted)"}}>{focusComplete?"✓":"◎"}</span>
+    <span><b>{focusComplete?"Daily Focus complete":`Daily Focus · ${focus?`${focus.completed} / ${focus.total||focus.nominalTarget}`:"Syncing"}`}</b><small style={{color:focusComplete?"#9fd8b4":"var(--muted)"}}>{focus?.carryover?`Carry-over ${focus.batchDate} · finish active batch · ${reviewFocusCopy}`:focusComplete?`Mandatory focus complete ✓ · ${reviewFocusCopy}`:`Repair · Grammar/Phrasal 30 · Bank Coverage · Fast Track · ${reviewFocusCopy}`}</small></span>
+    <i style={{color:focusComplete?"var(--ok)":"var(--muted)"}}>{focusComplete?"✓":"›"}</i>
    </Link>
   </section>
-
-  {dailyComplete&&<section className="practice-more-card compact-extra-card"><div className="practice-more-copy"><span className="eyebrow">Optional · after Daily</span><h2>Focused extra practice</h2><p>Wrong, Difficult, Marked · Weak/PW</p></div><Link className="btn primary" href="/english/extra?count=20">Start 20</Link></section>}
 
   {paused&&<section className="home-resume-section"><Link className="paused-resume-strip" href="/english/resume"><span className="paused-resume-icon">Ⅱ</span><span className="paused-resume-copy"><b>Continue paused session</b><small>{paused.title} · {paused.index+1} / {paused.questions.length}</small></span><span className="paused-resume-action">Resume ›</span></Link></section>}
 
