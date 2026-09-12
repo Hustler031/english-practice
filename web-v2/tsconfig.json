@@ -23,6 +23,9 @@
       }
     ],
     "paths": {
+      "@/lib/supabase": [
+        "./lib/supabase-router"
+      ],
       "@/*": [
         "./*"
       ]
