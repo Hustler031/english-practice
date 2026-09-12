@@ -184,7 +184,23 @@ export default function DailyFocusPage(){
     <section className="section-block">
       <div className="section-title-line"><h2>Today’s focus lanes</h2><span className="row-status">{summary?.batchDate||"Syncing"}</span></div>
       <div className="study-list">
-        {lanes.map(config=>{
+        {lanes.slice(0,1).map(config=>{
+          const lane=summary?.lanes[config.summaryKey];
+          const done=!!lane?.done;
+          return <button type="button" className={`study-row home-quick-row ${config.accent}`} key={config.key} disabled={!summary||done||localSafe} onClick={()=>{if(!done)setRunning(config.key);}}>
+            <span className="row-icon">{done?"✓":config.icon}</span>
+            <span className="row-copy"><b>{config.title}</b><small>{done?"Completed — this batch will not restart":config.subtitle}</small></span>
+            <span className="row-status">{lane?`${lane.completed} / ${lane.target}`:"…"}</span>
+            <i>{done?"✓":"›"}</i>
+          </button>;
+        })}
+        <button type="button" className="study-row home-quick-row accent-phrasal" disabled={!summary||!language||languageDone||localSafe} onClick={()=>{if(!languageDone)setRunning("language");}}>
+          <span className="row-icon">{languageDone?"✓":"Aa"}</span>
+          <span className="row-copy"><b>Grammar + Phrasal · 30</b><small>{languageSubtitle}</small></span>
+          <span className="row-status">{language?`${language.completed} / ${language.target}`:"…"}</span>
+          <i>{languageDone?"✓":"›"}</i>
+        </button>
+        {lanes.slice(1).map(config=>{
           const lane=summary?.lanes[config.summaryKey];
           const done=!!lane?.done;
           return <button type="button" className={`study-row home-quick-row ${config.accent}`} key={config.key} disabled={!summary||done||localSafe} onClick={()=>{if(!done)setRunning(config.key);}}>
@@ -199,12 +215,6 @@ export default function DailyFocusPage(){
           <span className="row-copy"><b>Review Due Today</b><small>{reviewSubtitle}</small></span>
           <span className="row-status">{reviewDue?.snapshotReady?(reviewDone?"Done":`${reviewActionable} left`):"…"}</span>
           <i>{reviewDone?"✓":"›"}</i>
-        </button>
-        <button type="button" className="study-row home-quick-row accent-phrasal" disabled={!summary||!language||languageDone||localSafe} onClick={()=>{if(!languageDone)setRunning("language");}}>
-          <span className="row-icon">{languageDone?"✓":"Aa"}</span>
-          <span className="row-copy"><b>Grammar + Phrasal · 30</b><small>{languageSubtitle}</small></span>
-          <span className="row-status">{language?`${language.completed} / ${language.target}`:"…"}</span>
-          <i>{languageDone?"✓":"›"}</i>
         </button>
       </div>
       {localSafe&&<p className="route-safe-note">Local Safe is active: Daily Focus and Review Due Today answer writes are disabled against production data.</p>}
