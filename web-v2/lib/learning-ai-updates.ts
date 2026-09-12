@@ -1,4 +1,5 @@
 export type Tone="fix"|"soon"|"good"|"later"|"neutral";
+export type OptionKey="A"|"B"|"C"|"D";
 
 export type RevisionPayload={question?:string;optionA?:string;optionB?:string;optionC?:string;optionD?:string;correctKey?:string;explanation?:string};
 
@@ -53,8 +54,8 @@ export function revisionStatus(status:string){return status==="ready"?"Ready":st
 export function revisionTone(status:string):Tone{return status==="applied"?"good":status==="ready"||status==="processing"||status==="queued"?"soon":status==="failed"?"fix":status==="kept"?"neutral":"later"}
 export function revisionFallback(status:string){if(status==="failed")return"The draft failed the quality gate, so your current question stayed unchanged.";if(status==="processing"||status==="queued")return"AI is still working. You can continue studying normally.";if(status==="superseded")return"A newer request replaced this one.";return"No revised version is available."}
 export function revisionChangeText(a:RevisionPayload|undefined,b:RevisionPayload|undefined){if(!a||!b)return"A quality-checked revision is ready.";const parts:string[]=[];const changed=changedOptionKeys(a,b);if(clean(a.question)!==clean(b.question))parts.push("question wording");if(changed.length)parts.push(`option${changed.length===1?"":"s"} ${changed.join(", ")}`);if(clean(a.explanation)!==clean(b.explanation))parts.push("explanation");return parts.length?`AI changed ${joinNatural(parts)}.`:"AI kept the question, options and explanation unchanged after review."}
-export function changedOptionKeys(a?:RevisionPayload,b?:RevisionPayload){if(!a||!b)return[] as string[];return (["A","B","C","D"] as const).filter(k=>clean(option(a,k))!==clean(option(b,k)))}
-export function option(payload:RevisionPayload|undefined,key:"A"|"B"|"C"|"D"){if(!payload)return"";return key==="A"?payload.optionA||"":key==="B"?payload.optionB||"":key==="C"?payload.optionC||"":payload.optionD||""}
+export function changedOptionKeys(a?:RevisionPayload,b?:RevisionPayload):OptionKey[]{if(!a||!b)return[];return (["A","B","C","D"] as const).filter(k=>clean(option(a,k))!==clean(option(b,k)))}
+export function option(payload:RevisionPayload|undefined,key:OptionKey){if(!payload)return"";return key==="A"?payload.optionA||"":key==="B"?payload.optionB||"":key==="C"?payload.optionC||"":payload.optionD||""}
 export function clean(v?:string){return String(v||"").trim()}
 export function clip(value:string,max:number){const s=String(value||"").trim();return s.length<=max?s:`${s.slice(0,max-1).trimEnd()}…`}
 export function timeAgo(value:string){const t=new Date(value).getTime();if(!Number.isFinite(t))return"unknown";const mins=Math.max(0,Math.round((Date.now()-t)/60000));return mins<2?"just now":mins<60?`${mins} min ago`:mins<1440?`${Math.round(mins/60)} hr ago`:`${Math.round(mins/1440)} d ago`}
