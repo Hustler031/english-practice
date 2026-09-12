@@ -11,6 +11,7 @@ const home=read("web-v2/app/english/page.tsx");
 const bridge=read("supabase/functions/english-content-task-bridge/index.ts");
 const submitted=read("supabase/functions/english-content-task-bridge/submitted-confusion.ts");
 const migration=read("supabase/migrations/20260912180000_english_daily_confusion_phase1.sql");
+const guards=read("supabase/migrations/20260912180100_english_daily_confusion_ci_guards.sql");
 
 requireText(page,"Daily Confusion 15","confusion page");
 requireText(page,'rpc<Q[]>("english_get_confusion_quiz")',"confusion page");
@@ -51,5 +52,11 @@ requireText(migration,"'confusion',v_id,now()","migration");
 requireText(migration,"english.recompute_question_state(uid,v_qid)","migration");
 requireText(migration,"exactDailyTarget',15","migration");
 requireText(migration,"english.question_concept_mappings","migration");
+
+requireText(guards,"create or replace function english.hindu_daily_eligible","CI guards");
+requireText(guards,"lower(coalesce(a.module,''))='confusion'","CI guards");
+requireText(guards,"create or replace function english.focus_conflicts_with_required_daily","CI guards");
+requireText(guards,"from english.daily_confusion_items dc","CI guards");
+requireText(guards,"dc.batch_date=p_batch_date","CI guards");
 
 console.log("Daily Confusion Phase 1 contracts: PASS");
