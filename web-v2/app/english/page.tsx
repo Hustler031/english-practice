@@ -97,6 +97,11 @@ export default function EnglishHome() {
    :reviewActionable===0
      ?`Review Due ✓ ${reviewDue.dueAtStart} covered${reviewCarryover?` · ${reviewCarryover} carried in`:""}`
      :`Review Due ${reviewActionable} left${reviewCarryover?` · ${reviewCarryover} carryover`:""}`;
+ const dailyStatusCopy=data
+   ?dailyCarryover
+     ?`${actionableRemaining} left · Finish pending batch first.`
+     :`${actionableRemaining} left · Review Due is separate.`
+   :"Syncing today’s queue…";
  const status=(accent:string)=>{
   if(accent==="hindu")return hinduCount===null?"…":`${hinduCount} today`;
   if(accent==="saved")return saved?`${saved.stats.eligible} active`:"…";
@@ -115,13 +120,13 @@ export default function EnglishHome() {
 
   {dailyComplete?
    <section className="daily-complete-card">
-    <div className="daily-complete-main"><span className="daily-complete-icon">✓</span><div className="daily-complete-copy"><span className="eyebrow">Day {dayNo} · Daily complete</span><h1>Today’s Daily Mix is done</h1><p>{completed} completed{suppressedToday?` · ${suppressedToday} already satisfied elsewhere`:""}. Daily Mix is a performance-practice target, while scheduled review ownership stays with Review Due.</p></div></div>
-    <span className="today-badge">{completed} done</span>
+    <div className="daily-complete-main"><span className="daily-complete-icon">✓</span><div className="daily-complete-copy"><span className="eyebrow">Day {dayNo} · Daily complete</span><h1>Daily Mix complete</h1><p>{completed} done{suppressedToday?` · ${suppressedToday} satisfied elsewhere`:""}</p></div></div>
+    <span className="today-badge">Done</span>
    </section>
    :
-   <section className="daily-active-card">
+   <section className="daily-active-card home-daily-primary">
     <div className="daily-active-top">
-     <div className="daily-active-copy"><span className="eyebrow">Day {dayNo} · Daily Mix{dailyCarryover?" · CATCH-UP":""}</span><h1>{dailyCarryover?carryoverTitle:"Today’s performance mix"}</h1><p>{data?(dailyCarryover?`${actionableRemaining} left · finish this frozen batch to unlock today’s Daily Mix.`:`${actionableRemaining} performance questions left · Review Due handles the scheduled-review clock separately.`):"Syncing today’s performance queue…"}</p></div>
+     <div className="daily-active-copy"><span className="eyebrow">Day {dayNo} · Daily Mix{dailyCarryover?" · CATCH-UP":""}</span><h1>{dailyCarryover?carryoverTitle:"Today’s performance mix"}</h1><p>{dailyStatusCopy}</p></div>
      <div className="daily-active-side"><strong>{data?`${completed} / ${total}`:"—"}</strong><Link className="btn primary" href="/english/daily">{dailyCarryover?"Continue pending":completed?"Continue":"Start Daily"}</Link></div>
     </div>
     <div className="progress-track daily-active-progress"><i style={{width:`${percent}%`}}/></div>
@@ -138,7 +143,7 @@ export default function EnglishHome() {
 
   {dailyComplete&&<section className="practice-more-card compact-extra-card"><div className="practice-more-copy"><span className="eyebrow">Optional · after Daily</span><h2>Focused extra practice</h2><p>Wrong, Difficult, Marked · Weak/PW</p></div><Link className="btn primary" href="/english/extra?count=20">Start 20</Link></section>}
 
-  {paused&&<section className="section-block"><Link className="resume-card" href="/english/resume"><span>Ⅱ</span><span><b>Resume paused practice</b><small>{paused.title} · {paused.index+1} / {paused.questions.length}</small></span><i>›</i></Link></section>}
+  {paused&&<section className="home-resume-section"><Link className="paused-resume-strip" href="/english/resume"><span className="paused-resume-icon">Ⅱ</span><span className="paused-resume-copy"><b>Continue paused session</b><small>{paused.title} · {paused.index+1} / {paused.questions.length}</small></span><span className="paused-resume-action">Resume ›</span></Link></section>}
 
   <section className="exam-home-row"><Link href="/english/grammar"><span><b>GRAMMAR</b><small>Daily 20 · Adaptive Grammar Intelligence</small></span><i>›</i></Link></section>
 
