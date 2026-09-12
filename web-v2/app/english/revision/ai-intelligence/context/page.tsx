@@ -28,6 +28,7 @@ export default function ContextInsightsPage(){
 function ContextItem({item}:{item:ContextUpdate}){
  const hasRevision=!!item.contentRevised;
  const learning=learningActions(item);
+ const reviseQuestionId=item.questionId;
  return <details className="ai-focused-item"><summary><span><b>{item.displayName}</b><small>{contextSummary(item)}</small></span><em>{contentStatus(item)} · {timeAgo(item.createdAt)}</em><i>›</i></summary><div className="ai-focused-body">
   <section className="ai-insight-detail-card"><span className="ai-detail-kicker">You asked</span><p>{item.learnerNote||"No written note was saved."}</p></section>
   <section className="ai-insight-detail-card emphasis"><span className="ai-detail-kicker">AI did</span>
@@ -39,7 +40,7 @@ function ContextItem({item}:{item:ContextUpdate}){
   {!!learning.length&&<section className="ai-insight-detail-card"><span className="ai-detail-kicker">Learning action</span><ul>{learning.map((x,i)=><li key={`${item.noteId}-learning-${i}`}>{x}</li>)}</ul></section>}
   {item.understood&&<details className="insights-how-details"><summary><span><b>What AI understood</b><small>Optional interpretation detail</small></span></summary><div className="insights-how-copy"><p>{item.understood}</p></div></details>}
   {item.contentQualityNote&&<details className="insights-how-details"><summary><span><b>Quality check</b><small>Why the content change passed</small></span></summary><div className="insights-how-copy"><p>{item.contentQualityNote}</p></div></details>}
-  <ReviseAgain questionId={item.questionId}/>
+  <ReviseAgain questionId={reviseQuestionId}/>
  </div></details>;
 }
 
