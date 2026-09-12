@@ -23,6 +23,7 @@ export default function ImprovementInsightsPage(){
 }
 
 function ImprovementItem({item}:{item:RevisionUpdate}){
+ const reviseQuestionId=item.questionId;
  return <details className="ai-focused-item"><summary><span><b>{item.displayName}</b><small>{revisionSummary(item)}</small></span><em>{revisionStatus(item.status)} · {timeAgo(item.createdAt)}</em><i>›</i></summary><div className="ai-focused-body">
   <section className="ai-insight-detail-card"><span className="ai-detail-kicker">You asked</span><p>{item.feedbackNote||feedbackLabel(item.feedbackReason)}</p></section>
   <section className="ai-insight-detail-card emphasis"><span className="ai-detail-kicker">AI did</span>
@@ -30,7 +31,7 @@ function ImprovementItem({item}:{item:RevisionUpdate}){
   </section>
   {item.original&&<details className="insights-how-details"><summary><span><b>Original version</b><small>Open only if you want to compare</small></span></summary><div className="insights-how-copy"><RevisionVersion title="Original version" payload={item.original}/></div></details>}
   {item.qualityNote&&<details className="insights-how-details"><summary><span><b>Quality check</b><small>Why this AI revision passed</small></span></summary><div className="insights-how-copy"><p>{item.qualityNote}</p></div></details>}
-  <ReviseAgain questionId={item.questionId}/>
+  <ReviseAgain questionId={reviseQuestionId}/>
  </div></details>;
 }
 
