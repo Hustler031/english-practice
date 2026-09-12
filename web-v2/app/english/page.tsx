@@ -142,7 +142,7 @@ export default function EnglishHome() {
   <section className="section-block">
    <Link className="resume-card" href="/english/focus">
     <span>◎</span>
-    <span><b>Daily Focus · {focus?`${focus.completed} / ${focus.total||focus.nominalTarget}`:"Syncing"}</b><small>{focus?.carryover?`Carry-over ${focus.batchDate} · finish active batch · ${reviewFocusCopy}`:focus?.status==="completed"?`Mandatory focus complete ✓ · ${reviewFocusCopy}`:`Repair · Bank Coverage · Fast Track · ${reviewFocusCopy}`}</small></span>
+    <span><b>Daily Focus · {focus?`${focus.completed} / ${focus.total||focus.nominalTarget}`:"Syncing"}</b><small>{focus?.carryover?`Carry-over ${focus.batchDate} · finish active batch · ${reviewFocusCopy}`:focus?.status==="completed"?`Mandatory focus complete ✓ · ${reviewFocusCopy}`:`Repair · Bank Coverage · Fast Track · Grammar/Phrasal 30 · ${reviewFocusCopy}`}</small></span>
     <i>›</i>
    </Link>
   </section>
