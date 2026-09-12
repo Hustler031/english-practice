@@ -143,7 +143,7 @@ export default function DailyFocusPage(){
     />;
   }
 
-  const total=summary?.total||summary?.nominalTarget||220;
+  const total=summary?.total||summary?.nominalTarget||170;
   const completed=summary?.completed||0;
   const percent=total?Math.min(100,Math.round((completed/total)*100)):0;
   const allDone=!!summary&&summary.status==="completed";
@@ -151,7 +151,7 @@ export default function DailyFocusPage(){
   const reviewCovered=reviewDue?.satisfied||0;
   const reviewCarryover=Math.max(0,reviewDue?.carryoverConcepts||0);
   const reviewDone=!!reviewDue?.snapshotReady&&reviewActionable===0;
-  const focusDenominator=summary?.nominalTarget||220;
+  const focusDenominator=summary?.nominalTarget||170;
   const language=summary?.lanes.language;
   const grammar=summary?.lanes.grammar;
   const phrasal=summary?.lanes.phrasal;
