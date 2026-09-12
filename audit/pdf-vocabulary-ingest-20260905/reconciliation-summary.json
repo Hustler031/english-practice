@@ -1,0 +1,46 @@
+{
+  "source": {
+    "file": "2024-01-09-0.2589246185826186(2).pdf",
+    "title": "Samundramanthan Of Vocabulary / English With Rani Ma'am",
+    "pages": 22,
+    "numbered_entries": 200,
+    "headword_forms": 201,
+    "lexical_occurrences": 3925,
+    "unique_normalized_candidates": 3234
+  },
+  "headword_reconciliation": {
+    "already_in_bank_exact": 193,
+    "promoted_new": 8,
+    "missing_after_ingest": 0
+  },
+  "candidate_dispositions": {
+    "RELATED_NOT_SELECTED": 2356,
+    "ALREADY_IN_BANK_EXACT": 388,
+    "REJECT_LOW_VALUE": 306,
+    "PROMOTED_NEW": 131,
+    "FAMILY_DUPLICATE": 38,
+    "REJECT_MALFORMED_OR_UNCERTAIN": 15
+  },
+  "already_covered_canonical": 426,
+  "rejected_low_value_malformed_uncertain": 321,
+  "needs_review": 0,
+  "promotion": {
+    "source_id": "PDF_VOCAB_SAMUNDRAMANTHAN_20240109",
+    "question_id_prefix": "VOC_PDF_20260905_",
+    "promoted_concepts": 131,
+    "promoted_questions": 131,
+    "bank_coverage_before": 403,
+    "bank_coverage_after": 534,
+    "bank_coverage_delta": 131,
+    "primary_mappings": 131,
+    "active_concepts": 131,
+    "learner_evidence_seeded": 0
+  },
+  "policy": {
+    "parallel_pdf_learning_system_created": false,
+    "learner_history_modified": false,
+    "duplicate_questions_created_for_exact_matches": false,
+    "all_unique_candidates_dispositioned": true,
+    "all_occurrences_reconciled": true
+  }
+}
