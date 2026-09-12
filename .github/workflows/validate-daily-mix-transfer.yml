@@ -5,13 +5,16 @@ on:
     branches: [main]
     paths:
       - 'supabase/migrations/*daily_mix*'
+      - 'supabase/migrations/*daily_performance_reader*'
       - '.github/scripts/validate-daily-mix-transfer.cjs'
       - '.github/workflows/validate-daily-mix-transfer.yml'
   push:
     branches:
       - 'english-daily-mix-transfer-validation-*'
+      - 'english-daily-v3-reader-compat-fix-*'
     paths:
       - 'supabase/migrations/*daily_mix*'
+      - 'supabase/migrations/*daily_performance_reader*'
       - '.github/scripts/validate-daily-mix-transfer.cjs'
       - '.github/workflows/validate-daily-mix-transfer.yml'
 
@@ -29,5 +32,5 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Validate transfer clock separation
+      - name: Validate transfer and performance reader contracts
         run: node .github/scripts/validate-daily-mix-transfer.cjs
