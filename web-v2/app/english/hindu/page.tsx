@@ -126,6 +126,7 @@ function ConfusionQuiz({items,setItems,progress,idx,setIdx,answers,setAnswers,er
  const[contextSaved,setContextSaved]=useState(false);
  const[contextBusy,setContextBusy]=useState(false);
  const[guessed,setGuessed]=useState(false);
+ const answerInFlight=useRef(new Set<string>());
  const q=items[idx];
  const sentenceDisplay=q?splitSentenceQuestionForDisplay(q.question):null;
  const result=q?answers[q.id]:undefined;
@@ -142,12 +143,20 @@ function ConfusionQuiz({items,setItems,progress,idx,setIdx,answers,setAnswers,er
  useEffect(()=>{const onBack=()=>{setPauseOpen(true);window.history.pushState({confusionQuiz:true},"")};window.history.pushState({confusionQuiz:true},"");window.addEventListener("popstate",onBack);return()=>window.removeEventListener("popstate",onBack)},[]);
  function move(next:number){setError("");setIntelOpen(false);setIdx(next);started.current=Date.now();window.scrollTo({top:0,left:0,behavior:"auto"})}
  async function answer(option:DisplayOption){
-  if(!q||result)return;setError("");
+  if(!q||result||answerInFlight.current.has(q.id))return;
+  setError("");
+  const questionId=q.id;
+  const canonicalQuestionId=q.centralQuestionId;
+  const localCorrectKey=String(q.correctKey||"").toUpperCase();
+  const attemptId=`v2-confusion-${canonicalQuestionId}-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+  answerInFlight.current.add(questionId);
+  setAnswers(a=>({...a,[questionId]:{selected:option.key,selectedCanonicalKey:option.canonicalKey,correct:option.canonicalKey===localCorrectKey,canonicalKey:localCorrectKey}}));
   try{
-   const out=await rpc<any>("english_submit_confusion_answer",{p_question_id:q.centralQuestionId,p_selected_key:option.canonicalKey,p_time_seconds:Math.min(180,(Date.now()-started.current)/1000),p_attempt_id:`v2-confusion-${q.centralQuestionId}-${Date.now()}`});
-   if(!out.ok){setError(out.reason||"Unable to submit");return}
-   setAnswers(a=>({...a,[q.id]:{selected:option.key,selectedCanonicalKey:option.canonicalKey,correct:!!out.correct,canonicalKey:String(out.correctKey||q.correctKey),attemptId:String(out.attemptId||"")||undefined}}));
+   const out=await rpc<any>("english_submit_confusion_answer",{p_question_id:canonicalQuestionId,p_selected_key:option.canonicalKey,p_time_seconds:Math.min(180,(Date.now()-started.current)/1000),p_attempt_id:attemptId});
+   if(!out.ok){setError(out.reason||"Answer is shown, but it could not be saved. Please retry later.");return}
+   setAnswers(a=>({...a,[questionId]:{selected:option.key,selectedCanonicalKey:option.canonicalKey,correct:!!out.correct,canonicalKey:String(out.correctKey||localCorrectKey),attemptId:String(out.attemptId||attemptId)}}));
   }catch(e:any){setError(learnerErrorMessage(e,"Answer is shown, but it could not be saved on this device. Please retry."))}
+  finally{answerInFlight.current.delete(questionId)}
  }
  async function recordGuessed(){if(!q?.centralQuestionId||!result||guessed)return;setGuessed(true);setError("");try{await rpc("english_record_guess",{p_question_id:q.centralQuestionId,p_attempt_id:result.attemptId||null})}catch(e:any){setGuessed(false);setError(learnerErrorMessage(e,"Could not record that confidence signal."))}}
  async function saveContext(){
@@ -189,7 +198,7 @@ function ConfusionQuiz({items,setItems,progress,idx,setIdx,answers,setAnswers,er
    {result&&<div className="result-wrap"><div className={`result-head ${result.correct?"good-result":"bad-result"}`}><strong>{result.correct?"✓ Correct":"✕ Incorrect"}</strong></div><ConfusionExplanation q={q} correctDisplayKey={correctDisplayKey}/>{q.centralQuestionId&&<><div className="quiz-ai-actions learning-signal-actions"><button className="btn ghost" type="button" onClick={()=>setContextOpen(v=>!v)} aria-expanded={contextOpen}>Add Context</button><button className={`btn ghost ${guessed?"warn":""}`} type="button" disabled={guessed} onClick={()=>void recordGuessed()}>{guessed?"I Guessed ✓":"I Guessed"}</button><QuestionRevisionActions key={q.centralQuestionId} questionId={q.centralQuestionId}/></div>{contextSaved&&<div className="context-saved">✓ Added to learning context</div>}{contextOpen&&<div className="ai-help-panel learning-context-panel"><input value={contextNote} maxLength={600} onChange={e=>setContextNote(e.target.value)} placeholder="What are you confusing or struggling with?"/><button className="btn primary" type="button" disabled={contextBusy||!contextNote.trim()} onClick={()=>void saveContext()}>{contextBusy?"Saving…":"Save"}</button></div>}</>}</div>}
    {result&&q.centralQuestionId&&<button className={`mastered-after ${q.mastered?"done":""}`} disabled={!!q.mastered} onClick={()=>void mastered()}>{q.mastered?"✓ Mastered":"✓ Mastered"}</button>}
   </section>
-  <div className="quiz-tools hindu-quiz-tools">
+  <div className="quiz-tools quiz-tools-four">
    <button className={`btn ghost ${q.starred?"warn":""}`} onClick={()=>void star()}>{q.starred?"★ Starred":"☆ Star"}</button>
    <AddWordSheet questionId={q.centralQuestionId||""} initialWord={q.pairCluster} source="Daily Confusion" label="📝 Add Word"/>
    <button className={`btn ghost ${q.difficult?"danger":""}`} onClick={()=>void difficult()} disabled={!q.centralQuestionId}>{q.difficult?"⚡ Difficult ✓":"⚡ Difficult"}</button>
