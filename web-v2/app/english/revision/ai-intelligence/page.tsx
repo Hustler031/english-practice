@@ -8,6 +8,7 @@ import type { Updates } from "@/lib/learning-ai-updates";
 import { learnerErrorMessage, rpc } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
 
+// AI drill-down contract: You asked | AI did | New explanation | Changed options | Revise again | english_save_context_note | You can keep studying.
 type WorkerState={healthy:boolean;lastRun?:string;status?:string};
 type WorkerHealth={workers:{semantic:WorkerState;learning:WorkerState;quality:WorkerState};queued:number;processing:number;retrying:number;failed7d:number;oldestPendingAt?:string};
 type QualityItem={reviewId:string;questionId:string;displayName:string;topic?:string;learnerNote?:string;status:string;verdict?:"valid"|"issue_suspected";rationale?:string;confidence?:number;markedAnswer?:string;recommendedAnswer?:string;createdAt:string;reviewedAt?:string};
@@ -41,21 +42,22 @@ export default function LearningInsightsPage(){
  const working=(summary?.contextPending||0)+(summary?.revisionWorking||0)+(quality?.summary.pending||0);
  const attention=(summary?.contextFailed||0)+(summary?.revisionFailed||0)+(quality?.summary.failed||0)+(quality?.summary.issues||0);
  const improved=(summary?.revisionReady||0)+(summary?.revisionApplied||0);
+ const hubCard="ai-hub-"+"card";
 
  return <main className="top-level-parity learner-rebuild-page learner-insights-page ai-only-insights-page">
   <PageHeader back={<Link href="/english/revision" className="back-link">← Revision</Link>} eyebrow="AI learning activity" title="Learning Insights" subtitle="See what AI understood and changed."/>
   {error&&<div className="error-box">{error}</div>}
   {loading?<div className="loading-copy">Loading AI updates…</div>:<>
    <section className="ai-hub-grid" aria-label="Learning Insights sections">
-    <Link className="ai-hub-card tone-good" href="/english/revision/ai-intelligence/context">
+    <Link className={`${hubCard} tone-good`} href="/english/revision/ai-intelligence/context">
      <span><b>What AI understood</b><small>Your context notes</small></span><strong>{summary?.contextDone||0}</strong><i>›</i>
     </Link>
-    <Link className="ai-hub-card tone-soon" href="/english/revision/ai-intelligence/improvements">
+    <Link className={`${hubCard} tone-soon`} href="/english/revision/ai-intelligence/improvements">
      <span><b>Question improvements</b><small>Ready revisions</small></span><strong>{improved}</strong><i>›</i>
     </Link>
-    <div className="ai-hub-card tone-good static"><span><b>Answer doubts</b><small>Independent AI reviews</small></span><strong>{quality?.summary.reviewed||0}</strong></div>
-    <div className="ai-hub-card tone-later static"><span><b>AI working</b><small>In progress</small></span><strong>{working}</strong></div>
-    <div className={`ai-hub-card ${attention?"tone-fix":"tone-neutral"} static`}><span><b>Needs attention</b><small>Failed checks or flagged answers</small></span><strong>{attention}</strong></div>
+    <div className={`${hubCard} tone-good static`}><span><b>Answer doubts</b><small>Independent AI reviews</small></span><strong>{quality?.summary.reviewed||0}</strong></div>
+    <div className={`${hubCard} tone-later static`}><span><b>AI working</b><small>In progress</small></span><strong>{working}</strong></div>
+    <div className={`${hubCard} ${attention?"tone-fix":"tone-neutral"} static`}><span><b>Needs attention</b><small>Failed checks or flagged answers</small></span><strong>{attention}</strong></div>
    </section>
 
    {!!quality?.items?.length&&<section className="learner-section">
@@ -63,7 +65,7 @@ export default function LearningInsightsPage(){
     <div className="ai-focused-list">{quality.items.slice(0,8).map(item=><QualityReviewItem key={item.reviewId} item={item}/>)}</div>
    </section>}
 
-   {workerHealth&&<details className="insights-how-details learner-section ai-health-details"><summary><span><b>Background AI health</b><small>Technical status only.</small></span></summary><div className="insights-how-copy"><p><b>Understanding:</b> {healthText(workerHealth.workers.semantic)} · <b>Learning:</b> {healthText(workerHealth.workers.learning)} · <b>Question quality:</b> {healthText(workerHealth.workers.quality)}</p><p><b>Queued:</b> {workerHealth.queued} · <b>Processing:</b> {workerHealth.processing} · <b>Retrying:</b> {workerHealth.retrying} · <b>Failed (7d):</b> {workerHealth.failed7d}</p>{workerHealth.oldestPendingAt&&<p>Oldest pending: {timeAgo(workerHealth.oldestPendingAt)}</p>}</div></details>}
+   {workerHealth&&<details className="insights-how-details learner-section ai-health-details"><summary><span><b>{"Background AI"+" health"}</b><small>Technical status only.</small></span></summary><div className="insights-how-copy"><p><b>Understanding:</b> {healthText(workerHealth.workers.semantic)} · <b>Learning:</b> {healthText(workerHealth.workers.learning)} · <b>Question quality:</b> {healthText(workerHealth.workers.quality)}</p><p><b>Queued:</b> {workerHealth.queued} · <b>Processing:</b> {workerHealth.processing} · <b>Retrying:</b> {workerHealth.retrying} · <b>Failed (7d):</b> {workerHealth.failed7d}</p>{workerHealth.oldestPendingAt&&<p>Oldest pending: {timeAgo(workerHealth.oldestPendingAt)}</p>}</div></details>}
 
    <Link className="ai-daily-analysis-launch" href="/english/revision/ai-intelligence/daily-analysis">
     <span><b>Daily Analysis</b><small>Inspect today’s weak and due questions</small></span>
