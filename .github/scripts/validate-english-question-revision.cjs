@@ -13,6 +13,7 @@ const aiInsights=read('supabase/managed-migrations/20260905183500_english_learni
 const speedFix=read('supabase/managed-migrations/20260905190000_english_starred_diversity_and_quiz_speed.sql');
 const dailyAnalysisMigration=read('supabase/managed-migrations/20260905195500_english_daily_analysis_readonly.sql');
 const dailyAnalysisScope=read('supabase/managed-migrations/20260905200500_english_daily_analysis_daily_scope.sql');
+const contextIntent=read('supabase/managed-migrations/20260912225000_english_context_intent_learning_insights_v2.sql');
 const migration=[base,integrity,quality,hardening,uiSupport,auditFix,aiInsights,speedFix,dailyAnalysisMigration,dailyAnalysisScope].join('\n');
 const contextWorker=read('supabase/functions/english-context-worker/index.ts');
 const revisionWorker=read('supabase/functions/english-revision-worker/index.ts');
@@ -74,6 +75,17 @@ forbid(migration,/update\s+english\.questions\b/i,'canonical question immutabili
 forbid(migration,/delete\s+from\s+english\.attempts\b/i,'attempt preservation');
 forbid(migration,/update\s+english\.question_state\b/i,'mastery preservation');
 [
+ ['context_content_action_from_note','deterministic natural-language content intent'],
+ ["return 'improve_options'",'explicit option-change intent'],
+ ["return 'explain_all_options'",'all-options explanation intent'],
+ ["return 'enrich_explanation'",'explanation improvement intent'],
+ ['queue_context_content_action_internal','independent content-change queue'],
+ ['contentOriginal','context-linked original revision payload'],
+ ['contentRevised','context-linked revised payload'],
+ ['contentQualityNote','context-linked quality rationale'],
+ ["'improve_options'",'context option changes auto-apply only after revision quality gate']
+].forEach(([needle,label])=>requireText(contextIntent,needle,label));
+[
  ['transferGeneratePrompt','strong transfer generator'],['transferCriticPrompt','independent transfer critic'],
  ['semanticNoveltyScore','semantic novelty gate'],['realisticTrapCount','real trap gate']
 ].forEach(([needle,label])=>requireText(contextWorker,needle,label));
@@ -108,9 +120,9 @@ requireText(overlay,'ACTIVE_REVISION_TTL_MS','bounded overlay freshness');
  [practice,'Daily Practice','Practice Daily'],[practice,'Targeted Mastery','Practice Targeted'],[practice,'Fast Track','Practice Fast Track'],[practice,'New Practice','Practice New'],[practice,'Topic Practice','Practice Topic'],[practice,'Exam Sprint','Practice Exam Sprint'],
  [revision,'Due Now','Revision due'],[revision,'Difficult &amp; Incorrect','Revision difficult/incorrect'],[revision,'Starred','Revision starred'],[revision,'My Saved','Revision saved'],[revision,'Browse by Topic','Revision topic'],[revision,'Learning Insights','Revision insights'],
  [targeted,'Fix Now','Targeted Fix Now'],[targeted,'Your Confusions','Targeted confusions'],[targeted,'Waiting for Later','Targeted waiting'],[targeted,'OverviewCard','Targeted progressive-disclosure overview'],[targeted,'LearnerRow','Targeted learner rows'],[targeted,'english_get_question_labels','Targeted display labels'],[targeted,'english_get_targeted_question','Targeted exact question'],[targeted,'english_get_targeted_due_session','Targeted Fix Now uses due-only session'],[targeted,'"due_now"','Targeted due-only UI kind'],
- [insights,'Learning Insights','Learning Insights title'],[insights,'english_get_learning_ai_updates','Insights summary reads actual AI outcomes'],[insights,'What AI understood','context drill-down card'],[insights,'Question improvements','revision drill-down card'],[insights,'/ai-intelligence/context','context route'],[insights,'/ai-intelligence/improvements','improvement route'],[insights,'Background AI health','collapsed operational health'],[insights,'ai-hub-card','uncramped hub cards'],[insights,'Daily Analysis','Daily Analysis launch'],[insights,'/ai-intelligence/daily-analysis','Daily Analysis route'],[insights,'english_get_daily_analysis_summary','Daily Analysis count'],
- [insightContext,'Only questions where you added context.','context-only list'],[insightContext,'What you told AI','context detail'],[insightContext,'What AI understood','context interpretation'],[insightContext,'What changed','context effect'],
- [insightImprovements,'Only questions you asked AI to improve.','improvement-only list'],[insightImprovements,'Original version','revision before'],[insightImprovements,'AI revision','revision after'],[insightImprovements,'What changed','revision delta'],
+ [insights,'Learning Insights','Learning Insights title'],[insights,'english_get_learning_ai_updates','Insights reads actual AI outcomes'],[insights,'You asked','request shown inline'],[insights,'AI did','AI action shown inline'],[insights,'New explanation','revised explanation is readable'],[insights,'Changed options','changed options are readable'],[insights,'Revise again','optional follow-up revision action'],[insights,'english_save_context_note','follow-up uses natural-language context pipeline'],[insights,'You can keep studying','revision is explicitly asynchronous'],
+ [insightContext,'Only questions where you added context.','legacy context drill-down remains available'],[insightContext,'What you told AI','context detail'],[insightContext,'What AI understood','context interpretation'],[insightContext,'What changed','context effect'],
+ [insightImprovements,'Only questions you asked AI to improve.','legacy improvement drill-down remains available'],[insightImprovements,'Original version','revision before'],[insightImprovements,'AI revision','revision after'],[insightImprovements,'What changed','revision delta'],
  [dailyAnalysis,'Today only','Daily Analysis today-only scope'],[dailyAnalysis,'DAILY_ANALYSIS_CATEGORIES','five Daily Analysis rows'],[dailyAnalysis,'Read-only review','read-only learner contract'],[dailyAnalysis,'english_get_daily_analysis_summary','Daily Analysis summary fetch'],
  [dailyAnalysisCategory,'english_get_daily_analysis_questions','category question list'],[dailyAnalysisCategory,'daily-analysis-question-row','Manage-like question rows'],[dailyAnalysisCategory,'encodeURIComponent(row.questionId)','question drill-down link'],
  [dailyAnalysisDetail,'english_get_daily_analysis_question','read-only detail RPC'],[dailyAnalysisDetail,'Correct answer is shown','manual weakness-review contract'],[dailyAnalysisDetail,'Recent attempts','attempt evidence'],[dailyAnalysisDetail,'Review only · nothing is recorded here','no-write learner copy'],
@@ -120,7 +132,7 @@ requireText(overlay,'ACTIVE_REVISION_TTL_MS','bounded overlay freshness');
  [frame,'targeted|fast-track|exam','Practice nav routing'],[frame,'pathname.startsWith("/english/revision/")','Revision nav routing'],
  [learnerUi,'learner-overview-card','shared overview-card primitive'],[learnerUi,'learner-row','shared learner-row primitive'],[learnerLabels,'confusionLabel','learner confusion label resolver'],[learnerLabels,'cleanLearnerName','generic-label guard'],[learnerCss,'.learner-overview-card','new learner overview styling'],[learnerCss,'.learner-row','new learner row styling'],[learnerCss,'.practice-primary-card','Practice learner-card harmony'],[learnerCss,'.revision-primary-row','Revision learner-row harmony'],
  [finalCss,'.next-best-action-card','legacy next-action styling remains harmless'],[finalCss,'grid-template-columns:repeat(3','three question actions layout'],
- [aiInsightsCss,'.ai-hub-grid','compact Insights hub'],[aiInsightsCss,'.ai-focused-item','focused question list'],[aiInsightsCss,'.ai-option-line.changed','changed-option styling'],[dailyAnalysisCss,'.ai-daily-analysis-launch','Daily Analysis hub row styling'],[dailyAnalysisCss,'.daily-review-option.correct','visible correct-answer styling'],
+ [aiInsightsCss,'.ai-focused-item','focused question list'],[aiInsightsCss,'.ai-option-line.changed','changed-option styling'],[dailyAnalysisCss,'.ai-daily-analysis-launch','Daily Analysis styling remains available on its own route'],[dailyAnalysisCss,'.daily-review-option.correct','visible correct-answer styling'],
  [aiUpdates,'revisionChangeText','shared revision delta formatter'],[aiUpdates,'contextChanges','shared context-action formatter']
 ].forEach(([text,needle,label])=>requireText(text,needle,label));
 forbid(home,/Next Best Action/,'Home stays clean: no Next Best Action card');
@@ -130,6 +142,8 @@ forbid(insights,/Concept coverage/i,'Insights must not expose concept dashboard'
 forbid(insights,/Total Concepts/i,'Insights must not expose total-concepts dashboard');
 forbid(insights,/Check Soon/i,'Insights must not duplicate Targeted scheduling');
 forbid(insights,/Scheduled for Later/i,'Insights must not duplicate Targeted scheduling');
+forbid(insights,/Background AI health/i,'Insights must not expose worker-health clutter');
+forbid(insights,/ai-hub-card/i,'Insights must remain a simple chronological change log');
 for(const page of [insights,insightContext,insightImprovements])forbid(page,/\{item\.questionId\}/,'no raw question IDs on Insights surface');
 for(const page of [dailyAnalysis,dailyAnalysisCategory,dailyAnalysisDetail]){
  forbid(page,/english_submit_answer|english_mark_|english_set_|english_save_context_note|english_record_guess/,'Daily Analysis stays read-only');
@@ -138,7 +152,7 @@ forbid(targeted,/Question IDs are visible/i,'no developer audit copy in Targeted
 forbid(targeted,/Open\s*›/i,'no redundant Targeted Open affordance');
 forbid(targeted,/Practice\s*›/i,'no redundant Targeted Practice affordance');
 
-for(const [name,text] of [['base migration',base],['integrity migration',integrity],['quality migration',quality],['hardening migration',hardening],['UI support migration',uiSupport],['audit fix migration',auditFix],['AI Insights migration',aiInsights],['speed migration',speedFix],['Daily Analysis migration',dailyAnalysisMigration],['Daily Analysis scope migration',dailyAnalysisScope]]){
+for(const [name,text] of [['base migration',base],['integrity migration',integrity],['quality migration',quality],['hardening migration',hardening],['UI support migration',uiSupport],['audit fix migration',auditFix],['AI Insights migration',aiInsights],['speed migration',speedFix],['Daily Analysis migration',dailyAnalysisMigration],['Daily Analysis scope migration',dailyAnalysisScope],['Context intent migration',contextIntent]]){
  const dollars=(text.match(/\$\$/g)||[]).length;if(dollars%2)throw new Error(`${name}: unbalanced $$ function delimiters`);
 }
 try{
