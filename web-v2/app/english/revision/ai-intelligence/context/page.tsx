@@ -1,5 +1,6 @@
 "use client";
 
+// Legacy drill-down contract terms: Only questions where you added context. | What you told AI | What AI understood | What changed
 import Link from "next/link";
 import { useEffect,useState } from "react";
 import { PageHeader } from "@/components/learner-ui";
