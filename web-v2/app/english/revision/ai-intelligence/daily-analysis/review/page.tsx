@@ -60,7 +60,7 @@ export default function DailyAnalysisReviewPage(){
    if(stored.includes(questionId)){setNavIds(stored);return;}
   }catch{}
   let alive=true;
-  rpc<DailyAnalysisList>("english_get_daily_analysis_questions_filtered",{p_category:category,p_range:categoryRange,p_limit:200})
+  rpc<DailyAnalysisList>("english_get_daily_analysis_questions_filtered",{p_category:category,p_range:categoryRange,p_limit:300})
    .then(x=>{
     if(!alive)return;
     const ids=(x.questions||[]).map(row=>row.questionId).filter(Boolean);
@@ -99,7 +99,7 @@ export default function DailyAnalysisReviewPage(){
  const previousId=navIndex>0?navIds[navIndex-1]:"";
  const nextId=navIndex>=0&&navIndex<navIds.length-1?navIds[navIndex+1]:"";
  return <main className="top-level-parity learner-rebuild-page learner-insights-page daily-analysis-page daily-analysis-detail-page">
-  <PageHeader back={<Link href={backHref} className="back-link">← {meta?.title||"Daily Analysis"}</Link>} eyebrow="Read-only review" title={a?.displayName||"Question review"} subtitle="Correct answer is shown for manual weakness review."/>
+  <PageHeader back={<Link href={backHref} className="back-link">← {meta?.title||"Daily Analysis"}</Link>} eyebrow="Read-only review" title={a?.displayName||"Question review"} subtitle="Inspect the question, explanation and learning evidence without changing your state."/>
   {error&&<div className="error-box">{error}</div>}
   {loading?<div className="loading-copy">Opening review…</div>:q&&a?<>
    <section className="daily-analysis-evidence-strip">
@@ -108,7 +108,7 @@ export default function DailyAnalysisReviewPage(){
     <span><b>{a.totalWrong} / {a.totalAttempts}</b><small>wrong / attempts · lifetime</small></span>
    </section>
    <section className="daily-review-card">
-    <div className="daily-review-meta"><span>{q.topic||a.topic}</span>{a.dailyReason&&<span>{a.dailyReason}</span>}{q.revisionApplied&&<span>AI revision in use</span>}</div>
+    <div className="daily-review-meta"><span>{q.topic||a.topic}</span>{a.dailyReason&&<span>{a.dailyReason}</span>}{category==="proven_mastered"&&a.masteredOn&&<span>Mastered {formatAttemptTime(a.masteredOn)}</span>}{q.revisionApplied&&<span>AI revision in use</span>}</div>
     <h2>{q.question}</h2>
     <div className="daily-review-options">{(q.options||[]).map(opt=>{
       const key=String(opt.key||"").toUpperCase();
@@ -120,7 +120,7 @@ export default function DailyAnalysisReviewPage(){
     <div className="daily-review-answer"><span>Correct answer</span><b>{correct||"—"}</b>{selected&&<small>Your latest in {rangeLabel(categoryRange).toLowerCase()}: {selected} · {a.latestCorrect?"Correct":"Wrong"}</small>}</div>
    </section>
    {q.explanation&&<section className="daily-review-explanation"><span>Explanation</span><p>{q.explanation}</p>{q.example&&<p><b>Example:</b> {q.example}</p>}{q.tip&&<p><b>Tip:</b> {q.tip}</p>}</section>}
-   <section className="daily-review-why"><span>Why it is here</span><p>{whyHere(category,a.dailyReason,a.conceptState,periodWrong,a.totalWrong,categoryRange)}</p></section>
+   <section className="daily-review-why"><span>Why it is here</span><p>{whyHere(category,a.currentState,a.conceptState,periodWrong,a.totalWrong,categoryRange,a.masteredOn)}</p></section>
 
    <section className="daily-review-attempts" aria-label="Review only · nothing is recorded here">
     <div className="daily-review-section-head">
@@ -148,13 +148,14 @@ function attemptSummaryText(data:DailyAnalysisDetail){
  return `${s.correct} correct · ${s.wrong} wrong · ${s.total} attempts`;
 }
 
-function whyHere(category:string,dailyReason?:string,conceptState?:string,periodWrong=0,totalWrong=0,range:DailyAnalysisRange="today"){
+function whyHere(category:string,currentState?:string,conceptState?:string,periodWrong=0,totalWrong=0,range:DailyAnalysisRange="today",masteredOn?:string){
  const period=rangeLabel(range).toLowerCase();
- if(category==="persistent_weak")return periodWrong>0?`It entered the selected Daily period as Persistent Weak and was wrong ${periodWrong} time${periodWrong===1?"":"s"} in ${period}.`:`It entered the selected Daily period as Persistent Weak because the weakness has persisted across practice.`;
- if(category==="weak")return periodWrong>0?`It entered the selected Daily period as Weak and was missed again in ${period}.`:"It entered Daily as Weak based on repeated error evidence.";
- if(category==="retention_risk")return `The concept was recorded as ${stateLabel(conceptState||"retention_risk")} for this Daily review evidence: earlier learning was not holding reliably enough.`;
- if(category==="fragile_learning")return `It entered Daily as ${dailyReason||"Fragile / Learning"}; the concept is still stabilising.`;
- if(category==="due_revision")return "It entered Daily for spaced revision. Review the answer pattern rather than memorising the option position.";
- return totalWrong?`This item has ${totalWrong} recorded wrong attempt${totalWrong===1?"":"s"}.`:"This item is part of Daily review.";
+ if(category==="proven_mastered")return `It transitioned into Proven Mastered${masteredOn?` on ${formatAttemptTime(masteredOn)}`:""} after meeting the spaced checkpoint rule. This is a mastery transition in ${period}, not your lifetime mastery total.`;
+ if(category==="persistent_weak")return periodWrong>0?`It is currently Persistent Weak and was wrong ${periodWrong} time${periodWrong===1?"":"s"} in ${period}.`:`It is currently Persistent Weak based on repeated checkpoint failures.`;
+ if(category==="weak")return periodWrong>0?`It is currently Weak and was missed again in ${period}.`:`It is currently Weak based on recent checkpoint evidence.`;
+ if(category==="retention_risk")return `Its concept is currently ${stateLabel(conceptState||"retention_risk")}; earlier learning is not holding reliably enough.`;
+ if(category==="fragile_learning")return `Its current learning state is ${stateLabel(currentState||"Learning")}; the memory is still stabilising.`;
+ if(category==="due_revision")return "Its spaced-review time is currently due, and the question was active in the selected period.";
+ return totalWrong?`This item has ${totalWrong} recorded wrong attempt${totalWrong===1?"":"s"}.`:"This item is part of your English learning history.";
 }
 function moduleLabel(value:string){return String(value||"").replaceAll("_"," ").replace(/\b\w/g,c=>c.toUpperCase())}
