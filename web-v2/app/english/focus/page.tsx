@@ -8,7 +8,7 @@ import { flushPendingAnswers, learnerErrorMessage, localProductionSafetyMode, pe
 import { useAuthGuard } from "@/lib/use-auth";
 
 type LaneKey = "repair" | "coverage" | "fast_track";
-type RunningKey = LaneKey | "review_due";
+type RunningKey = LaneKey | "review_due" | "language";
 type LaneProgress = { target:number; nominalTarget:number; completed:number; remaining:number; done:boolean };
 type FocusSummary = {
   ok:boolean;
@@ -21,7 +21,15 @@ type FocusSummary = {
   remaining:number;
   nominalTarget:number;
   buildVersion?:"legacy"|"v3"|string;
-  lanes:{ repair:LaneProgress; coverage:LaneProgress; fastTrack:LaneProgress };
+  languageIntegrated?:boolean;
+  lanes:{
+    repair:LaneProgress;
+    coverage:LaneProgress;
+    fastTrack:LaneProgress;
+    grammar:LaneProgress;
+    phrasal:LaneProgress;
+    language:LaneProgress;
+  };
 };
 type ReviewDueSummary = {
   ok:boolean;
@@ -45,7 +53,7 @@ type ReviewDueSummary = {
 
 type Question = { id:string; question:string; options:{key:string;text:string}[] };
 
-const lanes:{key:LaneKey;summaryKey:keyof FocusSummary["lanes"];icon:string;title:string;subtitle:string;module:string;fastTrack:boolean;accent:string}[] = [
+const lanes:{key:LaneKey;summaryKey:"repair"|"coverage"|"fastTrack";icon:string;title:string;subtitle:string;module:string;fastTrack:boolean;accent:string}[] = [
   { key:"repair", summaryKey:"repair", icon:"◎", title:"Repair Intelligence", subtitle:"Learning Need Engine · Weak/PW · Targeted · fragile risk · Saved/Starred rotation", module:"dailyfocusrepair", fastTrack:false, accent:"accent-starred" },
   { key:"coverage", summaryKey:"coverage", icon:"▦", title:"Bank Coverage", subtitle:"20 pending siblings from seen concepts · 50 new canonical concepts", module:"bankcoverage", fastTrack:false, accent:"accent-bank" },
   { key:"fast_track", summaryKey:"fastTrack", icon:"⚡", title:"Fast-Track Mastery", subtitle:"Existing Central Intelligence Fast Track queue", module:"fasttrack", fastTrack:true, accent:"accent-phrasal" },
@@ -111,6 +119,17 @@ export default function DailyFocusPage(){
         onExit={()=>{setRunning(null);void refresh();void refreshReview();}}
       />;
     }
+    if(running==="language"){
+      const lane=summary.lanes.language;
+      return <QuizRunner
+        title={`Grammar + Phrasal · ${lane.completed}/${lane.target}`}
+        backHref="/english/focus"
+        load={load}
+        module="dailyfocus"
+        emptyText="Today’s Grammar + Phrasal Focus is already complete."
+        onExit={()=>{setRunning(null);void refresh();void refreshReview();}}
+      />;
+    }
     const config=lanes.find(x=>x.key===running)!;
     const lane=summary.lanes[config.summaryKey];
     return <QuizRunner
@@ -133,23 +152,30 @@ export default function DailyFocusPage(){
   const reviewCarryover=Math.max(0,reviewDue?.carryoverConcepts||0);
   const reviewDone=!!reviewDue?.snapshotReady&&reviewActionable===0;
   const focusDenominator=summary?.nominalTarget||170;
+  const language=summary?.lanes.language;
+  const grammar=summary?.lanes.grammar;
+  const phrasal=summary?.lanes.phrasal;
+  const languageDone=!!language?.done;
   const reviewSubtitle=!reviewDue?.snapshotReady
     ?"Midnight Review Due snapshot is not ready yet"
     :reviewDone
       ?`All ${reviewDue.dueAtStart} scheduled reviews covered${reviewCarryover?` · ${reviewCarryover} carried in`:""}`
       :`${reviewCovered} covered${reviewDue.satisfiedElsewhere?` · ${reviewDue.satisfiedElsewhere} elsewhere`:""}${reviewCarryover?` · ${reviewCarryover} carryover`:""} · ${reviewActionable} left · separate from ${focusDenominator}`;
+  const languageSubtitle=languageDone
+    ?"Completed — this batch will not restart"
+    :`Central Intelligence · Grammar ${grammar?.completed??0}/${grammar?.target??15} · Phrasal ${phrasal?.completed??0}/${phrasal?.target??15} · Weak/Due/Fragile/New`;
 
   return <section className="route-page">
     <div className="route-head">
       <Link className="btn ghost" href="/english">← Home</Link>
-      <div><span className="eyebrow">Central Intelligence · mandatory routing</span><h1>Daily Focus</h1><p>One frozen {focusDenominator}-question maximum mission plus today’s dynamic scheduled-review watchlist.</p></div>
+      <div><span className="eyebrow">Central Intelligence · mandatory routing</span><h1>Daily Focus</h1><p>One frozen {focusDenominator}-question mission plus today’s dynamic scheduled-review watchlist.</p></div>
     </div>
 
     {error&&<div className="error-box">{error}</div>}
 
     <section className="daily-active-card">
       <div className="daily-active-top">
-        <div className="daily-active-copy"><span className="eyebrow">{summary?.carryover?"Carry-over batch":"Today’s Focus"}</span><h1>{allDone?"Daily Focus complete":"Mandatory focus work"}</h1><p>{summary?.carryover?`Finish ${summary.batchDate} before a fresh batch unlocks.`:"Repair learning needs, expose the canonical bank, then clear Fast Track. Review Due Today remains the separate scheduler-owned watchlist."}</p></div>
+        <div className="daily-active-copy"><span className="eyebrow">{summary?.carryover?"Carry-over batch":"Today’s Focus"}</span><h1>{allDone?"Daily Focus complete":"Mandatory focus work"}</h1><p>{summary?.carryover?`Finish ${summary.batchDate} before a fresh batch unlocks.`:"Repair learning needs, expose the canonical bank, clear Fast Track, then reinforce 15 Grammar + 15 Phrasal concepts selected by Central Intelligence. Review Due Today remains the separate scheduler-owned watchlist."}</p></div>
         <div className="daily-active-side"><strong>{summary?`${completed} / ${total}`:"—"}</strong>{allDone&&<span className="today-badge">✓ Done</span>}</div>
       </div>
       <div className="progress-track daily-active-progress"><i style={{width:`${percent}%`}}/></div>
@@ -174,13 +200,19 @@ export default function DailyFocusPage(){
           <span className="row-status">{reviewDue?.snapshotReady?(reviewDone?"Done":`${reviewActionable} left`):"…"}</span>
           <i>{reviewDone?"✓":"›"}</i>
         </button>
+        <button type="button" className="study-row home-quick-row accent-phrasal" disabled={!summary||!language||languageDone||localSafe} onClick={()=>{if(!languageDone)setRunning("language");}}>
+          <span className="row-icon">{languageDone?"✓":"Aa"}</span>
+          <span className="row-copy"><b>Grammar + Phrasal · 30</b><small>{languageSubtitle}</small></span>
+          <span className="row-status">{language?`${language.completed} / ${language.target}`:"…"}</span>
+          <i>{languageDone?"✓":"›"}</i>
+        </button>
       </div>
       {localSafe&&<p className="route-safe-note">Local Safe is active: Daily Focus and Review Due Today answer writes are disabled against production data.</p>}
     </section>
 
     <section className="route-start">
       <h2>Routing contract</h2>
-      <p>{summary?.buildVersion==="v3"?"Repair is owned by the canonical Learning Need Engine: up to 50 critical learning needs, 15 protected anti-starvation Saved/Starred items, and adaptive fill up to 70 total. ":"This frozen legacy batch preserves its original 50-item Repair allocation. New v3 batches use the canonical Learning Need Engine with Repair up to 70. "}Bank Coverage remains Central Intelligence-owned: up to 20 questions come from unattempted siblings inside canonical concepts already seen, while up to 50 come from genuinely new canonical concepts with category-balanced routing. Fast Track reuses the existing mastery-verification route. Review Due Today is the scheduler-owned watchlist and does not count toward the Daily Focus denominator. Unresolved scheduled reviews carry forward. Any durable attempt made inside Review Due Today covers that concept’s obligation for that day whether correct or wrong; answer quality still feeds Central Intelligence and the normal next-review scheduler. Valid strong evidence from another module may cross-credit Review Due, while a wrong answer elsewhere does not cover it. The same canonical concept cannot appear twice in one Daily Focus batch.</p>
+      <p>{summary?.buildVersion==="v3"?"Repair is owned by the canonical Learning Need Engine: up to 50 critical learning needs, 15 protected anti-starvation Saved/Starred items, and adaptive fill up to 70 total. ":"This frozen legacy batch preserves its original Repair allocation. "}Bank Coverage remains Central Intelligence-owned: up to 20 questions come from unattempted siblings inside canonical concepts already seen, while up to 50 come from genuinely new canonical concepts with category-balanced routing. Fast Track reuses the existing mastery-verification route. Grammar + Phrasal adds exactly 30 Central Intelligence-selected concepts: 15 Grammar rules and 15 Phrasal concepts, prioritising Persistent Weak/Weak, recent failures, Fragile, Due, then useful unseen/never-revised material. Same-day Grammar Daily and Phrasal Daily concepts are excluded, mastered concepts are excluded, and the same canonical concept cannot appear twice in one Daily Focus batch. Review Due Today is the scheduler-owned watchlist and does not count toward the Daily Focus denominator. Unresolved scheduled reviews carry forward. Any durable attempt made inside Review Due Today covers that concept’s obligation for that day whether correct or wrong; answer quality still feeds Central Intelligence and the normal next-review scheduler. Valid strong evidence from another module may cross-credit Review Due, while a wrong answer elsewhere does not cover it.</p>
     </section>
   </section>;
 }
