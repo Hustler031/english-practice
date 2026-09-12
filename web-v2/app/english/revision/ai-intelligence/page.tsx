@@ -1,126 +1,94 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect,useMemo,useState } from "react";
+import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/learner-ui";
-import {
- changedOptionKeys,clean,contextChanges,contextStatus,contextSummary,feedbackLabel,option,
- revisionChangeText,revisionFallback,revisionStatus,revisionSummary,timeAgo,
- type ContextUpdate,type RevisionPayload,type RevisionUpdate,type Updates
-} from "@/lib/learning-ai-updates";
-import { learnerErrorMessage,rpc } from "@/lib/supabase";
+import type { DailyAnalysisSummary } from "@/lib/daily-analysis";
+import type { Updates } from "@/lib/learning-ai-updates";
+import { learnerErrorMessage, rpc } from "@/lib/supabase";
 import { useAuthGuard } from "@/lib/use-auth";
 
-type FeedItem={kind:"context";createdAt:string;item:ContextUpdate}|{kind:"revision";createdAt:string;item:RevisionUpdate};
+type WorkerState={healthy:boolean;lastRun?:string;status?:string};
+type WorkerHealth={workers:{semantic:WorkerState;learning:WorkerState;quality:WorkerState};queued:number;processing:number;retrying:number;failed7d:number;oldestPendingAt?:string};
+type QualityItem={reviewId:string;questionId:string;displayName:string;topic?:string;learnerNote?:string;status:string;verdict?:"valid"|"issue_suspected";rationale?:string;confidence?:number;markedAnswer?:string;recommendedAnswer?:string;createdAt:string;reviewedAt?:string};
+type QualityUpdates={ok:boolean;summary:{total:number;pending:number;reviewed:number;valid:number;issues:number;failed:number};items:QualityItem[]};
 
 export default function LearningInsightsPage(){
  const ready=useAuthGuard();
  const [updates,setUpdates]=useState<Updates|null>(null);
+ const [workerHealth,setWorkerHealth]=useState<WorkerHealth|null>(null);
+ const [quality,setQuality]=useState<QualityUpdates|null>(null);
+ const [dailyAnalysis,setDailyAnalysis]=useState<DailyAnalysisSummary|null>(null);
  const [error,setError]=useState("");
  const [loading,setLoading]=useState(true);
 
  useEffect(()=>{
   if(!ready)return;
   let alive=true;
-  rpc<Updates>("english_get_learning_ai_updates",{p_limit:60})
-   .then(x=>alive&&setUpdates(x))
-   .catch((e:any)=>alive&&setError(learnerErrorMessage(e,"Could not load Learning Insights.")))
-   .finally(()=>alive&&setLoading(false));
+  Promise.all([
+   rpc<Updates>("english_get_learning_ai_updates",{p_limit:40}),
+   rpc<WorkerHealth>("english_get_ai_worker_health"),
+   rpc<QualityUpdates>("english_get_question_quality_updates",{p_limit:20})
+  ]).then(([u,w,q])=>{if(!alive)return;setUpdates(u);setWorkerHealth(w);setQuality(q)})
+    .catch((e:any)=>alive&&setError(learnerErrorMessage(e,"Could not load Learning Insights.")))
+    .finally(()=>alive&&setLoading(false));
+  rpc<DailyAnalysisSummary>("english_get_daily_analysis_summary").then(x=>alive&&setDailyAnalysis(x)).catch(()=>{});
   return()=>{alive=false};
  },[ready]);
 
- const feed=useMemo<FeedItem[]>(()=>{
-  if(!updates)return[];
-  const linked=new Set((updates.contextUpdates||[]).map(x=>x.contentProposalId).filter(Boolean));
-  return [
-   ...(updates.contextUpdates||[]).map(item=>({kind:"context" as const,createdAt:item.createdAt,item})),
-   ...(updates.revisionUpdates||[]).filter(item=>!linked.has(item.proposalId)).map(item=>({kind:"revision" as const,createdAt:item.createdAt,item}))
-  ].sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime());
- },[updates]);
-
  if(!ready)return null;
+ const summary=updates?.summary;
+ const working=(summary?.contextPending||0)+(summary?.revisionWorking||0)+(quality?.summary.pending||0);
+ const attention=(summary?.contextFailed||0)+(summary?.revisionFailed||0)+(quality?.summary.failed||0)+(quality?.summary.issues||0);
+ const improved=(summary?.revisionReady||0)+(summary?.revisionApplied||0);
+
  return <main className="top-level-parity learner-rebuild-page learner-insights-page ai-only-insights-page">
-  <PageHeader back={<Link href="/english/revision" className="back-link">← Revision</Link>} eyebrow="AI change log" title="Learning Insights" subtitle="What you asked → what AI did. Open any item to read the new explanation or options."/>
+  <PageHeader back={<Link href="/english/revision" className="back-link">← Revision</Link>} eyebrow="AI learning activity" title="Learning Insights" subtitle="See what AI understood and changed."/>
   {error&&<div className="error-box">{error}</div>}
-  {loading?<div className="loading-copy">Loading your AI changes…</div>:feed.length?
-   <section className="ai-focused-list" aria-label="Your AI learning changes">
-    {feed.map(row=>row.kind==="context"?<ContextInsight key={`c-${row.item.noteId}`} item={row.item}/>:<RevisionInsight key={`r-${row.item.proposalId}`} item={row.item}/>) }
+  {loading?<div className="loading-copy">Loading AI updates…</div>:<>
+   <section className="ai-hub-grid" aria-label="Learning Insights sections">
+    <Link className="ai-hub-card tone-good" href="/english/revision/ai-intelligence/context">
+     <span><b>What AI understood</b><small>Your context notes</small></span><strong>{summary?.contextDone||0}</strong><i>›</i>
+    </Link>
+    <Link className="ai-hub-card tone-soon" href="/english/revision/ai-intelligence/improvements">
+     <span><b>Question improvements</b><small>Ready revisions</small></span><strong>{improved}</strong><i>›</i>
+    </Link>
+    <div className="ai-hub-card tone-good static"><span><b>Answer doubts</b><small>Independent AI reviews</small></span><strong>{quality?.summary.reviewed||0}</strong></div>
+    <div className="ai-hub-card tone-later static"><span><b>AI working</b><small>In progress</small></span><strong>{working}</strong></div>
+    <div className={`ai-hub-card ${attention?"tone-fix":"tone-neutral"} static`}><span><b>Needs attention</b><small>Failed checks or flagged answers</small></span><strong>{attention}</strong></div>
    </section>
-   :<div className="learner-empty">No AI changes yet. Use Add Context or Improve Question while practising.</div>}
+
+   {!!quality?.items?.length&&<section className="learner-section">
+    <div className="section-title-line"><h2>Answer doubt reviews</h2><span className="muted">{quality.summary.pending?`${quality.summary.pending} waiting`:"Up to date"}</span></div>
+    <div className="ai-focused-list">{quality.items.slice(0,8).map(item=><QualityReviewItem key={item.reviewId} item={item}/>)}</div>
+   </section>}
+
+   {workerHealth&&<details className="insights-how-details learner-section ai-health-details"><summary><span><b>Background AI health</b><small>Technical status only.</small></span></summary><div className="insights-how-copy"><p><b>Understanding:</b> {healthText(workerHealth.workers.semantic)} · <b>Learning:</b> {healthText(workerHealth.workers.learning)} · <b>Question quality:</b> {healthText(workerHealth.workers.quality)}</p><p><b>Queued:</b> {workerHealth.queued} · <b>Processing:</b> {workerHealth.processing} · <b>Retrying:</b> {workerHealth.retrying} · <b>Failed (7d):</b> {workerHealth.failed7d}</p>{workerHealth.oldestPendingAt&&<p>Oldest pending: {timeAgo(workerHealth.oldestPendingAt)}</p>}</div></details>}
+
+   <Link className="ai-daily-analysis-launch" href="/english/revision/ai-intelligence/daily-analysis">
+    <span><b>Daily Analysis</b><small>Inspect today’s weak and due questions</small></span>
+    <strong>{dailyAnalysis?.relevantCount??"…"}</strong><i>›</i>
+   </Link>
+  </>}
  </main>;
 }
 
-function ContextInsight({item}:{item:ContextUpdate}){
- const changes=contextChanges(item);
- const hasRevision=!!item.contentRevised;
- const reviseQuestionId=item.questionId;
- return <details className="ai-focused-item">
-  <summary><span><b>{item.displayName}</b><small>{contextSummary(item)}</small></span><em>{contentStatusLabel(item)} · {timeAgo(item.createdAt)}</em><i>›</i></summary>
-  <div className="ai-focused-body">
-   <section className="ai-insight-detail-card"><span className="ai-detail-kicker">You asked</span><p>{item.learnerNote||"No written note was saved."}</p></section>
-   <section className="ai-insight-detail-card emphasis"><span className="ai-detail-kicker">AI did</span>
-    {hasRevision?<><p>{revisionChangeText(item.contentOriginal,item.contentRevised)}</p><ChangePreview original={item.contentOriginal} revised={item.contentRevised}/></>
-    :changes.length?<ul>{changes.map((x,i)=><li key={`${item.noteId}-${i}`}>{x}</li>)}</ul>
-    :item.status==="failed"?<p>AI could not finish this request. Your existing question was left unchanged.</p>
-    :item.status==="queued"||item.status==="processing"?<p>AI is working in the background. You can keep studying normally.</p>
-    :<p>Your note was saved. No question-content change was needed.</p>}
-   </section>
-   {item.contentQualityNote&&<details className="insights-how-details"><summary><span><b>Quality check</b><small>Why this change passed</small></span></summary><div className="insights-how-copy"><p>{item.contentQualityNote}</p></div></details>}
-   <ReviseAgain questionId={reviseQuestionId}/>
-  </div>
- </details>;
+function QualityReviewItem({item}:{item:QualityItem}){
+ const pending=item.status==="queued"||item.status==="processing";
+ const valid=item.status==="reviewed"&&item.verdict==="valid";
+ const issue=item.status==="reviewed"&&item.verdict==="issue_suspected";
+ const summary=pending?"AI is independently checking the marked answer.":valid?"The marked answer was independently verified.":issue?"AI found a possible answer or ambiguity issue.":item.status==="failed"?"The review could not finish safely.":"Answer review recorded.";
+ return <details className="ai-focused-item"><summary><span><b>{item.displayName}</b><small>{summary}</small></span><em>{pending?"Reviewing":valid?"Verified":issue?"Check needed":item.status==="failed"?"Needs attention":"Recorded"} · {timeAgo(item.createdAt)}</em><i>›</i></summary><div className="ai-focused-body">
+  {item.learnerNote&&<section className="ai-insight-detail-card"><span className="ai-detail-kicker">Your doubt</span><p>{item.learnerNote}</p></section>}
+  <section className={`ai-insight-detail-card ${issue?"emphasis":""}`}><span className="ai-detail-kicker">AI review</span>
+   {pending?<p>The review is queued in the background. Your canonical question remains unchanged while it is checked.</p>:item.status==="failed"?<p>The review service did not complete. The question was not changed.</p>:<>
+    {valid&&item.markedAnswer&&<p><b>Conclusion:</b> “{item.markedAnswer}” remains the supported answer.</p>}
+    {issue&&<p><b>Conclusion:</b> A possible content issue was found. The canonical question has not been changed automatically.{item.recommendedAnswer?` The review points to “${item.recommendedAnswer}” for verification.`:""}</p>}
+    {item.rationale&&<p>{item.rationale}</p>}
+   </>}
+  </section>
+ </div></details>;
 }
 
-function RevisionInsight({item}:{item:RevisionUpdate}){
- const reviseQuestionId=item.questionId;
- return <details className="ai-focused-item">
-  <summary><span><b>{item.displayName}</b><small>{revisionSummary(item)}</small></span><em>{revisionStatus(item.status)} · {timeAgo(item.createdAt)}</em><i>›</i></summary>
-  <div className="ai-focused-body">
-   <section className="ai-insight-detail-card"><span className="ai-detail-kicker">You asked</span><p>{item.feedbackNote||feedbackLabel(item.feedbackReason)}</p></section>
-   <section className="ai-insight-detail-card emphasis"><span className="ai-detail-kicker">AI did</span>
-    {item.revised?<><p>{revisionChangeText(item.original,item.revised)}</p><ChangePreview original={item.original} revised={item.revised}/></>:<p>{revisionFallback(item.status)}</p>}
-   </section>
-   {item.qualityNote&&<details className="insights-how-details"><summary><span><b>Quality check</b><small>Why this change passed</small></span></summary><div className="insights-how-copy"><p>{item.qualityNote}</p></div></details>}
-   <ReviseAgain questionId={reviseQuestionId}/>
-  </div>
- </details>;
-}
-
-function ChangePreview({original,revised}:{original?:RevisionPayload;revised?:RevisionPayload}){
- if(!revised)return null;
- const changed=changedOptionKeys(original,revised);
- const questionChanged=!!original&&clean(original.question)!==clean(revised.question);
- const explanationChanged=!original||clean(original.explanation)!==clean(revised.explanation);
- return <div className="ai-revision-version">
-  {questionChanged&&<div className="ai-insight-detail-card"><span className="ai-detail-kicker">New question wording</span><p>{revised.question}</p></div>}
-  {!!changed.length&&<div className="ai-insight-detail-card"><span className="ai-detail-kicker">Changed options</span><div className="ai-option-compare">{changed.map(key=><div className="ai-option-line changed" key={key}><b>{key}</b><span>{option(revised,key)}</span><em>changed</em></div>)}</div></div>}
-  {explanationChanged&&revised.explanation&&<div className="ai-insight-detail-card"><span className="ai-detail-kicker">New explanation</span><p>{revised.explanation}</p></div>}
- </div>;
-}
-
-function ReviseAgain({questionId}:{questionId:string}){
- const [open,setOpen]=useState(false);const [note,setNote]=useState("");const [busy,setBusy]=useState(false);const [message,setMessage]=useState("");const [error,setError]=useState("");
- async function submit(){
-  if(busy||note.trim().length<2)return;
-  setBusy(true);setError("");setMessage("");
-  try{
-   await rpc("english_save_context_note",{p_question_id:questionId,p_note:note.trim(),p_attempt_id:null,p_context_snapshot:{route:"Learning Insights",module:"learninginsights"}});
-   setMessage("Sent. AI will handle it in the background — you can keep studying.");setNote("");setOpen(false);
-  }catch(e:any){setError(learnerErrorMessage(e,"Could not send this revision note."));}
-  finally{setBusy(false);}
- }
- return <div className="question-revision-actions">
-  <button className="btn ghost" type="button" onClick={()=>{setOpen(v=>!v);setMessage("");setError("");}}>Revise again</button>
-  {open&&<div className="ai-help-panel question-improve-sheet"><strong>What is still wrong or unclear?</strong><span>Write naturally. You can ask for a simpler explanation, meanings of all options, closer options, or tell AI what you still confuse.</span><input value={note} maxLength={600} onChange={e=>setNote(e.target.value)} placeholder="Example: explanation is still too vague; explain part with vs part from with examples"/><button className="btn primary" type="button" disabled={busy||note.trim().length<2} onClick={()=>void submit()}>{busy?"Sending…":"Send to AI"}</button></div>}
-  {message&&<div className="context-saved">{message}</div>}{error&&<div className="error-box">{error}</div>}
- </div>;
-}
-
-function contentStatusLabel(item:ContextUpdate){
- const status=String(item.contentStatus||"").toLowerCase();
- if(status==="applied")return"In use";
- if(status==="ready")return"Ready";
- if(status==="queued"||status==="processing")return"Working";
- if(status==="failed")return"Needs attention";
- return contextStatus(item.status);
-}
+function timeAgo(value:string){const t=new Date(value).getTime();if(!Number.isFinite(t))return"unknown";const mins=Math.max(0,Math.round((Date.now()-t)/60000));return mins<2?"just now":mins<60?`${mins} min ago`:mins<1440?`${Math.round(mins/60)} hr ago`:`${Math.round(mins/1440)} d ago`}
+function healthText(x:WorkerState){return x?.healthy?"Healthy":x?.status?`Needs attention (${x.status})`:"No recent scheduler run"}
