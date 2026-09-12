@@ -53,6 +53,7 @@ export default function LearningInsightsPage(){
 function ContextInsight({item}:{item:ContextUpdate}){
  const changes=contextChanges(item);
  const hasRevision=!!item.contentRevised;
+ const reviseQuestionId=item.questionId;
  return <details className="ai-focused-item">
   <summary><span><b>{item.displayName}</b><small>{contextSummary(item)}</small></span><em>{contentStatusLabel(item)} · {timeAgo(item.createdAt)}</em><i>›</i></summary>
   <div className="ai-focused-body">
@@ -65,12 +66,13 @@ function ContextInsight({item}:{item:ContextUpdate}){
     :<p>Your note was saved. No question-content change was needed.</p>}
    </section>
    {item.contentQualityNote&&<details className="insights-how-details"><summary><span><b>Quality check</b><small>Why this change passed</small></span></summary><div className="insights-how-copy"><p>{item.contentQualityNote}</p></div></details>}
-   <ReviseAgain questionId={item.questionId}/>
+   <ReviseAgain questionId={reviseQuestionId}/>
   </div>
  </details>;
 }
 
 function RevisionInsight({item}:{item:RevisionUpdate}){
+ const reviseQuestionId=item.questionId;
  return <details className="ai-focused-item">
   <summary><span><b>{item.displayName}</b><small>{revisionSummary(item)}</small></span><em>{revisionStatus(item.status)} · {timeAgo(item.createdAt)}</em><i>›</i></summary>
   <div className="ai-focused-body">
@@ -79,7 +81,7 @@ function RevisionInsight({item}:{item:RevisionUpdate}){
     {item.revised?<><p>{revisionChangeText(item.original,item.revised)}</p><ChangePreview original={item.original} revised={item.revised}/></>:<p>{revisionFallback(item.status)}</p>}
    </section>
    {item.qualityNote&&<details className="insights-how-details"><summary><span><b>Quality check</b><small>Why this change passed</small></span></summary><div className="insights-how-copy"><p>{item.qualityNote}</p></div></details>}
-   <ReviseAgain questionId={item.questionId}/>
+   <ReviseAgain questionId={reviseQuestionId}/>
   </div>
  </details>;
 }
