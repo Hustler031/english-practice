@@ -1,0 +1,37 @@
+name: Validate Phrasal Usage V2
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/20260913201000_english_phrasal_usage_intelligence_v2.sql'
+      - 'supabase/migrations/20260913201100_english_phrasal_daily_usage_curriculum.sql'
+      - 'supabase/migrations/20260913201200_english_phrasal_focus_usage_router_v2.sql'
+      - 'web-v2/scripts/validate-phrasal-usage-v2.mjs'
+      - 'web-v2/package.json'
+      - '.github/workflows/validate-phrasal-usage-v2.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/20260913201000_english_phrasal_usage_intelligence_v2.sql'
+      - 'supabase/migrations/20260913201100_english_phrasal_daily_usage_curriculum.sql'
+      - 'supabase/migrations/20260913201200_english_phrasal_focus_usage_router_v2.sql'
+      - 'web-v2/scripts/validate-phrasal-usage-v2.mjs'
+      - 'web-v2/package.json'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web-v2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web-v2/package-lock.json
+      - run: npm ci
+      - run: npm run contracts:phrasal-usage-v2
+      - run: npm run typecheck
+      - run: npm run build
