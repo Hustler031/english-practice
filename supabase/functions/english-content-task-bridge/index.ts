@@ -68,8 +68,10 @@ Deno.serve(async(req)=>{
   // Legacy transport ref `automation/english-hindu` now carries Daily Confusion 15.
   if(action==="ingest"){
     const items=Array.isArray(body?.items)?body.items:null;
+    const masterBank=Array.isArray(body?.masterBank)?body.masterBank:undefined;
     if(!items||items.length<1||items.length>15)return json({error:"Daily Confusion ingest requires 1-15 ChatGPT-generated master-bank items"},400);
-    try{return json(await ingestSubmittedConfusionItems(db,items))}catch(e){return json({ok:false,lane:"hindu",contentLane:"daily_confusion",mode:"sheet_ingest",error:errorText(e)},500)}
+    if(masterBank&&masterBank.length>500)return json({error:"Daily Confusion masterBank snapshot may contain at most 500 rows"},400);
+    try{return json(await ingestSubmittedConfusionItems(db,items,masterBank))}catch(e){return json({ok:false,lane:"hindu",contentLane:"daily_confusion",mode:"sheet_ingest",error:errorText(e)},500)}
   }
   if(action==="claim"){
     const{data,error}=await db.rpc("english_hindu_task_claim");
