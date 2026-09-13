@@ -13,7 +13,8 @@
     "contracts:grammar-stage1": "node scripts/validate-grammar-stage1.mjs",
     "contracts:grammar-stage2": "node scripts/validate-grammar-stage2.mjs",
     "contracts:grammar-stage3": "node scripts/validate-grammar-stage3.mjs",
-    "contracts:daily-confusion-phase1": "node scripts/validate-daily-confusion-phase1.mjs"
+    "contracts:daily-confusion-phase1": "node scripts/validate-daily-confusion-phase1.mjs",
+    "contracts:phrasal-usage-v2": "node scripts/validate-phrasal-usage-v2.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.112.4",
