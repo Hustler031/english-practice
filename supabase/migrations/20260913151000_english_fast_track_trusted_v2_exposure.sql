@@ -1,6 +1,10 @@
 -- Fast Track must verify concepts the learner has actually encountered in the current V2 system.
 -- Legacy imported attempts remain historical evidence, but cannot by themselves qualify a concept for Fast Track.
 
+create index if not exists english_attempts_user_concept_idx
+  on english.attempts(user_id, concept_id, attempted_at desc)
+  where concept_id is not null;
+
 create or replace function english.fast_track_has_trusted_v2_exposure(
   p_user_id uuid,
   p_question_id text
@@ -15,9 +19,9 @@ as $$
     select 1
     from english.attempts a
     where a.user_id = p_user_id
+      and a.concept_id = english.focus_concept_key(p_question_id)
       and coalesce(a.submission_key, '') like 'v2-%'
       and lower(coalesce(a.module, '')) <> 'fasttrack'
-      and english.focus_concept_key(a.question_id) = english.focus_concept_key(p_question_id)
   );
 $$;
 
