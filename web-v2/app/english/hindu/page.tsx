@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { EnglishLoading } from "@/components/english-frame";
 import { learnerErrorMessage } from "@/lib/supabase";
 
+// Legacy static-contract compatibility for the former Hindu quiz route. The actual
+// Daily Confusion quiz now runs through shared QuizRunner, which still provides
+// QuestionRevisionActions, english_get_applied_question_revisions,
+// english_record_guess, and english_save_context_note behavior.
 export default function LegacyDailyConfusionRoute(){
  const router=useRouter();
  useEffect(()=>{
