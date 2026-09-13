@@ -26,6 +26,45 @@ function structuralError(item:Json):string|null{
   return null;
 }
 
+function normalizeBankRows(raw:unknown,submitted:Json[]):Json[]{
+  const source=Array.isArray(raw)&&raw.length?raw:submitted;
+  if(source.length<1||source.length>500)throw new Error(`CONFUSION_BANK_SYNC_COUNT: expected 1-500 rows, got ${source.length}`);
+  const seen=new Set<string>();
+  const rows:Json[]=[];
+  for(const x of source as Json[]){
+    const bankId=String(x?.bankId??x?.bank_id??"").trim().toUpperCase();
+    const category=String(x?.category??"").trim();
+    const pairCluster=String(x?.pairCluster??x?.pair_cluster??"").trim();
+    if(!/^CB[0-9]{4}$/.test(bankId))throw new Error(`CONFUSION_BANK_SYNC_INVALID_ID: ${bankId||"blank"}`);
+    if(!CATEGORIES.has(category))throw new Error(`CONFUSION_BANK_SYNC_INVALID_CATEGORY: ${bankId} ${category}`);
+    if(!pairCluster)throw new Error(`CONFUSION_BANK_SYNC_MISSING_PAIR: ${bankId}`);
+    if(seen.has(bankId))throw new Error(`CONFUSION_BANK_SYNC_DUPLICATE_ID: ${bankId}`);
+    seen.add(bankId);
+    rows.push({bank_id:bankId,category,pair_cluster:pairCluster,learning_objective:String(x?.learningObjective??x?.learning_objective??pairCluster).trim()||pairCluster,priority_score:Number.isFinite(Number(x?.priorityScore??x?.priority_score))?Number(x?.priorityScore??x?.priority_score):80,source_note:"google_sheet_confusion_master_bank",active:true,updated_at:new Date().toISOString()});
+  }
+  return rows;
+}
+
+async function syncMasterBank(db:Db,raw:unknown,submitted:Json[]){
+  const rows=normalizeBankRows(raw,submitted);
+  const mode=Array.isArray(raw)&&raw.length?"full_sheet_snapshot":"selected_self_heal";
+  const schemaDb=db.schema("english");
+  const{error}=await schemaDb.from("confusion_master_bank").upsert(rows,{onConflict:"bank_id"});
+  if(error)throw new Error(`CONFUSION_BANK_SYNC_FAILED: ${error.message}`);
+
+  const ids=rows.map(x=>x.bank_id);
+  const{data,error:verifyError}=await schemaDb.from("confusion_master_bank").select("bank_id,category,pair_cluster,active").in("bank_id",ids);
+  if(verifyError)throw new Error(`CONFUSION_BANK_SYNC_VERIFY_FAILED: ${verifyError.message}`);
+  const got=new Map((data||[]).map((x:Json)=>[String(x.bank_id).toUpperCase(),x]));
+  for(const row of rows){
+    const x=got.get(row.bank_id) as Json|undefined;
+    if(!x||x.active!==true||String(x.category)!==row.category||String(x.pair_cluster).trim().toLowerCase()!==String(row.pair_cluster).trim().toLowerCase()){
+      throw new Error(`CONFUSION_BANK_SYNC_VERIFY_MISMATCH: ${row.bank_id}`);
+    }
+  }
+  return{mode,synced:rows.length,verified:rows.length};
+}
+
 async function releaseClaim(db:Db,runId:string,reason:unknown){
   if(!runId)return;
   try{await db.rpc("english_release_content_task_claim",{p_run_id:runId,p_lane:"hindu",p_reason:errorText(reason).slice(0,800)})}catch{/* best effort */}
@@ -37,16 +76,21 @@ async function recordAudits(db:Db,rows:Json[]){
   if(error)throw new Error(`CONFUSION_AUDIT_FAILED: ${error.message}`);
 }
 
-export async function ingestSubmittedConfusionItems(db:Db,submitted:Json[]){
+export async function ingestSubmittedConfusionItems(db:Db,submitted:Json[],masterBank?:unknown){
   if(!Array.isArray(submitted)||submitted.length<1||submitted.length>15){
     throw new Error("CONFUSION_SUBMITTED_COUNT: 1-15 fully generated Daily Confusion items are required");
   }
+
+  // Sheet is authoritative. Reconcile the backend bank BEFORE claim/check/apply so a newly added
+  // CBxxxx can never fail merely because the backend cache has not seen it yet. When a full
+  // masterBank snapshot is supplied, all rows are refreshed; otherwise selected rows self-heal.
+  const bankSync=await syncMasterBank(db,masterBank,submitted);
 
   const{data:claim,error:claimError}=await db.rpc("english_hindu_task_claim");
   if(claimError)throw new Error(`CONFUSION_CLAIM_FAILED: ${claimError.message}`);
   if(claim?.busy)throw new Error(`CONFUSION_BUSY: ${String(claim?.runId||"active run")}`);
   if(Number(claim?.count||0)===0){
-    return{ok:true,lane:"hindu",contentLane:"daily_confusion",mode:"sheet_ingest",complete:true,submitted:submitted.length,accepted:0,published:0,rejected:0,decisions:[]};
+    return{ok:true,lane:"hindu",contentLane:"daily_confusion",mode:"sheet_ingest",complete:true,submitted:submitted.length,accepted:0,published:0,rejected:0,decisions:[],bankSync};
   }
 
   const runId=String(claim?.runId||"");
@@ -69,7 +113,7 @@ export async function ingestSubmittedConfusionItems(db:Db,submitted:Json[]){
     if(!clean.length){
       await releaseClaim(db,runId,"No submitted Daily Confusion item passed structural gates");
       const list=[...decisions.values()].sort((a,b)=>Number(a.index)-Number(b.index));
-      return{ok:true,lane:"hindu",contentLane:"daily_confusion",mode:"sheet_ingest",runId,submitted:submitted.length,accepted:0,published:0,rejected:list.length,completeTarget:false,decisions:list};
+      return{ok:true,lane:"hindu",contentLane:"daily_confusion",mode:"sheet_ingest",runId,submitted:submitted.length,accepted:0,published:0,rejected:list.length,completeTarget:false,decisions:list,bankSync};
     }
 
     const{data:check,error:checkError}=await db.rpc("english_hindu_task_check_candidates",{
@@ -92,7 +136,7 @@ export async function ingestSubmittedConfusionItems(db:Db,submitted:Json[]){
     if(!approved.length){
       await releaseClaim(db,runId,"No submitted Daily Confusion item remained after bank checks");
       const list=[...decisions.values()].sort((a,b)=>Number(a.index)-Number(b.index));
-      return{ok:true,lane:"hindu",contentLane:"daily_confusion",mode:"sheet_ingest",runId,submitted:submitted.length,accepted:0,published:0,rejected:list.filter(x=>x.status==="rejected").length,completeTarget:false,decisions:list};
+      return{ok:true,lane:"hindu",contentLane:"daily_confusion",mode:"sheet_ingest",runId,submitted:submitted.length,accepted:0,published:0,rejected:list.filter(x=>x.status==="rejected").length,completeTarget:false,decisions:list,bankSync};
     }
 
     const{data:applied,error:applyError}=await db.rpc("english_hindu_task_apply",{p_run_id:runId,p_items:approved.map(x=>x.item)});
@@ -106,12 +150,12 @@ export async function ingestSubmittedConfusionItems(db:Db,submitted:Json[]){
       generatorModel:String(row.item.generatorModel||"scheduled_chatgpt"),
       repairCount:0,
       publicationResult:"applied",
-      metadata:{mode:"daily_confusion_sheet_submission",contentLane:"daily_confusion",bankId:row.item.bankId,category:row.item.category,pairCluster:row.item.pairCluster,secondAiCritic:false},
+      metadata:{mode:"daily_confusion_sheet_submission",contentLane:"daily_confusion",bankId:row.item.bankId,category:row.item.category,pairCluster:row.item.pairCluster,secondAiCritic:false,bankSyncMode:bankSync.mode},
     })));
 
     const list=[...decisions.values()].sort((a,b)=>Number(a.index)-Number(b.index));
     const completeTarget=Boolean(applied?.verify?.sourceComplete??applied?.apply?.sourceComplete??false);
-    return{ok:true,lane:"hindu",contentLane:"daily_confusion",mode:"sheet_ingest",runId,submitted:submitted.length,accepted:approved.length,published:approved.length,rejected:list.filter(x=>x.status==="rejected").length,completeTarget,decisions:list,applied};
+    return{ok:true,lane:"hindu",contentLane:"daily_confusion",mode:"sheet_ingest",runId,submitted:submitted.length,accepted:approved.length,published:approved.length,rejected:list.filter(x=>x.status==="rejected").length,completeTarget,decisions:list,applied,bankSync};
   }catch(e){
     await releaseClaim(db,runId,e);
     throw e;
