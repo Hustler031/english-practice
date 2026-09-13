@@ -40,29 +40,29 @@ function normalizeBankRows(raw:unknown,submitted:Json[]):Json[]{
     if(!pairCluster)throw new Error(`CONFUSION_BANK_SYNC_MISSING_PAIR: ${bankId}`);
     if(seen.has(bankId))throw new Error(`CONFUSION_BANK_SYNC_DUPLICATE_ID: ${bankId}`);
     seen.add(bankId);
-    rows.push({bank_id:bankId,category,pair_cluster:pairCluster,learning_objective:String(x?.learningObjective??x?.learning_objective??pairCluster).trim()||pairCluster,priority_score:Number.isFinite(Number(x?.priorityScore??x?.priority_score))?Number(x?.priorityScore??x?.priority_score):80,source_note:"google_sheet_confusion_master_bank",active:true,updated_at:new Date().toISOString()});
+    rows.push({
+      bank_id:bankId,
+      category,
+      pair_cluster:pairCluster,
+      learning_objective:String(x?.learningObjective??x?.learning_objective??pairCluster).trim()||pairCluster,
+      priority_score:Number.isFinite(Number(x?.priorityScore??x?.priority_score))?Number(x?.priorityScore??x?.priority_score):80
+    });
   }
   return rows;
 }
 
 async function syncMasterBank(db:Db,raw:unknown,submitted:Json[]){
   const rows=normalizeBankRows(raw,submitted);
-  const mode=Array.isArray(raw)&&raw.length?"full_sheet_snapshot":"selected_self_heal";
-  const schemaDb=db.schema("english");
-  const{error}=await schemaDb.from("confusion_master_bank").upsert(rows,{onConflict:"bank_id"});
+  const fullSnapshot=Array.isArray(raw)&&raw.length>0;
+  const{data,error}=await db.rpc("english_sync_confusion_master_bank",{
+    p_rows:rows,
+    p_full_snapshot:fullSnapshot,
+  });
   if(error)throw new Error(`CONFUSION_BANK_SYNC_FAILED: ${error.message}`);
-
-  const ids=rows.map(x=>x.bank_id);
-  const{data,error:verifyError}=await schemaDb.from("confusion_master_bank").select("bank_id,category,pair_cluster,active").in("bank_id",ids);
-  if(verifyError)throw new Error(`CONFUSION_BANK_SYNC_VERIFY_FAILED: ${verifyError.message}`);
-  const got=new Map((data||[]).map((x:Json)=>[String(x.bank_id).toUpperCase(),x]));
-  for(const row of rows){
-    const x=got.get(row.bank_id) as Json|undefined;
-    if(!x||x.active!==true||String(x.category)!==row.category||String(x.pair_cluster).trim().toLowerCase()!==String(row.pair_cluster).trim().toLowerCase()){
-      throw new Error(`CONFUSION_BANK_SYNC_VERIFY_MISMATCH: ${row.bank_id}`);
-    }
+  if(!data?.ok||Number(data?.verified||0)!==rows.length){
+    throw new Error(`CONFUSION_BANK_SYNC_VERIFY_FAILED: expected ${rows.length}, got ${Number(data?.verified||0)}`);
   }
-  return{mode,synced:rows.length,verified:rows.length};
+  return data as Json;
 }
 
 async function releaseClaim(db:Db,runId:string,reason:unknown){
@@ -81,9 +81,9 @@ export async function ingestSubmittedConfusionItems(db:Db,submitted:Json[],maste
     throw new Error("CONFUSION_SUBMITTED_COUNT: 1-15 fully generated Daily Confusion items are required");
   }
 
-  // Sheet is authoritative. Reconcile the backend bank BEFORE claim/check/apply so a newly added
-  // CBxxxx can never fail merely because the backend cache has not seen it yet. When a full
-  // masterBank snapshot is supplied, all rows are refreshed; otherwise selected rows self-heal.
+  // Sheet is authoritative. Bank reconciliation happens through a security-definer RPC before
+  // claim/check/apply. Full snapshots refresh the whole cache; absent snapshots self-heal the
+  // selected rows, so a new CBxxxx cannot fail merely because the backend cache is stale.
   const bankSync=await syncMasterBank(db,masterBank,submitted);
 
   const{data:claim,error:claimError}=await db.rpc("english_hindu_task_claim");
